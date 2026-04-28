@@ -1,0 +1,106 @@
+version: "0.1.0"
+ocr:
+  default_profile: accurate
+  profiles:
+    fast:
+      label: 快速本地 OCR
+      engine_priority: [rapidocr, paddleocr]
+      pdf_dpi: 200
+      preprocess:
+        enabled: true
+        grayscale: true
+        autocontrast: true
+        denoise: false
+        threshold: false
+      max_parallel_pages: 2
+      low_confidence_threshold: 0.72
+    accurate:
+      label: 准确率优先 OCR
+      engine_priority: [paddleocr, rapidocr]
+      pdf_dpi: 300
+      preprocess:
+        enabled: true
+        grayscale: true
+        autocontrast: true
+        denoise: true
+        threshold: false
+      max_parallel_pages: 1
+      low_confidence_threshold: 0.80
+    fallback:
+      label: 人工批准视觉兜底
+      engine_priority: [openai_vision]
+      pdf_dpi: 300
+      preprocess:
+        enabled: true
+        grayscale: false
+        autocontrast: true
+        denoise: false
+        threshold: false
+      max_parallel_pages: 1
+      low_confidence_threshold: 0.85
+layout:
+  default_profile: chinese_inpatient_v1
+  profiles:
+    chinese_inpatient_v1:
+      provider_priority: [pp_structure_v3, heuristic_sections]
+      section_aliases:
+        基本信息: [基本信息, 病案首页, 入院记录]
+        主诉: [主诉]
+        现病史: [现病史]
+        既往史: [既往史, 既往病史]
+        个人史: [个人史, 生活史]
+        婚育史: [婚育史, 月经史, 婚姻史]
+        家族史: [家族史]
+        体格检查: [体格检查, 查体, 专科检查]
+        辅助检查: [辅助检查, 实验室检查, 影像学检查]
+        入院诊断: [入院诊断, 初步诊断]
+        出院诊断: [出院诊断]
+        手术记录: [手术记录, 手术经过, 手术方式]
+        出院情况: [出院情况]
+    clinical_sections:
+      provider_priority: [pp_structure_v3, heuristic_sections]
+      section_aliases:
+        基本信息: [基本信息, 病案首页, 入院记录]
+        主诉: [主诉]
+        现病史: [现病史]
+        既往史: [既往史, 既往病史]
+        个人史: [个人史, 生活史]
+        入院诊断: [入院诊断, 初步诊断]
+        出院诊断: [出院诊断]
+        手术记录: [手术记录, 手术经过, 手术方式]
+        出院情况: [出院情况]
+llm:
+  default_profile: standard
+  profiles:
+    standard:
+      model_env: EYES_OPENAI_STANDARD_MODEL
+      reasoning_effort: low
+      prompt_cache_key: eyes-clinical-extraction-v1
+      max_fields_per_call: 12
+    thorough:
+      model_env: EYES_OPENAI_THOROUGH_MODEL
+      reasoning_effort: medium
+      prompt_cache_key: eyes-clinical-extraction-v1
+      max_fields_per_call: 8
+  vision_fallback:
+    enabled: true
+    requires_manual_approval: true
+    allowed_asset_kinds: [page_image, crop]
+medical_dictionaries:
+  history_fields:
+    hypertension_history: [高血压, 高血压病, 血压升高, 降压药]
+    diabetes_history: [糖尿病, 2型糖尿病, 1型糖尿病, 血糖升高, 降糖药, 胰岛素]
+    hyperlipidemia_history: [高脂血症, 高血脂, 血脂异常, 胆固醇升高, 甘油三酯升高]
+    heart_disease_history: [冠心病, 心肌梗死, 房颤, 房扑, 心力衰竭, 心功能不全, 心脏病]
+    stroke_history: [脑卒中, 卒中, 脑梗死, 脑出血, 短暂性脑缺血发作, TIA]
+    tumor_history: [肿瘤, 癌, 癌症, 恶性肿瘤, 良性肿瘤]
+    smoking_history: [吸烟, 烟龄, 戒烟, 不吸烟]
+    drinking_history: [饮酒, 酒精, 戒酒, 不饮酒]
+  negation_terms: [否认, 无, 未见, 未诉, 不吸烟, 不饮酒, 无特殊, 无明显]
+  unknown_terms: [不详, 未知, 记不清, 未提供, 无法确定]
+evaluation:
+  gold_sample_target_min: 50
+  gold_sample_target_max: 100
+  auto_accept_precision_target: 0.95
+  reviewed_export_accuracy_target: 0.99
+  ocr_cer_relative_improvement_target: 0.20

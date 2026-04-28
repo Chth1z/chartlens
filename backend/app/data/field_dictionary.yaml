@@ -1,0 +1,486 @@
+version: "0.2.0"
+fields:
+  - key: gender
+    label: 性别
+    export_header: 性别(男1，女2)
+    type: enum
+    allowed_codes: ["1", "2", unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页]
+    synonyms: [性别, 男, 女]
+    evidence_priority: [基本信息, 入院记录, 病案首页]
+    rule_strategy:
+      kind: regex
+      pattern: "(?:性别\\s*[:：]?\\s*)?(男|女)"
+      value_map: {男: "1", 女: "2"}
+    review_policy: required_if_missing
+    max_evidence_items: 4
+    evidence_window_chars: 220
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 300
+      prompt_profile: demographics
+
+  - key: age
+    label: 年龄
+    export_header: 年龄
+    type: number
+    allowed_codes: [integer, unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页]
+    synonyms: [年龄, 岁]
+    evidence_priority: [基本信息, 入院记录, 病案首页]
+    rule_strategy:
+      kind: regex
+      pattern: "(\\d{1,3})\\s*岁"
+      numeric_min: 0
+      numeric_max: 120
+    review_policy: required_if_missing
+    max_evidence_items: 4
+    evidence_window_chars: 220
+    llm:
+      enabled: true
+      trigger_statuses: [missing, low_confidence]
+      evidence_budget: 450
+      prompt_profile: demographics
+
+  - key: hospital
+    label: 医院
+    export_header: 医院
+    type: string
+    allowed_codes: [text, unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页]
+    synonyms: [医院, 医学院, 附属医院]
+    evidence_priority: [病案首页, 入院记录]
+    rule_strategy:
+      kind: regex
+      pattern: "([\\u4e00-\\u9fffA-Za-z0-9（）()·\\-]{2,40}医院)"
+    review_policy: required_if_missing
+    max_evidence_items: 5
+    evidence_window_chars: 260
+    llm:
+      enabled: true
+      trigger_statuses: [missing, low_confidence]
+      evidence_budget: 550
+      allow_image_crop: true
+      prompt_profile: hospital_lookup
+
+  - key: urban_status
+    label: 是否城市
+    export_header: 是否城市（1非城市2城市）
+    type: enum
+    allowed_codes: ["1", "2", unknown]
+    extract_mode: manual
+    synonyms: [城市, 农村, 城镇, 住址]
+    evidence_priority: [病案首页, 基本信息]
+    rule_strategy:
+      kind: mapping
+      mapping:
+        "2": [市区, 城市, 太原市, 北京市, 上海市, 广州市, 深圳市, 天津市, 重庆市]
+        "1": [农村, 村, 乡, 镇, 县]
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 300
+    phase: 2
+
+  - key: hypertension_history
+    label: 高血压病史
+    export_header: 高血病史（有1，无0，不详）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    synonyms: [高血压, 高血压病, 血压升高]
+    negation_terms: [否认, 无, 未见, 不详]
+    evidence_priority: [既往史, 病史, 入院记录]
+    rule_strategy:
+      kind: history
+      positive_patterns: [高血压, 高血压病, 血压升高]
+      negative_patterns: [否认高血压, 无高血压, 未见高血压]
+      unknown_patterns: [高血压病史不详, 高血压不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 5
+    evidence_window_chars: 300
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 650
+      prompt_profile: history
+
+  - key: diabetes_history
+    label: 糖尿病史
+    export_header: 糖尿病史（有1，无0，不详）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    synonyms: [糖尿病, 2型糖尿病, 血糖升高]
+    negation_terms: [否认, 无, 未见, 不详]
+    evidence_priority: [既往史, 病史, 入院记录]
+    rule_strategy:
+      kind: history
+      positive_patterns: [糖尿病, 2型糖尿病, 血糖升高]
+      negative_patterns: [否认糖尿病, 无糖尿病, 未见糖尿病]
+      unknown_patterns: [糖尿病史不详, 糖尿病不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 5
+    evidence_window_chars: 300
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 650
+      prompt_profile: history
+
+  - key: hyperlipidemia_history
+    label: 高血脂病史
+    export_header: 高血脂病史（有1，无0，不详）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    synonyms: [高脂血症, 高血脂, 血脂异常]
+    negation_terms: [否认, 无, 未见, 不详]
+    evidence_priority: [既往史, 病史, 入院记录]
+    rule_strategy:
+      kind: history
+      positive_patterns: [高脂血症, 高血脂, 血脂异常]
+      negative_patterns: [否认高脂血症, 否认高血脂, 无高脂血症, 无高血脂]
+      unknown_patterns: [高脂血症病史不详, 高血脂病史不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 5
+    evidence_window_chars: 300
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 650
+      prompt_profile: history
+
+  - key: heart_disease_history
+    label: 既往心脏疾病分组
+    export_header: 既往心脏疾病分组
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    synonyms: [冠心病, 心肌梗死, 房颤, 心脏病, 心功能]
+    negation_terms: [否认, 无, 未见, 不详]
+    evidence_priority: [既往史, 病史, 心内科]
+    rule_strategy:
+      kind: history
+      positive_patterns: [冠心病, 心肌梗死, 房颤, 房扑, 心脏病, 心力衰竭, 心功能不全]
+      negative_patterns: [否认心脏病, 无心脏病, 否认冠心病]
+      unknown_patterns: [心脏病史不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 5
+    evidence_window_chars: 320
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 700
+      prompt_profile: history
+
+  - key: stroke_history
+    label: 卒中分组
+    export_header: 卒中分组（有：1；无：0）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    synonyms: [脑卒中, 卒中, 脑梗死, 脑出血]
+    negation_terms: [否认, 无, 未见, 不详]
+    evidence_priority: [既往史, 病史, 入院记录]
+    rule_strategy:
+      kind: history
+      positive_patterns: [脑卒中, 卒中, 脑梗死, 脑出血]
+      negative_patterns: [否认卒中, 否认脑卒中, 无卒中, 无脑卒中, 无脑梗死]
+      unknown_patterns: [卒中史不详, 脑卒中史不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 5
+    evidence_window_chars: 320
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 700
+      prompt_profile: history
+
+  - key: tumor_history
+    label: 既往肿瘤
+    export_header: 既往肿瘤
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    synonyms: [肿瘤, 癌, 癌症, 恶性肿瘤]
+    negation_terms: [否认, 无, 未见, 不详]
+    evidence_priority: [既往史, 病史]
+    rule_strategy:
+      kind: history
+      positive_patterns: [肿瘤, 癌, 癌症, 恶性肿瘤]
+      negative_patterns: [否认肿瘤, 无肿瘤, 否认癌症]
+      unknown_patterns: [肿瘤史不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 4
+    evidence_window_chars: 300
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 600
+      prompt_profile: history
+
+  - key: smoking_history
+    label: 是否吸烟
+    export_header: 是否吸烟
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [个人史, 生活史, 入院记录]
+    synonyms: [吸烟, 烟龄, 戒烟]
+    negation_terms: [否认, 无, 不吸烟, 未吸烟]
+    evidence_priority: [个人史, 生活史, 入院记录]
+    rule_strategy:
+      kind: history
+      positive_patterns: [吸烟, 烟龄]
+      negative_patterns: [否认吸烟, 无吸烟史, 不吸烟, 未吸烟]
+      unknown_patterns: [吸烟史不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 4
+    evidence_window_chars: 280
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 550
+      prompt_profile: history
+
+  - key: drinking_history
+    label: 是否饮酒
+    export_header: 是否饮酒
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [个人史, 生活史, 入院记录]
+    synonyms: [饮酒, 酒精, 饮酒史]
+    negation_terms: [否认, 无, 不饮酒, 未饮酒]
+    evidence_priority: [个人史, 生活史, 入院记录]
+    rule_strategy:
+      kind: history
+      positive_patterns: [饮酒, 饮酒史, 酒精]
+      negative_patterns: [否认饮酒, 无饮酒史, 不饮酒, 未饮酒]
+      unknown_patterns: [饮酒史不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 4
+    evidence_window_chars: 280
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 550
+      prompt_profile: history
+
+  - key: single_multiple
+    label: 单发多发
+    export_header: 单发多发
+    type: enum
+    allowed_codes: [single, multiple, unknown]
+    extract_mode: manual
+    synonyms: [单发, 多发, 多个动脉瘤]
+    evidence_priority: [CTA, DSA, 手术记录]
+    rule_strategy:
+      kind: mapping
+      mapping:
+        single: [单发动脉瘤, 单发]
+        multiple: [多发动脉瘤, 多发, 多个动脉瘤]
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 500
+    phase: 2
+
+  - key: aneurysm_location
+    label: 动脉瘤位置
+    export_header: 动脉瘤位置（1.颈内，2.中，3.前，4后循环）
+    type: enum
+    allowed_codes: ["1", "2", "3", "4", unknown]
+    extract_mode: manual
+    synonyms: [颈内动脉, 大脑中动脉, 前交通, 后交通, 椎动脉, 基底动脉]
+    evidence_priority: [CTA, DSA, 手术记录]
+    rule_strategy:
+      kind: mapping
+      mapping:
+        "1": [颈内动脉, 后交通, 海绵窦段]
+        "2": [大脑中动脉, 中动脉]
+        "3": [前交通, 大脑前动脉]
+        "4": [基底动脉, 椎动脉, 小脑后下动脉, 后循环]
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 700
+    phase: 2
+
+  - key: hh_grade
+    label: HH分组
+    export_header: HH分组
+    type: string
+    allowed_codes: ["1", "2", "3", "4", "5", unknown]
+    extract_mode: manual
+    synonyms: [Hunt-Hess, HH, Hunt Hess]
+    evidence_priority: [入院记录, 评分]
+    rule_strategy:
+      kind: regex
+      pattern: "(?:HH|Hunt[-\\s]?Hess)\\s*[分级评分]*\\s*[:：]?\\s*([0-5ⅠⅡⅢⅣⅤ]+)"
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 600
+    phase: 2
+
+  - key: wfns_grade
+    label: WFNS分组
+    export_header: WFNS分组
+    type: string
+    allowed_codes: ["1", "2", "3", "4", "5", unknown]
+    extract_mode: manual
+    synonyms: [WFNS, GCS]
+    evidence_priority: [入院记录, 评分]
+    rule_strategy:
+      kind: regex
+      pattern: "(?:WFNS)\\s*[分级评分]*\\s*[:：]?\\s*([0-5ⅠⅡⅢⅣⅤ]+)"
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 600
+    phase: 2
+
+  - key: fisher_grade
+    label: Fisher分级
+    export_header: Fisher分级
+    type: string
+    allowed_codes: ["1", "2", "3", "4", unknown]
+    extract_mode: manual
+    synonyms: [Fisher, CT, 蛛网膜下腔出血]
+    evidence_priority: [影像报告, CT]
+    rule_strategy:
+      kind: regex
+      pattern: "(?:Fisher)\\s*[分级评分]*\\s*[:：]?\\s*([0-4ⅠⅡⅢⅣ]+)"
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 600
+    phase: 2
+
+  - key: surgery_method
+    label: 最终手术方式
+    export_header: 最终手术方式
+    type: enum
+    allowed_codes: [介入栓塞术, 开颅夹闭术, 支架辅助栓塞术, 保守治疗, unknown]
+    extract_mode: rule_first
+    source_sections: [手术记录, 手术经过, 出院记录, 出院诊断]
+    synonyms: [夹闭, 栓塞, 介入, 开颅, 手术方式, 动脉瘤夹闭术]
+    evidence_priority: [手术记录, 出院记录, 医嘱]
+    rule_strategy:
+      kind: mapping
+      mapping:
+        介入栓塞术: [栓塞术, 介入栓塞, 弹簧圈栓塞]
+        开颅夹闭术: [夹闭术, 开颅夹闭, 动脉瘤夹闭术]
+        支架辅助栓塞术: [支架辅助栓塞]
+        保守治疗: [保守治疗, 未行手术]
+    review_policy: required_if_missing
+    max_evidence_items: 5
+    evidence_window_chars: 360
+    llm:
+      enabled: true
+      trigger_statuses: [missing, low_confidence]
+      evidence_budget: 700
+      allow_image_crop: true
+      prompt_profile: surgery
+
+  - key: symptom_to_admission_time
+    label: 出现症状到入院前时间
+    export_header: 出现症状到入院前时间
+    type: number
+    allowed_codes: [duration, unknown]
+    extract_mode: manual
+    synonyms: [发病, 入院, 小时, 天]
+    evidence_priority: [现病史, 入院记录]
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 700
+    phase: 2
+
+  - key: surgery_after_admission_time
+    label: 手术距离入院时间
+    export_header: 手术距离入院时间
+    type: number
+    allowed_codes: [duration, unknown]
+    extract_mode: manual
+    synonyms: [入院, 手术, 术前]
+    evidence_priority: [手术记录, 入院记录]
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 700
+    phase: 2
+
+  - key: mrs_score
+    label: MRS评分
+    export_header: MRS评分
+    type: string
+    allowed_codes: ["0", "1", "2", "3", "4", "5", "6", unknown]
+    extract_mode: manual
+    synonyms: [mRS, MRS, 改良Rankin]
+    evidence_priority: [随访, 出院记录]
+    llm:
+      enabled: false
+      trigger_statuses: [missing]
+      evidence_budget: 500
+    phase: 2
+
+  - key: in_hospital_death
+    label: 在院死亡
+    export_header: 在院死亡
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [出院记录, 病案首页, 出院诊断]
+    synonyms: [死亡, 自动出院, 抢救无效, 出院情况]
+    negation_terms: [好转, 治愈, 未死亡, 存活]
+    evidence_priority: [出院记录, 病案首页]
+    rule_strategy:
+      kind: history
+      positive_patterns: [死亡, 抢救无效死亡]
+      negative_patterns: [好转出院, 治愈出院, 病情稳定, 存活]
+      unknown_patterns: [在院死亡不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 5
+    evidence_window_chars: 320
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 650
+      prompt_profile: discharge
+
+  - key: transfer
+    label: 是否转诊
+    export_header: 是否转诊
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: rule_first
+    source_sections: [出院记录, 病案首页]
+    synonyms: [转诊, 转院, 上级医院, 下级医院]
+    negation_terms: [否认, 无, 未转诊]
+    evidence_priority: [出院记录, 病案首页]
+    rule_strategy:
+      kind: history
+      positive_patterns: [转诊, 转院, 转入, 转出, 上级医院, 下级医院]
+      negative_patterns: [未转诊, 未转院, 无转诊, 否认转诊]
+      unknown_patterns: [转诊不详]
+    review_policy: always_if_conflict
+    max_evidence_items: 4
+    evidence_window_chars: 280
+    llm:
+      enabled: true
+      trigger_statuses: [missing, conflict, needs_review]
+      evidence_budget: 550
+      prompt_profile: discharge
