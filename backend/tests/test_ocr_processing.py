@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from app.schemas.pipeline import OcrBlock
-from app.services.ocr import ocr_file
+from app.domain.clinical import OcrBlock
+from app.infrastructure.ocr.engine import ocr_file
 
 
 class FakeOcrEngine:
@@ -52,3 +52,34 @@ def test_scanned_pdf_renders_pages_before_ocr(tmp_path):
     assert engine.calls == [(page_1, 1), (page_2, 2)]
     assert [block.page for block in blocks] == [1, 2]
     assert [block.text for block in blocks] == ["性别：女 第1页", "性别：女 第2页"]
+
+
+def test_image_ocr_reuses_page_cache_for_same_profile_and_namespace(tmp_path, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "storage_dir", tmp_path / "storage")
+    image_path = tmp_path / "scan.png"
+    image_path.write_bytes(b"not-a-real-image-for-cache-test")
+    engine = FakeOcrEngine()
+    first_stats: dict[str, int] = {}
+    second_stats: dict[str, int] = {}
+
+    first = ocr_file(
+        image_path,
+        image_path.read_bytes(),
+        engine=engine,
+        cache_namespace="same-file",
+        cache_stats=first_stats,
+    )
+    second = ocr_file(
+        image_path,
+        image_path.read_bytes(),
+        engine=engine,
+        cache_namespace="same-file",
+        cache_stats=second_stats,
+    )
+
+    assert [block.model_dump() for block in second] == [block.model_dump() for block in first]
+    assert len(engine.calls) == 1
+    assert first_stats["page_cache_hit_count"] == 0
+    assert second_stats["page_cache_hit_count"] == 1

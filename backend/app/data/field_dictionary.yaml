@@ -93,6 +93,7 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
     synonyms: [高血压, 高血压病, 血压升高]
     negation_terms: [否认, 无, 未见, 不详]
     evidence_priority: [既往史, 病史, 入院记录]
@@ -117,6 +118,7 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
     synonyms: [糖尿病, 2型糖尿病, 血糖升高]
     negation_terms: [否认, 无, 未见, 不详]
     evidence_priority: [既往史, 病史, 入院记录]
@@ -141,6 +143,7 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
     synonyms: [高脂血症, 高血脂, 血脂异常]
     negation_terms: [否认, 无, 未见, 不详]
     evidence_priority: [既往史, 病史, 入院记录]
@@ -165,6 +168,7 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
     synonyms: [冠心病, 心肌梗死, 房颤, 心脏病, 心功能]
     negation_terms: [否认, 无, 未见, 不详]
     evidence_priority: [既往史, 病史, 心内科]
@@ -189,6 +193,7 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
     synonyms: [脑卒中, 卒中, 脑梗死, 脑出血]
     negation_terms: [否认, 无, 未见, 不详]
     evidence_priority: [既往史, 病史, 入院记录]
@@ -213,6 +218,7 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
     synonyms: [肿瘤, 癌, 癌症, 恶性肿瘤]
     negation_terms: [否认, 无, 未见, 不详]
     evidence_priority: [既往史, 病史]
@@ -237,13 +243,14 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [个人史, 生活史, 入院记录]
-    synonyms: [吸烟, 烟龄, 戒烟]
+    excluded_sections: [家族史]
+    synonyms: [吸烟, 烟龄, 戒烟, 烟酒, 不良嗜好]
     negation_terms: [否认, 无, 不吸烟, 未吸烟]
     evidence_priority: [个人史, 生活史, 入院记录]
     rule_strategy:
       kind: history
       positive_patterns: [吸烟, 烟龄]
-      negative_patterns: [否认吸烟, 无吸烟史, 不吸烟, 未吸烟]
+      negative_patterns: ["否认吸烟", "无吸烟史", "不吸烟", "未吸烟", "无烟酒(?:不良)?嗜好", "无烟酒史", "烟酒不沾", "无不良嗜好"]
       unknown_patterns: [吸烟史不详]
     review_policy: always_if_conflict
     max_evidence_items: 4
@@ -261,13 +268,14 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: rule_first
     source_sections: [个人史, 生活史, 入院记录]
-    synonyms: [饮酒, 酒精, 饮酒史]
+    excluded_sections: [家族史]
+    synonyms: [饮酒, 酒精, 饮酒史, 烟酒, 不良嗜好]
     negation_terms: [否认, 无, 不饮酒, 未饮酒]
     evidence_priority: [个人史, 生活史, 入院记录]
     rule_strategy:
       kind: history
       positive_patterns: [饮酒, 饮酒史, 酒精]
-      negative_patterns: [否认饮酒, 无饮酒史, 不饮酒, 未饮酒]
+      negative_patterns: ["否认饮酒", "无饮酒史", "不饮酒", "未饮酒", "无烟酒(?:不良)?嗜好", "无烟酒史", "烟酒不沾", "无不良嗜好"]
       unknown_patterns: [饮酒史不详]
     review_policy: always_if_conflict
     max_evidence_items: 4

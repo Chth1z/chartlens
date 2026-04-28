@@ -1,4 +1,4 @@
-from app.services.field_dictionary import load_field_dictionary
+from app.infrastructure.config.field_dictionary import load_field_dictionary
 
 
 def test_field_dictionary_contains_mvp_core_fields():
@@ -42,3 +42,5 @@ def test_field_dictionary_drives_rules_and_llm_policy_from_yaml():
     assert age.llm.enabled is True
     assert "missing" in age.llm.trigger_statuses
     assert age.llm.evidence_budget > 0
+    assert age.llm.skip_when_no_evidence is True
+    assert age.llm.max_evidence_items_for_llm == 2

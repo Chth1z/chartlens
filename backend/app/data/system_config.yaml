@@ -43,44 +43,56 @@ layout:
   profiles:
     chinese_inpatient_v1:
       provider_priority: [pp_structure_v3, heuristic_sections]
+      layout_models:
+        fast: PP-DocLayout-S
+        accurate: PP-DocLayout-M
+        thorough: PP-DocLayout-L
+      min_region_score: 0.35
+      section_confidence_threshold: 0.50
       section_aliases:
-        基本信息: [基本信息, 病案首页, 入院记录]
+        基本信息: [基本信息, 病案首页, 住院病案首页, 首页, 入院记录, 入院信息]
         主诉: [主诉]
-        现病史: [现病史]
+        现病史: [现病史, 入院情况, 入院经过, 病例摘要]
         既往史: [既往史, 既往病史]
         个人史: [个人史, 生活史]
         婚育史: [婚育史, 月经史, 婚姻史]
         家族史: [家族史]
         体格检查: [体格检查, 查体, 专科检查]
-        辅助检查: [辅助检查, 实验室检查, 影像学检查]
+        辅助检查: [辅助检查, 实验室检查, 影像学检查, 检验检查, 影像报告]
         入院诊断: [入院诊断, 初步诊断]
-        出院诊断: [出院诊断]
-        手术记录: [手术记录, 手术经过, 手术方式]
-        出院情况: [出院情况]
+        出院诊断: [出院诊断, 主要诊断, 其他诊断]
+        手术记录: [手术记录, 手术经过, 手术方式, 手术名称, 操作记录]
+        出院情况: [出院情况, 出院记录, 诊疗经过, 出院小结, 出院转归, 出院医嘱]
     clinical_sections:
       provider_priority: [pp_structure_v3, heuristic_sections]
+      layout_models:
+        fast: PP-DocLayout-S
+        accurate: PP-DocLayout-M
+        thorough: PP-DocLayout-L
+      min_region_score: 0.35
+      section_confidence_threshold: 0.50
       section_aliases:
-        基本信息: [基本信息, 病案首页, 入院记录]
+        基本信息: [基本信息, 病案首页, 住院病案首页, 首页, 入院记录, 入院信息]
         主诉: [主诉]
-        现病史: [现病史]
+        现病史: [现病史, 入院情况, 入院经过, 病例摘要]
         既往史: [既往史, 既往病史]
         个人史: [个人史, 生活史]
         入院诊断: [入院诊断, 初步诊断]
-        出院诊断: [出院诊断]
-        手术记录: [手术记录, 手术经过, 手术方式]
-        出院情况: [出院情况]
+        出院诊断: [出院诊断, 主要诊断, 其他诊断]
+        手术记录: [手术记录, 手术经过, 手术方式, 手术名称, 操作记录]
+        出院情况: [出院情况, 出院记录, 诊疗经过, 出院小结, 出院转归, 出院医嘱]
 llm:
   default_profile: standard
   profiles:
     standard:
-      model_env: EYES_OPENAI_STANDARD_MODEL
+      model_env: CHARTLENS_OPENAI_STANDARD_MODEL
       reasoning_effort: low
-      prompt_cache_key: eyes-clinical-extraction-v1
+      prompt_cache_key: chartlens-clinical-extraction-v1
       max_fields_per_call: 12
     thorough:
-      model_env: EYES_OPENAI_THOROUGH_MODEL
+      model_env: CHARTLENS_OPENAI_THOROUGH_MODEL
       reasoning_effort: medium
-      prompt_cache_key: eyes-clinical-extraction-v1
+      prompt_cache_key: chartlens-clinical-extraction-v1
       max_fields_per_call: 8
   vision_fallback:
     enabled: true

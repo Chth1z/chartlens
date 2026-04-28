@@ -7,9 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "EYES Clinical Extraction"
-    database_url: str = "sqlite:///./storage/eyes.sqlite3"
-    redis_url: str = "redis://localhost:6379/0"
+    app_name: str = "ChartLens Clinical Extraction"
+    database_url: str = "sqlite:///./storage/chartlens.sqlite3"
     storage_dir: Path = Path("./storage")
     sync_pipeline: bool = False
     case_workers: int = Field(default=1, ge=1, le=4)
@@ -36,7 +35,7 @@ class Settings(BaseSettings):
     oauth_scopes: str = "openid email profile"
     oauth_allowed_email_domains: str = ""
     oauth_session_secret: str = "change-me-for-production"
-    oauth_session_cookie: str = "eyes_session"
+    oauth_session_cookie: str = "chartlens_session"
     oauth_state_cookie: str = "oauth_state"
     oauth_session_ttl_seconds: int = 60 * 60 * 12
     frontend_url: str = "http://127.0.0.1:5173"
@@ -49,7 +48,7 @@ class Settings(BaseSettings):
     chatgpt_token_refresh_margin_seconds: int = 300
     chatgpt_codex_responses_url: str = "https://chatgpt.com/backend-api/codex/responses"
 
-    model_config = SettingsConfigDict(env_prefix="EYES_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="CHARTLENS_", env_file=".env", extra="ignore")
 
 
 settings = Settings()

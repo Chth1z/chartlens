@@ -1,8 +1,10 @@
-# EYES Clinical Extractor
+# ChartLens
 
 病例 OCR 结构化抽取系统
 
-EYES 是一个面向临床科研数据录入的 MVP：上传病例 PDF/图片/文本，本地 OCR 和脱敏后抽取结构化字段，按置信度自动填入或进入人工复核，并导出带证据审计表的 Excel。
+ChartLens 是一个面向临床科研数据录入的 MVP：上传病例 PDF/图片/文本，本地 OCR 和脱敏后抽取结构化字段，按置信度自动填入或进入人工复核，并导出带证据审计表的 Excel。
+
+架构目标和分层边界见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。当前项目按单机 Clean/Hex 架构维护，不保留 Docker/Postgres/Redis/RQ 路线。
 
 ## 当前能力
 
@@ -50,7 +52,7 @@ Windows 一键安装：
 
 脚本窗口会保留，便于复制错误信息；也可以直接查看 `logs/backend.log` 和 `logs/frontend.log`。
 `diagnose.cmd` 也会检查 `pypdfium2` 和 `rapidocr_onnxruntime` 是否安装，这两项决定扫描 PDF/图片能否 OCR。
-`stop.cmd` 会先按 `.runtime/*.pid` 停止，再按本项目命令行和端口兜底查找后端/前端进程；因此即使看到 `no pid file`，它仍会继续查找并停止 EYES 进程。
+`stop.cmd` 会先按 `.runtime/*.pid` 停止，再按本项目命令行和端口兜底查找后端/前端进程；因此即使看到 `no pid file`，它仍会继续查找并停止 ChartLens 进程。
 
 手动启动：
 
@@ -67,35 +69,43 @@ npm install
 npm run dev
 ```
 
-访问 `http://localhost:5173`。后端默认使用 `storage/eyes.sqlite3`，适合单机试用。
+访问 `http://localhost:5173`。后端默认使用 `storage/chartlens.sqlite3`，适合单机试用。
 
 可通过 `.env` 切换 OCR/版面 profile：
 
 ```env
-EYES_OCR_PROFILE=accurate
-EYES_LAYOUT_PROFILE=chinese_inpatient_v1
-EYES_SYNC_PIPELINE=false
-EYES_CASE_WORKERS=1
-EYES_OCR_PAGE_WORKERS=2
-EYES_LLM_WORKERS=1
-EYES_LLM_CASE_CONTEXT_BUDGET=3200
+CHARTLENS_OCR_PROFILE=accurate
+CHARTLENS_LAYOUT_PROFILE=chinese_inpatient_v1
+CHARTLENS_SYNC_PIPELINE=false
+CHARTLENS_CASE_WORKERS=1
+CHARTLENS_OCR_PAGE_WORKERS=2
+CHARTLENS_LLM_WORKERS=1
+CHARTLENS_LLM_CASE_CONTEXT_BUDGET=3200
 ```
 
-`EYES_SYNC_PIPELINE=false` 是 Windows 单机推荐默认值：上传接口只入队，后台处理，前端自动刷新。调试单元测试或需要同步返回完整结果时，可临时设为 `true`。
+`CHARTLENS_SYNC_PIPELINE=false` 是 Windows 单机推荐默认值：上传接口只入队，后台处理，前端自动刷新。调试单元测试或需要同步返回完整结果时，可临时设为 `true`。
 
-## Docker Compose
+## 单机架构边界
 
-```powershell
-Copy-Item .env.example .env
-# 在 .env 中填写 EYES_OPENAI_API_KEY
-docker compose up --build
-```
+ChartLens 当前只维护单机运行路径：FastAPI + SQLite + 本机文件存储 + 本机线程队列。项目不再维护 Docker Compose、Postgres、Redis 或 RQ worker 配置；如需从头安装，请使用 `install.cmd`，如需启动/停止服务，请使用 `start.cmd` 和 `stop.cmd`。
 
 服务端口：
 
 - 前端：`http://localhost:5173`
 - 后端：`http://localhost:8000`
 - OpenAPI：`http://localhost:8000/docs`
+
+主要后端目录：
+
+- `backend/app/domain`: 临床抽取业务类型与字段定义。
+- `backend/app/application`: 用例边界，例如病例处理编排入口。
+- `backend/app/infrastructure`: SQLite ORM、配置加载、本地存储、OCR、缓存、模型通道、Excel 导出和本机线程队列。
+- `backend/app/interfaces/http`: FastAPI 路由、HTTP payload 组装和兼容响应。
+
+主要前端目录：
+
+- `frontend/src/features`: 病例队列、诊断条、证据视图、复核面板和登录视图。
+- `frontend/src/shared`: API client 和共享接口类型。
 
 ## 数据边界
 
@@ -105,26 +115,26 @@ docker compose up --build
 
 ## OAuth 验证与模型登录
 
-默认 `EYES_OAUTH_ENABLED=false`，适合单机本地试用。需要登录保护且不想手动申请 OAuth 应用时，可以启用内置 ChatGPT/Codex 登录：
+默认 `CHARTLENS_OAUTH_ENABLED=false`，适合单机本地试用。需要登录保护且不想手动申请 OAuth 应用时，可以启用内置 ChatGPT/Codex 登录：
 
 ```env
-EYES_OAUTH_ENABLED=true
-EYES_OAUTH_PROVIDER=chatgpt
-EYES_OAUTH_SESSION_SECRET=replace-with-a-long-random-secret
+CHARTLENS_OAUTH_ENABLED=true
+CHARTLENS_OAUTH_PROVIDER=chatgpt
+CHARTLENS_OAUTH_SESSION_SECRET=replace-with-a-long-random-secret
 ```
 
-该模式参考 OpenAI Codex CLI 的本地 PKCE 登录流程，会打开 ChatGPT/OpenAI 登录页，并通过 `http://localhost:1455/auth/callback` 完成本机回调。登录成功后既用于 EYES 本地会话，也可在 `EYES_OPENAI_AUTH_MODE=auto` 或 `chatgpt` 时作为在线模型通道。
+该模式参考 OpenAI Codex CLI 的本地 PKCE 登录流程，会打开 ChatGPT/OpenAI 登录页，并通过 `http://localhost:1455/auth/callback` 完成本机回调。登录成功后既用于 ChartLens 本地会话，也可在 `CHARTLENS_OPENAI_AUTH_MODE=auto` 或 `chatgpt` 时作为在线模型通道。
 
-EYES 也可以把同一次 ChatGPT/Codex 登录作为在线模型通道。默认模型认证策略是：
+ChartLens 也可以把同一次 ChatGPT/Codex 登录作为在线模型通道。默认模型认证策略是：
 
 ```env
-EYES_OPENAI_AUTH_MODE=auto
-EYES_CHATGPT_TOKEN_CACHE_PATH=./storage/auth/chatgpt_tokens.json
+CHARTLENS_OPENAI_AUTH_MODE=auto
+CHARTLENS_CHATGPT_TOKEN_CACHE_PATH=./storage/auth/chatgpt_tokens.json
 ```
 
 `auto` 会按顺序选择：
 
-1. `EYES_OPENAI_API_KEY`：官方 API key 通道，最稳定、最容易轮换。
+1. `CHARTLENS_OPENAI_API_KEY`：官方 API key 通道，最稳定、最容易轮换。
 2. ChatGPT/Codex 登录 token：登录成功后写入 `storage/auth/chatgpt_tokens.json`，后续模型调用会自动刷新 token。
 3. 本地规则 fallback：没有在线凭据时仍可 OCR、脱敏、规则抽取和人工复核。
 
@@ -133,30 +143,30 @@ EYES_CHATGPT_TOKEN_CACHE_PATH=./storage/auth/chatgpt_tokens.json
 可手动固定模型认证模式：
 
 ```env
-EYES_OPENAI_AUTH_MODE=api_key   # 只用 EYES_OPENAI_API_KEY
-EYES_OPENAI_AUTH_MODE=chatgpt   # 只用 ChatGPT/Codex 登录 token
-EYES_OPENAI_AUTH_MODE=disabled  # 禁用在线模型，只用本地规则 fallback
+CHARTLENS_OPENAI_AUTH_MODE=api_key   # 只用 CHARTLENS_OPENAI_API_KEY
+CHARTLENS_OPENAI_AUTH_MODE=chatgpt   # 只用 ChatGPT/Codex 登录 token
+CHARTLENS_OPENAI_AUTH_MODE=disabled  # 禁用在线模型，只用本地规则 fallback
 ```
 
 如果要接入医院或机构统一身份认证，把 provider 改为 `oidc` 并配置 OAuth2/OIDC Provider：
 
 ```env
-EYES_OAUTH_ENABLED=true
-EYES_OAUTH_PROVIDER=oidc
-EYES_OAUTH_CLIENT_ID=your-client-id
-EYES_OAUTH_CLIENT_SECRET=your-client-secret
-EYES_OAUTH_AUTHORIZATION_URL=https://provider.example.com/oauth2/v2.0/authorize
-EYES_OAUTH_TOKEN_URL=https://provider.example.com/oauth2/v2.0/token
-EYES_OAUTH_USERINFO_URL=https://provider.example.com/oidc/userinfo
-EYES_OAUTH_REDIRECT_URI=http://127.0.0.1:8000/api/auth/callback
-EYES_OAUTH_SCOPES=openid email profile
-EYES_OAUTH_ALLOWED_EMAIL_DOMAINS=example.com
-EYES_OAUTH_SESSION_SECRET=replace-with-a-long-random-secret
+CHARTLENS_OAUTH_ENABLED=true
+CHARTLENS_OAUTH_PROVIDER=oidc
+CHARTLENS_OAUTH_CLIENT_ID=your-client-id
+CHARTLENS_OAUTH_CLIENT_SECRET=your-client-secret
+CHARTLENS_OAUTH_AUTHORIZATION_URL=https://provider.example.com/oauth2/v2.0/authorize
+CHARTLENS_OAUTH_TOKEN_URL=https://provider.example.com/oauth2/v2.0/token
+CHARTLENS_OAUTH_USERINFO_URL=https://provider.example.com/oidc/userinfo
+CHARTLENS_OAUTH_REDIRECT_URI=http://127.0.0.1:8000/api/auth/callback
+CHARTLENS_OAUTH_SCOPES=openid email profile
+CHARTLENS_OAUTH_ALLOWED_EMAIL_DOMAINS=example.com
+CHARTLENS_OAUTH_SESSION_SECRET=replace-with-a-long-random-secret
 ```
 
 启用后，病例列表、上传、复核和导出接口会要求登录；`/api/health` 和 `/api/auth/*` 保持公开。
 前端会在登录页、顶部栏和左侧状态区显示 OAuth 登录状态；未启用 OAuth 时显示本地模式。
-如果 `EYES_OAUTH_PROVIDER=oidc` 但缺少 `EYES_OAUTH_CLIENT_ID`、授权地址、token 地址或 userinfo 地址，登录页会显示缺失项并禁用登录按钮；`diagnose.cmd` 也会列出缺失配置。
+如果 `CHARTLENS_OAUTH_PROVIDER=oidc` 但缺少 `CHARTLENS_OAUTH_CLIENT_ID`、授权地址、token 地址或 userinfo 地址，登录页会显示缺失项并禁用登录按钮；`diagnose.cmd` 也会列出缺失配置。
 
 ## 字段与规则配置
 

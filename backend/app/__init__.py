@@ -1,1 +1,1 @@
-"""EYES backend application package."""
+"""ChartLens backend application package."""

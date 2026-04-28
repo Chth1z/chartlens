@@ -1,4 +1,4 @@
-from app.services.confidence import ReviewBand, score_field_confidence
+from app.domain.confidence import ReviewBand, score_field_confidence
 
 
 def test_score_field_confidence_auto_accepts_strong_supported_result():

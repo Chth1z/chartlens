@@ -1,4 +1,4 @@
-from app.services.deidentify import deidentify_text
+from app.domain.deidentify import deidentify_text
 
 
 def test_deidentify_text_replaces_direct_identifiers():

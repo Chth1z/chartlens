@@ -2,8 +2,8 @@ from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.main import app
-from app.services.auth import create_session_cookie
-from app.services.auth import AuthUser
+from app.interfaces.http.auth_service import create_session_cookie
+from app.domain.auth import AuthUser
 
 
 client = TestClient(app)
@@ -15,8 +15,13 @@ def test_auth_me_reports_disabled_auth_by_default():
     response = client.get("/api/auth/me")
 
     assert response.status_code == 200
-    assert response.json()["enabled"] is False
-    assert response.json()["authenticated"] is True
+    payload = response.json()
+    assert payload["enabled"] is False
+    assert payload["authenticated"] is True
+    assert payload["session_auth"]["authenticated"] is True
+    assert payload["session_auth"]["provider"] == "local"
+    assert payload["model_auth"]["token_cache_exists"] is False
+    assert payload["model_auth"]["token_cache_path"].endswith("chatgpt_tokens.json")
 
 
 def test_auth_me_reports_missing_oauth_configuration(monkeypatch):
@@ -33,8 +38,8 @@ def test_auth_me_reports_missing_oauth_configuration(monkeypatch):
     payload = response.json()
     assert payload["enabled"] is True
     assert payload["configured"] is False
-    assert "EYES_OAUTH_CLIENT_ID" in payload["missing_config"]
-    assert "EYES_OAUTH_AUTHORIZATION_URL" in payload["missing_config"]
+    assert "CHARTLENS_OAUTH_CLIENT_ID" in payload["missing_config"]
+    assert "CHARTLENS_OAUTH_AUTHORIZATION_URL" in payload["missing_config"]
 
 
 def test_oauth_login_reports_configuration_error(monkeypatch):
@@ -50,7 +55,7 @@ def test_oauth_login_reports_configuration_error(monkeypatch):
     assert response.status_code == 503
     payload = response.json()
     assert payload["detail"]["error"] == "OAuth is enabled but not fully configured"
-    assert "EYES_OAUTH_CLIENT_ID" in payload["detail"]["missing_config"]
+    assert "CHARTLENS_OAUTH_CLIENT_ID" in payload["detail"]["missing_config"]
 
 
 def test_enabled_oauth_rejects_case_access_without_session(monkeypatch):
@@ -86,7 +91,7 @@ def test_signed_session_cookie_allows_case_access_when_oauth_enabled(monkeypatch
     monkeypatch.setattr(settings, "oauth_provider", "oidc", raising=False)
     cookie = create_session_cookie({"sub": "user-1", "email": "researcher@example.com", "name": "Researcher"})
 
-    response = client.get("/api/cases", cookies={"eyes_session": cookie})
+    response = client.get("/api/cases", cookies={"chartlens_session": cookie})
 
     assert response.status_code == 200
 
@@ -124,7 +129,7 @@ def test_chatgpt_oauth_login_redirects_to_openai_authorize(monkeypatch):
 
 
 def test_chatgpt_login_ticket_is_idempotent_for_browser_retries():
-    from app.services import chatgpt_oauth
+    from app.infrastructure.auth import chatgpt_oauth
 
     ticket = "ticket-for-browser-retry"
     chatgpt_oauth._tickets[ticket] = chatgpt_oauth.ChatGptTicket(
@@ -147,8 +152,30 @@ def test_chatgpt_complete_ignores_expired_ticket_when_session_is_already_valid(m
     monkeypatch.setattr(settings, "oauth_provider", "chatgpt")
     cookie = create_session_cookie({"sub": "user-1", "email": "user@example.com"})
 
-    response = client.get("/api/auth/chatgpt/complete?ticket=expired", cookies={"eyes_session": cookie})
+    response = client.get("/api/auth/chatgpt/complete?ticket=expired", cookies={"chartlens_session": cookie})
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert response.json()["user"]["email"] == "user@example.com"
+
+
+def test_delete_model_token_keeps_browser_session(monkeypatch, tmp_path):
+    from app.infrastructure.auth.chatgpt_token_store import save_chatgpt_tokens
+
+    monkeypatch.setattr(settings, "oauth_enabled", True)
+    monkeypatch.setattr(settings, "oauth_provider", "chatgpt")
+    monkeypatch.setattr(settings, "chatgpt_token_cache_path", tmp_path / "chatgpt_tokens.json", raising=False)
+    save_chatgpt_tokens(
+        {"access_token": "access", "refresh_token": "refresh", "expires_in": 3600},
+        AuthUser(sub="user-1", email="user@example.com"),
+    )
+    cookie = create_session_cookie({"sub": "user-1", "email": "user@example.com"})
+
+    response = client.delete("/api/auth/model-token", cookies={"chartlens_session": cookie})
+    status = client.get("/api/auth/me", cookies={"chartlens_session": cookie}).json()
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert response.json()["affected_count"] == 1
+    assert status["session_auth"]["authenticated"] is True
+    assert status["model_auth"]["token_cache_exists"] is False

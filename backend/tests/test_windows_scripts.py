@@ -9,7 +9,7 @@ def test_cmd_wrappers_pause_for_double_click_users():
         content = (ROOT / name).read_text(encoding="utf-8")
 
         assert "pause" in content.lower()
-        assert "EYES_NO_PAUSE" in content
+        assert "CHARTLENS_NO_PAUSE" in content
         assert "exit /b %EXIT_CODE%" in content
 
 
@@ -49,4 +49,4 @@ def test_diagnose_script_checks_dependencies_ports_and_logs():
     assert "backend.log" in content
     assert "frontend.log" in content
     assert "OAuth config" in content
-    assert "EYES_OAUTH_CLIENT_ID" in content
+    assert "CHARTLENS_OAUTH_CLIENT_ID" in content

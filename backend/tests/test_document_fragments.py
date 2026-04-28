@@ -1,5 +1,5 @@
-from app.schemas.pipeline import OcrBlock
-from app.services.document_fragments import build_document_fragments, summarize_ocr_quality
+from app.domain.clinical import OcrBlock
+from app.application.document_fragments import build_document_fragments, summarize_ocr_quality
 
 
 def test_document_fragments_assign_sections_and_reading_order():
@@ -31,6 +31,92 @@ def test_section_detection_handles_numbered_headings_and_avoids_history_informan
     assert paragraphs[0].section_name == "基本信息"
     assert paragraphs[1].section_name == "既往史"
     assert paragraphs[2].section_name == "个人史"
+
+
+def test_section_detection_handles_common_chinese_discharge_record_titles():
+    blocks = [
+        OcrBlock(page=1, text="住院病案首页：姓名张三 性别男 年龄66岁", bbox=[0, 10, 720, 28], confidence=0.95),
+        OcrBlock(page=2, text="出院记录：患者神志清，病情好转出院。", bbox=[0, 40, 760, 58], confidence=0.93),
+        OcrBlock(page=2, text="诊疗经过：行介入栓塞术，术后恢复可。", bbox=[0, 70, 760, 88], confidence=0.92),
+    ]
+
+    paragraphs = [fragment for fragment in build_document_fragments(blocks) if fragment.block_type == "paragraph"]
+
+    assert paragraphs[0].section_name == "基本信息"
+    assert paragraphs[1].section_name == "出院情况"
+    assert paragraphs[2].section_name == "出院情况"
+
+
+def test_homepage_form_fields_are_extracted_as_high_priority_fragments():
+    blocks = [
+        OcrBlock(page=1, text="大病历书写（参考10版诊断学教材）", bbox=[0, 10, 700, 28], confidence=0.89),
+        OcrBlock(page=1, text="姓名：小红 住址：A省B市C区XXXX路1号", bbox=[0, 40, 700, 58], confidence=0.84),
+        OcrBlock(page=1, text="性别：女 联系人：小明", bbox=[0, 70, 700, 88], confidence=0.86),
+        OcrBlock(page=1, text="年龄：60岁 工作单位：无", bbox=[0, 100, 700, 118], confidence=0.87),
+        OcrBlock(page=1, text="职业：退休人员 病史陈述人：小红本人 可靠程度：可靠", bbox=[0, 130, 700, 148], confidence=0.83),
+    ]
+
+    fragments = build_document_fragments(blocks)
+    form_fields = [fragment for fragment in fragments if fragment.block_type == "form_field"]
+
+    assert [fragment.text for fragment in form_fields] == [
+        "姓名：小红",
+        "住址：A省B市C区XXXX路1号",
+        "性别：女",
+        "联系人：小明",
+        "年龄：60岁",
+        "工作单位：无",
+        "职业：退休人员",
+        "病史陈述人：小红本人",
+        "可靠程度：可靠",
+    ]
+    assert all(fragment.section_name == "基本信息" for fragment in form_fields)
+    assert min(fragment.confidence for fragment in form_fields) >= 0.90
+    by_text = {fragment.text: fragment for fragment in form_fields}
+    assert by_text["姓名：小红"].bbox[2] <= by_text["住址：A省B市C区XXXX路1号"].bbox[0]
+    assert by_text["性别：女"].bbox[2] <= by_text["联系人：小明"].bbox[0]
+    assert by_text["职业：退休人员"].bbox[2] <= by_text["病史陈述人：小红本人"].bbox[0]
+
+
+def test_homepage_form_fields_pair_adjacent_label_and_value_blocks():
+    blocks = [
+        OcrBlock(page=1, text="性别：", bbox=[120, 70, 170, 88], confidence=0.86),
+        OcrBlock(page=1, text="女", bbox=[185, 70, 205, 88], confidence=0.86),
+        OcrBlock(page=1, text="联系人：小明", bbox=[380, 70, 520, 88], confidence=0.86),
+        OcrBlock(page=1, text="年龄：", bbox=[120, 100, 170, 118], confidence=0.87),
+        OcrBlock(page=1, text="60岁", bbox=[185, 100, 230, 118], confidence=0.87),
+        OcrBlock(page=1, text="工作单位：无", bbox=[380, 100, 520, 118], confidence=0.87),
+    ]
+
+    fragments = build_document_fragments(blocks)
+    form_field_fragments = [fragment for fragment in fragments if fragment.block_type == "form_field"]
+    form_fields = [fragment.text for fragment in form_field_fragments]
+
+    assert "性别：女" in form_fields
+    assert "年龄：60岁" in form_fields
+    assert "性别：" not in form_fields
+    assert "年龄：" not in form_fields
+    by_text = {fragment.text: fragment for fragment in form_field_fragments}
+    assert by_text["性别：女"].bbox == [120, 70, 205, 88]
+    assert by_text["年龄：60岁"].bbox == [120, 100, 230, 118]
+
+
+def test_standalone_headings_do_not_get_swallowed_by_previous_short_section():
+    blocks = [
+        OcrBlock(page=6, text="辅助检查", bbox=[320, 10, 430, 30], confidence=0.73),
+        OcrBlock(page=6, text="暂缺。", bbox=[20, 45, 100, 65], confidence=0.78),
+        OcrBlock(page=6, text="病例摘要", bbox=[320, 95, 430, 115], confidence=0.89),
+        OcrBlock(page=6, text="患者：小红，老年女性患者，急性病程。", bbox=[20, 140, 760, 158], confidence=0.89),
+        OcrBlock(page=6, text="初步诊断", bbox=[320, 260, 430, 280], confidence=0.86),
+        OcrBlock(page=6, text="1.发热查因：肺炎？", bbox=[20, 305, 300, 323], confidence=0.86),
+        OcrBlock(page=6, text="医师签名：LDM", bbox=[300, 370, 470, 388], confidence=0.86),
+    ]
+
+    paragraphs = [fragment for fragment in build_document_fragments(blocks) if fragment.block_type == "paragraph"]
+    titles = [fragment for fragment in build_document_fragments(blocks) if fragment.block_type == "title"]
+
+    assert [title.text for title in titles] == ["辅助检查", "病例摘要", "初步诊断"]
+    assert [paragraph.section_name for paragraph in paragraphs] == ["辅助检查", "现病史", "入院诊断", "入院诊断"]
 
 
 def test_paragraph_fragments_merge_wrapped_lines_within_section():

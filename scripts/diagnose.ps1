@@ -52,20 +52,20 @@ Run-Check "RapidOCR" { & ".\.venv\Scripts\python.exe" -c "import rapidocr_onnxru
 
 Section "OAuth"
 Run-Check "OAuth config" {
-    if ($env:EYES_OAUTH_ENABLED -ne "true") {
+    if ($env:CHARTLENS_OAUTH_ENABLED -ne "true") {
         "OAuth disabled. Local mode is active."
         return
     }
-    if ($env:EYES_OAUTH_PROVIDER -eq "chatgpt" -or -not $env:EYES_OAUTH_PROVIDER) {
+    if ($env:CHARTLENS_OAUTH_PROVIDER -eq "chatgpt" -or -not $env:CHARTLENS_OAUTH_PROVIDER) {
         "OAuth enabled with built-in ChatGPT/Codex login. No manual client ID is required."
         "Callback URL: http://localhost:1455/auth/callback"
         return
     }
     $required = @(
-        "EYES_OAUTH_CLIENT_ID",
-        "EYES_OAUTH_AUTHORIZATION_URL",
-        "EYES_OAUTH_TOKEN_URL",
-        "EYES_OAUTH_USERINFO_URL"
+        "CHARTLENS_OAUTH_CLIENT_ID",
+        "CHARTLENS_OAUTH_AUTHORIZATION_URL",
+        "CHARTLENS_OAUTH_TOKEN_URL",
+        "CHARTLENS_OAUTH_USERINFO_URL"
     )
     $missing = @()
     foreach ($name in $required) {
@@ -77,7 +77,7 @@ Run-Check "OAuth config" {
         "OAuth enabled and required endpoints are configured."
     } else {
         "OAuth enabled but missing: $($missing -join ', ')"
-        "Set these in .env, then run stop.cmd and start.cmd. For local mode set EYES_OAUTH_ENABLED=false."
+        "Set these in .env, then run stop.cmd and start.cmd. For local mode set CHARTLENS_OAUTH_ENABLED=false."
     }
 }
 

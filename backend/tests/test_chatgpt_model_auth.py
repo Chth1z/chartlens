@@ -3,15 +3,16 @@ import json
 import time
 
 from app.core.config import settings
-from app.services.auth import AuthUser, auth_status_from_request
-from app.services.chatgpt_token_store import (
+from app.domain.auth import AuthUser
+from app.interfaces.http.auth_service import auth_status_from_request
+from app.infrastructure.auth.chatgpt_token_store import (
     get_chatgpt_access_token,
     has_chatgpt_model_auth,
     load_chatgpt_tokens,
     save_chatgpt_tokens,
 )
-from app.services.field_dictionary import FieldDefinition
-from app.services.openai_provider import (
+from app.domain.field_definitions import FieldDefinition
+from app.infrastructure.model.openai_provider import (
     ChatGptCodexResponsesProvider,
     _build_responses_payload,
     _extract_response_text,

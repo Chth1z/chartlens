@@ -28,17 +28,27 @@ def test_upload_case_creates_case_and_initial_results():
 
 def test_upload_case_can_enqueue_background_processing(monkeypatch):
     from app.core.config import settings
-    from app.api import routes
+    from app.composition.dependencies import get_task_queue
 
     submitted: list[str] = []
 
-    monkeypatch.setattr(settings, "sync_pipeline", False)
-    monkeypatch.setattr(routes, "submit_case_processing", lambda case_id: submitted.append(case_id))
+    class FakeTaskQueue:
+        def submit_case_processing(self, case_id: str) -> None:
+            submitted.append(case_id)
 
-    response = client.post(
-        "/api/cases",
-        files={"file": ("queued.txt", "性别：男\n年龄：62岁".encode("utf-8"), "text/plain")},
-    )
+        def process_case_now(self, case_id: str) -> None:
+            submitted.append(case_id)
+
+    monkeypatch.setattr(settings, "sync_pipeline", False)
+    app.dependency_overrides[get_task_queue] = lambda: FakeTaskQueue()
+
+    try:
+        response = client.post(
+            "/api/cases",
+            files={"file": ("queued.txt", "性别：男\n年龄：62岁".encode("utf-8"), "text/plain")},
+        )
+    finally:
+        app.dependency_overrides.pop(get_task_queue, None)
 
     assert response.status_code == 201
     payload = response.json()

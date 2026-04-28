@@ -2,9 +2,9 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from app.schemas.pipeline import FieldExtractionResult
-from app.services.exporter import build_excel_workbook
-from app.services.field_dictionary import load_field_dictionary
+from app.domain.clinical import FieldExtractionResult
+from app.infrastructure.export.excel import build_excel_workbook
+from app.infrastructure.config.field_dictionary import load_field_dictionary
 
 
 def test_build_excel_workbook_uses_fixed_header_order_and_audit_sheet():
