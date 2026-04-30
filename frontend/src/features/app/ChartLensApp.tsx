@@ -1,40 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Download,
   Eye,
   FileSearch,
-  LogOut,
   RefreshCw,
   Settings as SettingsIcon,
-  ShieldCheck,
   Trash2,
   Upload
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  completeChatGptLogin,
   deleteCase,
   exportUrl,
   getAuthStatus,
+  getCaseDocumentIr,
   getCaseDiagnostics,
+  getCaseResults,
   getFieldDictionary,
+  getProjectConfig,
   listCases,
-  logoutUrl,
   reprocessCase,
   requestVisionFallback,
   updateReview,
   uploadCase
 } from "../../shared/api/client";
-import type { AuthStatus, CaseDiagnostics, CaseRecord, DocumentFragment, FieldDefinition } from "../../shared/types/api";
+import type { AuthStatus, CaseDiagnostics, CaseRecord, DocumentFragment, FieldDefinition, ProjectConfig } from "../../shared/types/api";
 import { AuthLoading, LoginRequired } from "../auth/AuthGate";
 import { EvidencePanel } from "../cases/EvidencePanel";
-import { confidenceBand, isWorkingStatus, modelAuthLabel, statusIcon, statusLabel, type FilterMode } from "../cases/status";
+import { isWorkingStatus, modelAuthLabel, resultMatchesFilter, statusIcon, statusLabel, type FilterMode } from "../cases/status";
 import { useCasePolling } from "../cases/useCasePolling";
+import { DiagnosticsPage } from "../diagnostics/DiagnosticsPage";
 import { DiagnosticsStrip } from "../diagnostics/DiagnosticsStrip";
 import { FieldResultsPanel } from "../review/FieldResultsPanel";
 import { ReviewPanel } from "../review/ReviewPanel";
-import { SettingsPanel } from "../settings/SettingsPanel";
+
+const SettingsPanel = lazy(() =>
+  import("../settings/SettingsPanel").then((module) => ({ default: module.SettingsPanel }))
+);
 
 export function ChartLensApp() {
   const location = useLocation();
@@ -52,6 +55,7 @@ export function ChartLensApp() {
         : "review";
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [fields, setFields] = useState<FieldDefinition[]>([]);
+  const [projectConfig, setProjectConfig] = useState<ProjectConfig | null>(null);
   const [selectedId, setSelectedId] = useState(routeCaseId);
   const [filter, setFilter] = useState<FilterMode>("all");
   const [query, setQuery] = useState("");
@@ -84,41 +88,72 @@ export function ChartLensApp() {
     void loadDiagnostics(selectedId);
   }, [activeView, selectedId, auth?.enabled, auth?.authenticated]);
 
-  const selectedCase = cases.find((item) => item.case_id === selectedId) ?? cases[0];
+  const selectedCase = useMemo(
+    () => cases.find((item) => item.case_id === selectedId) ?? cases[0],
+    [cases, selectedId]
+  );
   const hasActiveJobs = useMemo(() => cases.some((record) => isWorkingStatus(record.status)), [cases]);
   const fieldMap = useMemo(() => new Map(fields.map((field) => [field.key, field])), [fields]);
   const authIdentity = auth?.session_auth.user?.email ?? auth?.user?.email ?? auth?.session_auth.user?.name ?? auth?.user?.name ?? "已登录用户";
+  const sessionAccessLabel = auth?.enabled ? "应用会话" : "本机访问";
+  const sessionStateLabel = auth?.enabled ? authIdentity : "无需 OAuth 登录";
+  const modelCredentialLabel = auth?.model_auth.online_model_available
+    ? `${modelAuthLabel(auth)} / API Key 已配置`
+    : `${modelAuthLabel(auth)} / 本地回退或未配置凭据`;
   const oauthConfigured = auth?.configured ?? true;
   const missingOauthConfig = auth?.missing_config ?? [];
   const oauthWarnings = auth?.config_warnings ?? [];
+  const deferredQuery = useDeferredValue(query);
+  const normalizedQuery = useMemo(() => deferredQuery.trim().toLowerCase(), [deferredQuery]);
   const filteredResults = useMemo(() => {
     if (!selectedCase) return [];
     return selectedCase.results.filter((result) => {
       const field = fieldMap.get(result.field_key);
       const text = `${field?.label ?? result.field_key} ${result.raw_value ?? ""} ${result.evidence_text ?? ""}`;
-      const matchesQuery = !query || text.toLowerCase().includes(query.toLowerCase());
-      const matchesFilter = filter === "all" || confidenceBand(result) === filter;
+      const matchesQuery = !normalizedQuery || text.toLowerCase().includes(normalizedQuery);
+      const matchesFilter = resultMatchesFilter(result, filter);
       return matchesQuery && matchesFilter;
     });
-  }, [selectedCase, fieldMap, query, filter]);
-  const activeResult = selectedCase?.results.find((item) => item.field_key === selectedField) ?? filteredResults[0];
+  }, [selectedCase, fieldMap, normalizedQuery, filter]);
+  const activeResult = useMemo(
+    () => selectedCase?.results.find((item) => item.field_key === selectedField) ?? filteredResults[0],
+    [filteredResults, selectedCase?.results, selectedField]
+  );
   const activeQuality = diagnostics?.quality ?? selectedCase?.quality;
   const activeRun = diagnostics?.latest_run ?? selectedCase?.latest_run ?? null;
   const cacheHit = Number(activeRun?.step_timings?.cache_hit ?? 0) > 0;
   const cachedInputTokens = activeRun?.cached_input_tokens ?? diagnostics?.model_calls[0]?.cached_input_tokens ?? 0;
   const latestModelProvider = diagnostics?.model_calls[0]?.provider;
   const latestModelLabel = modelAuthLabel(auth, latestModelProvider);
+  const latestModelName = diagnostics?.model_calls[0]?.model ?? activeRun?.llm_profile ?? "未记录";
+  const modelRuntimeState = auth?.model_auth.online_model_available ? "API Key 已配置" : "本地回退或未配置凭据";
+  const sidebarModelUsage = activeRun
+    ? `调用 ${diagnostics?.model_calls.length ?? 0} / tokens ${activeRun.input_tokens}:${cachedInputTokens}:${activeRun.output_tokens}`
+    : "等待处理记录";
   const currentStatusLabel = selectedCase ? statusLabel(selectedCase.status) : "未选择";
-  const rawOcrItems: DocumentFragment[] =
-    selectedCase?.ocr_blocks.map((block, index) => ({
+  const terms = projectConfig?.app_profile.terms ?? {};
+  const documentTerm = terms.document ?? "病例";
+  const documentQueueTerm = terms.document_queue ?? "病例队列";
+  const uploadTerm = terms.upload ?? "上传病例 PDF / 图片 / 文本";
+  const fieldResultsTerm = terms.field_results ?? "字段结果";
+  const rawOcrItems = useMemo<DocumentFragment[]>(
+    () => selectedCase?.ocr_blocks.map((block, index) => ({
         ...block,
-        reading_order: index + 1,
-        section_name: "OCR 原文",
-        block_type: "line" as const,
-        source_kind: "ocr" as const
-      })) ?? [];
-  const retrievalEvidenceItems = (diagnostics?.fragments ?? []).filter((fragment) => fragment.block_type !== "line");
-  const evidenceItems: DocumentFragment[] = retrievalEvidenceItems.length ? retrievalEvidenceItems : rawOcrItems;
+        reading_order: block.reading_order ?? index + 1,
+        section_name: block.section_label ?? "智能文档解析",
+        block_type: block.block_type ?? "line" as const,
+        source_kind: "intelligent_document" as const
+      })) ?? [],
+    [selectedCase?.ocr_blocks]
+  );
+  const retrievalEvidenceItems = useMemo(
+    () => (diagnostics?.fragments ?? []).filter((fragment) => fragment.block_type !== "line"),
+    [diagnostics?.fragments]
+  );
+  const evidenceItems = useMemo<DocumentFragment[]>(
+    () => retrievalEvidenceItems.length ? retrievalEvidenceItems : rawOcrItems,
+    [rawOcrItems, retrievalEvidenceItems]
+  );
 
   useEffect(() => {
     if (selectedCase?.results.some((result) => result.field_key === selectedField)) return;
@@ -143,18 +178,6 @@ export function ChartLensApp() {
   }
 
   async function bootstrap() {
-    const url = new URL(window.location.href);
-    const ticket = url.pathname === "/auth/complete" ? url.searchParams.get("ticket") : null;
-    let authCompletionError: string | null = null;
-    if (ticket) {
-      try {
-        const completed = await completeChatGptLogin(ticket);
-        window.history.replaceState({}, "", completed.next || "/");
-      } catch (err) {
-        authCompletionError = err instanceof Error ? err.message : "ChatGPT 登录完成失败";
-        window.history.replaceState({}, "", "/");
-      }
-    }
     let status: AuthStatus;
     try {
       status = await refreshAuthStatus();
@@ -163,16 +186,25 @@ export function ChartLensApp() {
       setStartupError(err instanceof Error ? err.message : "无法连接后端服务");
       return;
     }
-    if (authCompletionError && !status.authenticated) {
-      setError(authCompletionError);
-    }
     if (!status.enabled || status.authenticated) {
       void refresh(status);
-      void loadFieldDictionary();
+      void loadProjectConfig();
     }
   }
 
-  async function loadFieldDictionary() {
+  async function loadProjectConfig() {
+    try {
+      const config = await getProjectConfig();
+      setProjectConfig(config);
+      setFields(config.extraction_schema.fields);
+      setFieldDictionaryError(null);
+      setSelectedField((current) => config.extraction_schema.fields.some((field) => field.key === current) ? current : config.extraction_schema.fields[0]?.key ?? "");
+    } catch (err) {
+      await loadFieldDictionary(err instanceof Error ? err.message : "项目配置加载失败");
+    }
+  }
+
+  async function loadFieldDictionary(prefix = "项目配置加载失败，字段字典兜底也失败") {
     try {
       const dictionary = await getFieldDictionary();
       setFields(dictionary.fields);
@@ -180,14 +212,15 @@ export function ChartLensApp() {
       setSelectedField((current) => dictionary.fields.some((field) => field.key === current) ? current : dictionary.fields[0]?.key ?? "");
     } catch (err) {
       setFields([]);
-      setFieldDictionaryError(err instanceof Error ? err.message : "字段字典加载失败");
+      const detail = err instanceof Error ? err.message : "字段字典加载失败";
+      setFieldDictionaryError(`${prefix}：${detail}`);
     }
   }
 
   async function refresh(currentAuth: AuthStatus | null = auth) {
     try {
       const remoteCases = await listCases();
-      setCases(remoteCases);
+      setCases((current) => remoteCases.map((remote) => mergeCaseRecord(remote, current.find((item) => item.case_id === remote.case_id))));
       setSelectedId((current) => {
         const next = routeCaseId || current;
         return remoteCases.some((item) => item.case_id === next) ? next : remoteCases[0]?.case_id ?? "";
@@ -205,8 +238,32 @@ export function ChartLensApp() {
   async function loadDiagnostics(caseId: string, quiet = false) {
     if (!quiet) setDiagnosticsLoading(true);
     try {
-      const payload = await getCaseDiagnostics(caseId);
+      const [results, documentIr, payload] = await Promise.all([
+        getCaseResults(caseId),
+        getCaseDocumentIr(caseId),
+        getCaseDiagnostics(caseId)
+      ]);
+      const ocrBlocks = documentIr.blocks.map((block, index) => ({
+        ...block,
+        reading_order: block.reading_order ?? index + 1
+      }));
       setDiagnostics(payload);
+      setCases((current) =>
+        current.map((record) =>
+          record.case_id === caseId
+            ? {
+                ...record,
+                results,
+                ocr_blocks: ocrBlocks,
+                result_count: results.length,
+                review_required_count: results.filter((result) => result.review_required).length,
+                quality: payload.quality,
+                latest_run: payload.latest_run,
+                error_message: payload.latest_run?.error_message ?? null
+              }
+            : record
+        )
+      );
     } catch (err) {
       setDiagnostics(null);
       if (!quiet && auth?.enabled) {
@@ -240,7 +297,7 @@ export function ChartLensApp() {
     setError(null);
     try {
       const updated = await reprocessCase(selectedCase.case_id);
-      setCases((current) => current.map((record) => record.case_id === updated.case_id ? updated : record));
+      setCases((current) => current.map((record) => record.case_id === updated.case_id ? mergeCaseRecord(updated, record) : record));
       await loadDiagnostics(updated.case_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "重新处理失败");
@@ -269,16 +326,16 @@ export function ChartLensApp() {
     }
   }
 
-  async function submitReview() {
+  const submitReview = useCallback(async () => {
     if (!selectedCase || !activeResult) return;
     setLoading(true);
     setError(null);
     try {
       const updated = await updateReview(selectedCase.case_id, {
         field_key: activeResult.field_key,
-        new_raw_value: reviewCode === "1" ? "有" : reviewCode === "0" ? "无" : reviewCode,
-        new_normalized_code: reviewCode,
-        reason: reviewReason,
+        raw_value: reviewCode === "1" ? "有" : reviewCode === "0" ? "无" : reviewCode,
+        normalized_code: reviewCode,
+        comment: reviewReason,
         reviewer: "local-reviewer"
       });
       setCases((current) =>
@@ -287,7 +344,10 @@ export function ChartLensApp() {
             ? {
                 ...record,
                 audit_count: record.audit_count + 1,
-                results: record.results.map((result) => result.field_key === updated.field_key ? updated : result)
+                results: record.results.map((result) => result.field_key === updated.field_key ? updated : result),
+                review_required_count: record.results
+                  .map((result) => result.field_key === updated.field_key ? updated : result)
+                  .filter((result) => result.review_required).length
               }
             : record
         )
@@ -297,12 +357,12 @@ export function ChartLensApp() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeResult, reviewCode, reviewReason, selectedCase]);
 
   async function removeCase(caseId: string) {
     const target = cases.find((record) => record.case_id === caseId);
     if (!target) return;
-    if (!window.confirm(`删除病例 ${target.case_id}？相关抽取结果、复核记录和运行日志会一起删除。`)) return;
+    if (!window.confirm(`删除${documentTerm} ${target.case_id}？相关抽取结果、复核记录和运行日志会一起删除。`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -369,7 +429,7 @@ export function ChartLensApp() {
           : selectedCase?.case_id ?? "未选择病例";
   const pageSubtitle =
     activeView === "settings"
-      ? "系统配置、字段字典、账号凭据与本地数据清理。"
+      ? "模型供应商、当前抽取链路、字段字典与本地维护。"
       : activeView === "diagnostics"
         ? "用于排查 OCR、缓存、模型调用和视觉兜底的处理记录。"
         : activeView === "evals"
@@ -388,9 +448,9 @@ export function ChartLensApp() {
         </div>
         <label className={`upload-box ${loading ? "is-loading" : ""}`}>
           <Upload size={18} />
-          <span>{loading ? "处理中..." : "上传病例 PDF / 图片 / 文本"}</span>
+          <span>{loading ? "处理中..." : uploadTerm}</span>
           <input
-            aria-label="上传病例文件"
+            aria-label={`上传${documentTerm}文件`}
             type="file"
             accept=".pdf,.png,.jpg,.jpeg,.txt"
             disabled={loading}
@@ -409,11 +469,11 @@ export function ChartLensApp() {
           </NavLink>
         </nav>
         <div className="queue-header">
-          <span className="queue-title">病例队列</span>
+          <span className="queue-title">{documentQueueTerm}</span>
           <small>{cases.length} 个</small>
         </div>
-        <div className="case-list" aria-label="病例队列">
-          {cases.length === 0 && <div className="sidebar-empty">暂无病例</div>}
+        <div className="case-list" aria-label={documentQueueTerm}>
+          {cases.length === 0 && <div className="sidebar-empty">暂无{documentTerm}</div>}
           {cases.map((record) => (
             <div
               className={`case-row ${record.case_id === selectedCase?.case_id ? "selected" : ""}`}
@@ -433,7 +493,7 @@ export function ChartLensApp() {
                 </span>
               </button>
               <button
-                aria-label={`删除病例 ${record.case_id}`}
+                aria-label={`删除${documentTerm} ${record.case_id}`}
                 className="case-delete"
                 onClick={() => void removeCase(record.case_id)}
                 disabled={loading}
@@ -445,35 +505,27 @@ export function ChartLensApp() {
             </div>
           ))}
         </div>
-        <div className="auth-card">
+        <div className="auth-card model-status-card">
           <div className="auth-card-head">
-            <ShieldCheck size={15} />
-            <span>{auth.enabled ? "应用会话" : "本地模式"}</span>
+            <FileSearch size={15} />
+            <span>当前抽取模型</span>
           </div>
-          <strong>{auth.enabled ? authIdentity : "OAuth 未启用"}</strong>
-          <small>{auth.session_auth.authenticated ? `Cookie：${auth.session_auth.cookie_name}` : "未登录"}</small>
-          <small>模型通道：{modelAuthLabel(auth)}；token {auth.model_auth.token_cache_exists ? "存在" : "不存在"}</small>
-          {auth.enabled && auth.authenticated && (
-            <a className="icon-button full" href={logoutUrl()} title="退出登录">
-              <LogOut size={16} /> 退出登录
-            </a>
-          )}
+          <strong>{latestModelName}</strong>
+          <small>{latestModelLabel} / {modelRuntimeState}</small>
+          <small>{sidebarModelUsage}</small>
+          <small>访问：{sessionAccessLabel} / {sessionStateLabel}</small>
+          <small>会话：{auth.session_auth.authenticated ? auth.session_auth.provider : "未登录"} / Cookie {auth.session_auth.cookie_name}</small>
+          {auth.model_auth.token_cache_exists && <small>ChatGPT Token：已缓存</small>}
         </div>
       </aside>
 
-      <section className="workspace">
+      <section className={`workspace workspace-${activeView}`}>
         <header className="topbar">
           <div className="topbar-copy">
             <h2>{pageTitle}</h2>
             <p>{activeView === "review" && selectedCase ? `${currentStatusLabel}；` : ""}{pageSubtitle}</p>
           </div>
           <div className="topbar-actions">
-            <span className="security"><ShieldCheck size={16} /> 本地脱敏</span>
-            {activeView === "review" && selectedCase && (
-              <a className="icon-button primary" href={exportUrl(selectedCase.case_id)}>
-                <Download size={16} /> 导出 Excel
-              </a>
-            )}
             {activeView === "review" && selectedCase && (
               <button className="icon-button" onClick={() => void submitReprocess()} disabled={loading} title="按当前 OCR/字段配置重新处理" type="button">
                 <RefreshCw size={16} /> 重新处理
@@ -484,6 +536,11 @@ export function ChartLensApp() {
                 <Eye size={16} /> 视觉复核
               </button>
             )}
+            {activeView === "review" && selectedCase && (
+              <a className="icon-button primary" href={exportUrl(selectedCase.case_id)}>
+                <Download size={16} /> 导出 Excel
+              </a>
+            )}
           </div>
         </header>
 
@@ -493,46 +550,21 @@ export function ChartLensApp() {
         )}
 
         {activeView === "settings" ? (
-          <SettingsPanel auth={auth} onAuthRefresh={async () => { await refreshAuthStatus(); }} onCasesCleared={clearLocalCases} />
+          <Suspense fallback={<SettingsPanelFallback />}>
+            <SettingsPanel auth={auth} onAuthRefresh={async () => { await refreshAuthStatus(); }} onCasesCleared={clearLocalCases} />
+          </Suspense>
         ) : activeView === "diagnostics" ? (
-          selectedCase ? (
-            <section className="route-panel">
-              <DiagnosticsStrip
-                selectedCase={selectedCase}
-                activeQuality={activeQuality}
-                activeRun={activeRun}
-                diagnostics={diagnostics}
-                diagnosticsLoading={diagnosticsLoading}
-                cacheHit={cacheHit}
-                cachedInputTokens={cachedInputTokens}
-                latestModelLabel={latestModelLabel}
-              />
-              <div className="settings-card">
-                <div className="settings-card-title">
-                  <Eye size={18} />
-                  <span>最近处理运行</span>
-                </div>
-                <dl className="settings-dl">
-                  <dt>病例</dt>
-                  <dd>{selectedCase.case_id}</dd>
-                  <dt>配置版本</dt>
-                  <dd>{activeRun?.system_config_version ?? "未知"}</dd>
-                  <dt>字段字典</dt>
-                  <dd>{activeRun?.field_dictionary_version ?? "未知"}</dd>
-                  <dt>模型调用</dt>
-                  <dd>{diagnostics?.model_calls.length ?? 0}</dd>
-                  <dt>视觉兜底</dt>
-                  <dd>{diagnostics?.vision_requests.length ?? 0}</dd>
-                </dl>
-              </div>
-            </section>
-          ) : (
-            <section className="empty-workspace">
-              <Eye size={26} />
-              <h3>暂无诊断数据</h3>
-              <p>上传并处理病例后，这里会显示质量、配置版本和模型调用记录。</p>
-            </section>
-          )
+          <DiagnosticsPage
+            selectedCase={selectedCase}
+            activeQuality={activeQuality}
+            activeRun={activeRun}
+            diagnostics={diagnostics}
+            diagnosticsLoading={diagnosticsLoading}
+            cacheHit={cacheHit}
+            cachedInputTokens={cachedInputTokens}
+            latestModelLabel={latestModelLabel}
+            documentTerm={documentTerm}
+          />
         ) : activeView === "evals" ? (
           <section className="empty-workspace">
             <RefreshCw size={26} />
@@ -557,10 +589,12 @@ export function ChartLensApp() {
                 evidenceItems={evidenceItems}
                 activeResult={activeResult}
                 activeFieldLabel={activeResult ? fieldMap.get(activeResult.field_key)?.label ?? activeResult.field_key : undefined}
+                displayConfig={projectConfig?.document_profile.frontend}
               />
               <FieldResultsPanel
                 filteredResults={filteredResults}
                 fieldMap={fieldMap}
+                title={fieldResultsTerm}
                 filter={filter}
                 query={query}
                 selectedField={selectedField}
@@ -585,11 +619,35 @@ export function ChartLensApp() {
         ) : (
           <section className="empty-workspace">
             <FileSearch size={26} />
-            <h3>暂无病例</h3>
+            <h3>暂无{documentTerm}</h3>
             <p>上传 PDF、图片或文本后，这里会显示 OCR 证据、字段结果和复核面板。</p>
           </section>
         )}
       </section>
     </main>
   );
+}
+
+function SettingsPanelFallback() {
+  return (
+    <section className="settings-panel" aria-label="设置加载中">
+      <div className="settings-card settings-loading">
+        <RefreshCw size={16} className="spin" />
+        <span>设置加载中...</span>
+      </div>
+    </section>
+  );
+}
+
+function mergeCaseRecord(next: CaseRecord, existing?: CaseRecord): CaseRecord {
+  if (!existing) return next;
+  return {
+    ...next,
+    results: existing.results,
+    ocr_blocks: existing.ocr_blocks,
+    audit_count: existing.audit_count,
+    latest_run: existing.latest_run,
+    quality: existing.quality,
+    error_message: existing.error_message
+  };
 }

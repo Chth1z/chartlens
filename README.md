@@ -1,197 +1,138 @@
-# ChartLens
+# EYEX
 
-病例 OCR 结构化抽取系统
+病例图片/PDF/文本结构化录入 MVP。
 
-ChartLens 是一个面向临床科研数据录入的 MVP：上传病例 PDF/图片/文本，本地 OCR 和脱敏后抽取结构化字段，按置信度自动填入或进入人工复核，并导出带证据审计表的 Excel。
+核心路线固定为：本地 OCR/版面解析 -> 脱敏 DocumentIR -> 字段组证据召回 -> 在线 LLM 结构化抽取 -> 规则护栏 -> 人工复核 -> 可追溯导出。
 
-架构目标和分层边界见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。当前项目按单机 Clean/Hex 架构维护，不保留 Docker/Postgres/Redis/RQ 路线。
-
-## 当前能力
-
-- FastAPI 后端：上传、OCR 抽象、脱敏、字段证据召回、结构化结果、复核审计、Excel 导出。
-- React 前端：病例队列、脱敏证据视图、字段置信度、低置信复核、导出入口。
-- Windows 单机后台任务：上传和重新处理默认立即返回 `queued`，后端用本机线程池继续 OCR/抽取，前端自动轮询 `queued / OCR中 / 抽取中 / 已完成 / 已降级 / 失败` 状态。
-- 模型层：`ModelProvider` 抽象，优先使用 OpenAI API key；没有 API key 但已完成 ChatGPT/Codex 登录时，使用本地缓存的 Codex token；都不可用时使用本地启发式 fallback，便于离线开发。
-- OCR 层：默认把无文本层 PDF 渲染为页图后走 OCR；图片和扫描 PDF 必须安装 RapidOCR 或 PaddleOCR。
-- OCR 优化层：`backend/app/data/system_config.yaml` 定义 `fast`、`accurate`、`fallback` 三档 OCR profile；默认 `accurate`，启用 300 DPI 渲染、基础图像预处理、页级并发、OCR 质量分层和低质量页兜底记录。
-- 缓存层：按 `file_hash + OCR profile + layout profile + DPI/预处理配置` 缓存 OCR blocks 和 paragraph fragments，重复上传或重跑优先复用缓存。
-- 版面与片段层：OCR 文本会转为带 `page / reading_order / section_name / block_type / source_kind / confidence` 的文档片段；默认 `chinese_inpatient_v1`，针对中国住院病历章节、编号标题和断行段落合并优化。
-- 字段字典：`backend/app/data/field_dictionary.yaml` 定义全表头、规则策略、LLM 触发条件和证据预算，MVP 只自动处理 `phase: 1` 核心字段。
-- 医学词典：`system_config.yaml` 内置首批病史术语、否定词和不详词，证据召回会把字段词典与医学词典合并评分。
-- 抽取策略：先按 YAML 规则做关键词/正则/映射抽取；既往史/个人史章节存在且未提及相关病史时，可按配置执行科研录入用的隐式阴性 `0`，并保留 `implicit_negative` 审计说明。
-- 复杂文本：规则无法解决的缺失、冲突、复杂上下文才进入 LLM。LLM prompt 使用紧凑字段规格、一份共享病例上下文和 unresolved 字段列表，减少重复 token。
-- 质量闭环：后端记录每次处理运行、OCR 质量、步骤耗时、LLM 调用日志、人工批准的视觉兜底请求和轻量评测运行。
-
-## 本地开发
-
-Windows 一键安装：
+## 运行
 
 ```powershell
-.\install.cmd
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r backend\requirements-dev.txt
+cd frontend
+npm install
+cd ..
 ```
 
-启动服务：
+启动后端：
 
 ```powershell
-.\start.cmd
+.\.venv\Scripts\python -m uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
 ```
 
-停止服务：
-
-```powershell
-.\stop.cmd
-```
-
-`start.cmd` 会后台启动后端和前端，日志写入 `logs/backend.log` 和 `logs/frontend.log`。
-脚本会使用 `.runtime/start.lock` 防止重复双击造成多个实例，并会在发现 `8000/5173` 已有本项目服务时复用现有进程。
-如果双击后窗口关闭或服务无法访问，运行：
-
-```powershell
-.\diagnose.cmd
-```
-
-脚本窗口会保留，便于复制错误信息；也可以直接查看 `logs/backend.log` 和 `logs/frontend.log`。
-`diagnose.cmd` 也会检查 `pypdfium2` 和 `rapidocr_onnxruntime` 是否安装，这两项决定扫描 PDF/图片能否 OCR。
-`stop.cmd` 会先按 `.runtime/*.pid` 停止，再按本项目命令行和端口兜底查找后端/前端进程；因此即使看到 `no pid file`，它仍会继续查找并停止 ChartLens 进程。
-
-手动启动：
-
-```powershell
-python -m pip install -r backend/requirements-dev.txt
-python -m uvicorn app.main:app --app-dir backend --reload
-```
-
-另开终端：
+启动前端：
 
 ```powershell
 cd frontend
-npm install
 npm run dev
 ```
 
-访问 `http://localhost:5173`。后端默认使用 `storage/chartlens.sqlite3`，适合单机试用。
+访问 `http://localhost:5173`。
 
-可通过 `.env` 切换 OCR/版面 profile：
+## 配置
 
-```env
-CHARTLENS_OCR_PROFILE=accurate
-CHARTLENS_LAYOUT_PROFILE=chinese_inpatient_v1
-CHARTLENS_SYNC_PIPELINE=false
-CHARTLENS_CASE_WORKERS=1
-CHARTLENS_OCR_PAGE_WORKERS=2
-CHARTLENS_LLM_WORKERS=1
-CHARTLENS_LLM_CASE_CONTEXT_BUDGET=3200
+配置目录固定在项目根目录 `config/`，运行态文件固定在 `var/`：
+
+- `document_profiles`: 医院、文档类型、章节别名、脱敏标签。
+- `extraction_schemas`: 字段组、字段、枚举、来源优先级、抽取模式。
+- `export_templates`: 表头、列顺序、unknown 导出映射。
+- `evaluation_profiles`: 可配置 gold cases、字段标签、质量阈值和 token 预算，用于不同领域的通用评测。
+- `model_profiles`: OpenAI Responses API、DeepSeek、OpenAI-compatible Chat Completions 参数。
+- `validation_rules`: 核心护栏说明。
+
+默认 SQLite、上传文件、OCR 缓存、provider 设置和本机密钥缓存都写入 `var/storage/`。历史环境如果 `.env` 仍设置 `EYEX_DATABASE_URL=sqlite:///./storage/eyex.sqlite3`，会继续使用旧位置；新环境建议使用 `.env.example` 中的 `var/storage` 默认值。
+
+`EYEX_DOCUMENT_PROFILE` 可切换文档领域 profile。profile 除了章节别名，也可以声明文档类型映射、脱敏正则、在线模型外发门禁、OCR 视觉解析提示词和抽取规则提示词；新增领域应优先扩展 `config/document_profiles/*.yaml` 和 schema/export 配置，而不是在 pipeline/provider/OCR 代码中写死场景逻辑。
+
+`unknown` 是内部唯一“不详/未提及”表示；导出模板决定映射为空值或 `9`。复杂字段不得把未提及推断为 `0`。
+
+核心业务契约：
+
+- 非 `unknown` 字段必须有真实 `evidence_span` 和 `evidence_block_id`，且 span 必须逐字存在于脱敏 DocumentIR block。
+- 在线模型链路失败时，复杂字段保持 `unknown + review_required`，不会用本地规则硬猜。
+- 人工复核确认非 `unknown` 时同样校验证据；导出主表只输出自动接受或复核确认的最终值，Evidence Audit 保留候选、证据、风险和来源。
+- 字段组抽取默认发送字段级 EvidencePack，不再发送重复的大段 group context；无证据且字段配置允许时会跳过 LLM 并返回 `unknown`。
+- LLM 结果按 schema/prompt/model/evidence hash 缓存，重复证据包不会重复消耗在线模型 token。
+- OCR 会记录引擎候选质量摘要和有限候选 block；低质量普通 OCR 会按 profile 追加疑难页路由，便于复核和后续质量分析。
+- 批量评测接口 `/api/evals/batch` 和 profile 评测接口 `/api/evals/profiles/{profile_id}/run` 用于跟踪自动接受 precision、unknown 误填率、证据覆盖率和 token 成本。
+
+默认启动脚本只把前端和后端绑定到 `127.0.0.1`。如果确实需要局域网访问，需要同时设置 `EYEX_ALLOW_REMOTE_ACCESS=true` 和 `EYEX_LOCAL_API_TOKEN`，并在请求中携带 `Authorization: Bearer <token>`；否则远程 Origin/客户端会被拒绝。
+
+## OCR / 智能文档解析
+
+OCR 层默认采用智能文档引擎链：
+
+```text
+原生 PDF 文本 -> HTTP 智能文档 sidecar / OpenAI 视觉文档模型 / PaddleOCR-VL / PP-StructureV3 / Docling
 ```
 
-`CHARTLENS_SYNC_PIPELINE=false` 是 Windows 单机推荐默认值：上传接口只入队，后台处理，前端自动刷新。调试单元测试或需要同步返回完整结果时，可临时设为 `true`。
+相关环境变量：
 
-## 单机架构边界
+- `EYEX_OCR_STRATEGY=intelligent`
+- `EYEX_OCR_PROFILE=windows_radeon_balanced`：OCR 引擎顺序由 `config/ocr_profiles/*.yaml` 控制。
+- `EYEX_OCR_DOCUMENT_AI_URL=`：可选，本地或内网智能文档 sidecar，例如 PaddleOCR-VL/PP-StructureV3 服务。
+- `EYEX_OPENAI_API_KEY=` 和 `EYEX_OCR_OPENAI_MODEL=`：可选，使用 OpenAI Responses 视觉文件输入作为高难度兜底。
 
-ChartLens 当前只维护单机运行路径：FastAPI + SQLite + 本机文件存储 + 本机线程队列。项目不再维护 Docker Compose、Postgres、Redis 或 RQ worker 配置；如需从头安装，请使用 `install.cmd`，如需启动/停止服务，请使用 `start.cmd` 和 `stop.cmd`。
+旧 RapidOCR 兜底已移除。智能文档引擎不可用时，病例会进入 `failed`，前端处理摘要会显示缺失原因，例如未配置 sidecar、未配置模型密钥或本地包未安装。
 
-服务端口：
-
-- 前端：`http://localhost:5173`
-- 后端：`http://localhost:8000`
-- OpenAPI：`http://localhost:8000/docs`
-
-主要后端目录：
-
-- `backend/app/domain`: 临床抽取业务类型与字段定义。
-- `backend/app/application`: 用例边界，例如病例处理编排入口。
-- `backend/app/infrastructure`: SQLite ORM、配置加载、本地存储、OCR、缓存、模型通道、Excel 导出和本机线程队列。
-- `backend/app/interfaces/http`: FastAPI 路由、HTTP payload 组装和兼容响应。
-
-主要前端目录：
-
-- `frontend/src/features`: 病例队列、诊断条、证据视图、复核面板和登录视图。
-- `frontend/src/shared`: API client 和共享接口类型。
-
-## 数据边界
-
-默认流程不会把原始病例文件发送给在线模型。后端仅把本地 OCR 后的脱敏证据片段、字段定义和必要上下文交给模型。真实 PHI/PII 数据接入前仍需完成机构伦理、隐私、供应商和数据出境审批。
-
-视觉兜底是单独的人工批准流程：前端“批准视觉兜底”只会记录已人工确认脱敏的页/裁剪区域请求，不会默认上传完整原始病例。
-
-## OAuth 验证与模型登录
-
-默认 `CHARTLENS_OAUTH_ENABLED=false`，适合单机本地试用。需要登录保护且不想手动申请 OAuth 应用时，可以启用内置 ChatGPT/Codex 登录：
-
-```env
-CHARTLENS_OAUTH_ENABLED=true
-CHARTLENS_OAUTH_PROVIDER=chatgpt
-CHARTLENS_OAUTH_SESSION_SECRET=replace-with-a-long-random-secret
-```
-
-该模式参考 OpenAI Codex CLI 的本地 PKCE 登录流程，会打开 ChatGPT/OpenAI 登录页，并通过 `http://localhost:1455/auth/callback` 完成本机回调。登录成功后既用于 ChartLens 本地会话，也可在 `CHARTLENS_OPENAI_AUTH_MODE=auto` 或 `chatgpt` 时作为在线模型通道。
-
-ChartLens 也可以把同一次 ChatGPT/Codex 登录作为在线模型通道。默认模型认证策略是：
-
-```env
-CHARTLENS_OPENAI_AUTH_MODE=auto
-CHARTLENS_CHATGPT_TOKEN_CACHE_PATH=./storage/auth/chatgpt_tokens.json
-```
-
-`auto` 会按顺序选择：
-
-1. `CHARTLENS_OPENAI_API_KEY`：官方 API key 通道，最稳定、最容易轮换。
-2. ChatGPT/Codex 登录 token：登录成功后写入 `storage/auth/chatgpt_tokens.json`，后续模型调用会自动刷新 token。
-3. 本地规则 fallback：没有在线凭据时仍可 OCR、脱敏、规则抽取和人工复核。
-
-`storage/auth/chatgpt_tokens.json` 含 access/refresh token，按密码处理：不要提交到 Git、不要发给他人、不要贴到 issue 或聊天记录。OpenAI Codex 文档也说明 Codex 会把登录信息缓存在本地文件或系统凭据库，并在使用中刷新 ChatGPT 会话 token；同时 API key 仍是自动化场景的推荐默认方式。
-
-可手动固定模型认证模式：
-
-```env
-CHARTLENS_OPENAI_AUTH_MODE=api_key   # 只用 CHARTLENS_OPENAI_API_KEY
-CHARTLENS_OPENAI_AUTH_MODE=chatgpt   # 只用 ChatGPT/Codex 登录 token
-CHARTLENS_OPENAI_AUTH_MODE=disabled  # 禁用在线模型，只用本地规则 fallback
-```
-
-如果要接入医院或机构统一身份认证，把 provider 改为 `oidc` 并配置 OAuth2/OIDC Provider：
-
-```env
-CHARTLENS_OAUTH_ENABLED=true
-CHARTLENS_OAUTH_PROVIDER=oidc
-CHARTLENS_OAUTH_CLIENT_ID=your-client-id
-CHARTLENS_OAUTH_CLIENT_SECRET=your-client-secret
-CHARTLENS_OAUTH_AUTHORIZATION_URL=https://provider.example.com/oauth2/v2.0/authorize
-CHARTLENS_OAUTH_TOKEN_URL=https://provider.example.com/oauth2/v2.0/token
-CHARTLENS_OAUTH_USERINFO_URL=https://provider.example.com/oidc/userinfo
-CHARTLENS_OAUTH_REDIRECT_URI=http://127.0.0.1:8000/api/auth/callback
-CHARTLENS_OAUTH_SCOPES=openid email profile
-CHARTLENS_OAUTH_ALLOWED_EMAIL_DOMAINS=example.com
-CHARTLENS_OAUTH_SESSION_SECRET=replace-with-a-long-random-secret
-```
-
-启用后，病例列表、上传、复核和导出接口会要求登录；`/api/health` 和 `/api/auth/*` 保持公开。
-前端会在登录页、顶部栏和左侧状态区显示 OAuth 登录状态；未启用 OAuth 时显示本地模式。
-如果 `CHARTLENS_OAUTH_PROVIDER=oidc` 但缺少 `CHARTLENS_OAUTH_CLIENT_ID`、授权地址、token 地址或 userinfo 地址，登录页会显示缺失项并禁用登录按钮；`diagnose.cmd` 也会列出缺失配置。
-
-## 字段与规则配置
-
-字段不写死在代码中，配置入口是 `backend/app/data/field_dictionary.yaml`。常用项：
-
-- `phase`: `1` 会进入 MVP 自动抽取，`2` 暂留字段位。
-- `rule_strategy.kind`: 支持 `regex`、`history`、`mapping` 和基础 `keyword`。
-- `llm.enabled`: 是否允许该字段在规则失败时进入在线模型。
-- `llm.trigger_statuses`: 触发模型的状态，如 `missing`、`conflict`、`low_confidence`、`needs_review`。
-- `llm.evidence_budget`: 该字段最多发送给模型的脱敏证据字符预算。
-- `max_evidence_items` / `evidence_window_chars`: 控制候选证据条数和单条窗口，避免整页 OCR 文本直接进模型。
-- OCR 后处理会把同一行里的多个键值字段切开，例如 `性别：男 年龄：66岁 出院情况：好转出院。` 会拆成独立证据块，提高规则召回和 LLM 上下文质量。
-- 病史类隐式阴性只在 `既往史` 或明确病史章节存在、OCR 质量非 poor、且没有“不详/记不清/否认不清”等表达时触发；吸烟/饮酒只在 `个人史/生活史` 存在时触发。
-
-## 诊断与评测接口
-
-- `GET /api/cases/{case_id}/diagnostics`: 查看 OCR 质量、章节片段、处理运行、缓存命中、LLM 调用和视觉兜底请求。
-- `POST /api/cases/{case_id}/reprocess`: 按当前配置重新处理病例，并新增一次处理运行记录；默认进入后台队列。
-- `POST /api/cases/{case_id}/vision-fallback-requests`: 记录人工确认脱敏后的视觉兜底请求。
-- `POST /api/evals/runs`: 按传入金标准字段运行轻量评测，返回准确率和 unknown 率。
-
-## 测试
+重型 OCR 依赖不放进主后端依赖。PaddleOCR-VL 官方文档给出的手动安装验证范围是 Python 3.9-3.13，建议单独环境安装：
 
 ```powershell
-python -m pytest backend/tests
+.\install-ocr.cmd -PythonExe py -PythonArgs -3.11 -UseDeepSeek -StartSidecar
+```
+
+安装脚本会创建 `.venv-ocr`，安装 PaddlePaddle/PaddleOCR-VL/PP-StructureV3/Docling 和 sidecar 服务依赖，并写入：
+
+```text
+EYEX_OCR_DOCUMENT_AI_URL=http://127.0.0.1:8765/extract
+EYEX_OCR_PROFILE=windows_radeon_balanced
+```
+
+首次安装会预热 PaddleOCR-VL、PP-StructureV3 和 Docling，模型权重下载可能需要几分钟；使用 `-SkipWarmup` 才会改成首次识别时再下载。
+脚本默认设置 `PADDLE_PDX_MODEL_SOURCE=BOS`，避免 HuggingFace 模型下载在国内网络下卡住。
+
+如果已经接入 DeepSeek API，可以在 `.env` 设置：
+
+```text
+EYEX_MODEL_PROFILE=deepseek_v4_flash
+EYEX_DEEPSEEK_API_KEY=sk-...
+```
+
+DeepSeek 用于 OCR 后的结构化字段抽取；当前官方 DeepSeek API 是 Chat Completions 文本接口，不能替代 PDF/图片视觉 OCR。
+
+详细选型和评测切片见 `docs/OCR_UPGRADE.md`。
+
+## 模型供应商
+
+前端直接复用旧项目 `D:\Github\EYES\frontend` 的成熟病例队列、证据面板、复核和导出体验。设置页提供类似 Alma/OpenClaw 的供应商管理界面：
+
+- 左侧选择供应商，右侧填写 API key、Base URL 和 API 协议。Base URL、协议、模型列表等非密钥配置保存到本机 `var/storage/provider_settings.json`；API key 默认只进入当前后端进程内存，不再明文落盘，重启后请使用 `.env` 或重新输入。
+- 点击 `Fetch` 拉取 provider 模型列表；后端会保留接口返回的全部模型。预置模型只作为推荐提示，不会在未验证前伪装成可用模型。如果 provider 不支持模型列表接口，可以手动添加 Model ID。
+- 中转 API 使用 OpenAI provider 的 `OpenAI-compatible Chat` 模式，或使用 `API 中转 / Custom`；模型拉取会尝试 `base/models` 和 `base/v1/models`，推理调用若根地址返回 404/405 会自动再试 `base/v1`。
+- 点击模型行即可将该模型设为当前抽取模型。
+- 不同供应商会暴露对应参数：OpenAI Responses 支持 reasoning effort，OpenAI-compatible/Anthropic/Gemini 支持温度和输出长度。
+- API 响应只返回 key 掩码，不回传明文 key。
+
+已适配的供应商包括：
+
+- 原生：OpenAI Responses、Anthropic Messages、Google Gemini。
+- OpenAI-compatible：DeepSeek、OpenRouter、Moonshot、Qwen/DashScope、Z.AI/GLM、Azure OpenAI、Custom Provider。
+- 本地/自托管：Ollama。
+
+模型接入方式参考 OpenClaw/Alma：使用 `provider/model` 引用，例如 `openai/gpt-5.4`、`deepseek/deepseek-v4-flash`、`openrouter/auto`；每个 provider 在 `config/model_providers/*.yaml` 定义 base URL、API 模式、auth env vars、context 元数据和 fallback chain。默认 profile 链路是：
+
+```text
+openai/gpt-5.4 -> deepseek/deepseek-v4-pro -> deepseek/deepseek-v4-flash -> local/conservative-local
+```
+
+API key 读取也按 OpenClaw 思路支持多个来源：当前进程内存、`OPENCLAW_LIVE_<PROVIDER>_KEY`、profile 中声明的 env vars、`<PROVIDER>_API_KEYS`、`<PROVIDER>_API_KEY`、`<PROVIDER>_API_KEY_1..9`。多个 key 可用逗号或分号分隔；发生 rate limit/timeout 时会在同一 provider 内轮换 key，再进入下一个 fallback 模型。若必须恢复旧的明文落盘行为，需要显式设置 `EYEX_ALLOW_PLAINTEXT_PROVIDER_KEYS=true`，不建议在含真实病例或真实密钥的环境使用。
+
+在线模型不可用时，系统不会用规则硬猜复杂字段；复杂字段返回 `unknown + review_required`。如果后续引入成熟开源 agent/provider 代码，应放在独立 adapter 目录并保留原始 LICENSE、NOTICE 和版权声明。开源 agent/provider 对标与改造优先级见 `docs/LLM_PROVIDER_ALIGNMENT.md`。
+
+## 验证
+
+```powershell
+.\.venv\Scripts\python -m pytest backend\tests
 cd frontend
 npm run build
 ```

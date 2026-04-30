@@ -1,0 +1,17 @@
+# Optional intelligent-document OCR sidecar stack.
+#
+# Install this in a dedicated sidecar/runtime environment. PaddleOCR-VL
+# documents Python 3.9-3.13 as the verified manual-install range; use the
+# appropriate GPU/Paddle/Torch packages for the target
+# machine. Keep backend/requirements.txt lightweight for the FastAPI app.
+
+fastapi==0.124.2
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20
+pydantic-settings>=2.14.0
+PyYAML==6.0.2
+httpx==0.28.1
+paddleocr[doc-parser]>=3.3.0
+docling>=2.14.0
+rapidocr>=3.0.0
+pypdfium2>=4

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { AuthStatus } from "../../shared/types/api";
 
 interface UseCasePollingOptions {
@@ -10,14 +10,22 @@ interface UseCasePollingOptions {
 }
 
 export function useCasePolling({ auth, hasActiveJobs, selectedId, refresh, loadDiagnostics }: UseCasePollingOptions) {
+  const refreshRef = useRef(refresh);
+  const loadDiagnosticsRef = useRef(loadDiagnostics);
+
+  useEffect(() => {
+    refreshRef.current = refresh;
+    loadDiagnosticsRef.current = loadDiagnostics;
+  }, [refresh, loadDiagnostics]);
+
   useEffect(() => {
     if (auth === null || (auth.enabled && !auth.authenticated) || !hasActiveJobs) return;
     const timer = window.setInterval(() => {
-      void refresh();
+      void refreshRef.current();
       if (selectedId) {
-        void loadDiagnostics(selectedId, true);
+        void loadDiagnosticsRef.current(selectedId, true);
       }
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [auth, hasActiveJobs, selectedId, refresh, loadDiagnostics]);
+  }, [auth, hasActiveJobs, selectedId]);
 }

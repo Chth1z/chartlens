@@ -1,0 +1,34 @@
+profile_id: deepseek_v4_pro
+label: DeepSeek V4 Pro
+provider: openai_compatible
+provider_id: deepseek
+model_ref: deepseek/deepseek-v4-pro
+api: openai-completions
+model: deepseek-v4-pro
+base_url: https://api.deepseek.com
+api_key_env: EYEX_DEEPSEEK_API_KEY
+auth_env_vars:
+  - EYEX_DEEPSEEK_API_KEY
+  - DEEPSEEK_API_KEY
+response_format: json_object
+reasoning_effort: low
+prompt_cache_key: eyex-clinical-extraction-v1
+max_output_tokens: 4096
+store: false
+temperature: 0.0
+fallbacks:
+  - deepseek/deepseek-v4-flash
+  - local/conservative-local
+input:
+  - text
+context_window: 1000000
+context_tokens: 384000
+cost:
+  input: 1.74
+  output: 3.48
+  cacheRead: 0.145
+  cacheWrite: 0
+compat:
+  supportsUsageInStreaming: true
+  supportsReasoningEffort: true
+  maxTokensField: max_tokens

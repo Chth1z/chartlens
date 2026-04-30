@@ -1,21 +1,23 @@
-.venv/
-.runtime/
-logs/
-__pycache__/
-*.pyc
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-node_modules/
-dist/
-build/
-*.tsbuildinfo
 .env
 .env.*
 !.env.example
+
+# Python
+.venv/
+.venv-*/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Node / frontend build output
+frontend/node_modules/
+frontend/dist/
+frontend/.tmp-frontend-tests/
+frontend/tsconfig.tsbuildinfo
+
+# Runtime state and generated artifacts
+var/
 storage/
-uploads/
-exports/
+logs/
 output/
-*.sqlite3
-*.db
+tmp/

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".tmp-frontend-tests",
+    "rootDir": ".",
+    "tsBuildInfoFile": ".tmp-frontend-tests/tsconfig.test.tsbuildinfo"
+  },
+  "include": ["src", "tests"]
+}

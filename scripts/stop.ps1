@@ -1,91 +1,37 @@
-[CmdletBinding()]
-param()
+$ErrorActionPreference = "Continue"
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = (Resolve-Path (Join-Path $scriptDir "..")).Path
+$ports = @(8000, 5173, 8765)
 
-$ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $PSScriptRoot
-$RuntimeDir = Join-Path $Root ".runtime"
+function Test-EyexProcess {
+  param([int]$ProcessId)
 
-function Test-ProjectCommand {
-    param([string]$CommandLine, [string]$Name)
-    if (-not $CommandLine) { return $false }
-    $cmd = $CommandLine.ToLowerInvariant()
-    $rootBackslash = $Root.ToLowerInvariant()
-    $rootSlash = $rootBackslash.Replace("\", "/")
-    $inProject = $cmd.Contains($rootBackslash) -or $cmd.Contains($rootSlash)
-    if (-not $inProject) { return $false }
-    if ($Name -eq "backend") {
-        return $cmd.Contains("uvicorn") -and $cmd.Contains("app.main:app")
-    }
-    if ($Name -eq "frontend") {
-        return $cmd.Contains("frontend") -and ($cmd.Contains("npm run dev") -or $cmd.Contains("vite"))
-    }
+  $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+  if ($null -eq $processInfo -or [string]::IsNullOrWhiteSpace($processInfo.CommandLine)) {
     return $false
+  }
+
+  $commandLine = $processInfo.CommandLine.ToLowerInvariant()
+  $rootToken = $root.ToLowerInvariant()
+  return $commandLine.Contains($rootToken) -or
+    ($commandLine.Contains("uvicorn") -and $commandLine.Contains("app.main:app") -and $commandLine.Contains("--app-dir backend")) -or
+    ($commandLine.Contains("vite") -and $commandLine.Contains("5173")) -or
+    ($commandLine.Contains("ocr_sidecar.main:app") -and $commandLine.Contains("--app-dir backend"))
 }
 
-function Find-ProjectProcess {
-    param([ValidateSet("backend", "frontend")][string]$Name)
-    Get-CimInstance Win32_Process |
-        Where-Object { Test-ProjectCommand -CommandLine $_.CommandLine -Name $Name } |
-        Sort-Object ProcessId
+$stopped = 0
+foreach ($port in $ports) {
+  $ownerPids = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue |
+    Where-Object { $_.OwningProcess -gt 0 } |
+    Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($ownerPid in $ownerPids) {
+    if (Test-EyexProcess -ProcessId $ownerPid) {
+      Stop-Process -Id $ownerPid -Force -ErrorAction SilentlyContinue
+      $stopped += 1
+    } else {
+      Write-Host "Skipped non-EYEX process $ownerPid on port $port."
+    }
+  }
 }
 
-function Find-ProjectPortProcess {
-    param([ValidateSet("backend", "frontend")][string]$Name, [int]$Port)
-    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    foreach ($connection in $connections) {
-        $process = Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)" -ErrorAction SilentlyContinue
-        if ($process -and (Test-ProjectCommand -CommandLine $process.CommandLine -Name $Name)) {
-            $process
-        }
-    }
-}
-
-function Stop-ProcessId {
-    param([int]$ProcessId, [string]$Label)
-    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
-    if ($process) {
-        Stop-Process -Id $ProcessId -Force
-        Write-Host "${Label}: stopped PID $ProcessId"
-    }
-}
-
-function Stop-FromPidFile {
-    param([string]$Name)
-    $Path = Join-Path $RuntimeDir "$Name.pid"
-    if (-not (Test-Path $Path)) {
-        Write-Host "${Name}: no pid file"
-        return
-    }
-    $PidValue = (Get-Content $Path -Raw).Trim()
-    if (-not $PidValue) {
-        Write-Host "${Name}: empty pid file"
-        Remove-Item -LiteralPath $Path -Force
-        return
-    }
-    Stop-ProcessId -ProcessId ([int]$PidValue) -Label $Name
-    Remove-Item -LiteralPath $Path -Force
-}
-
-function Stop-ProjectProcesses {
-    param([ValidateSet("backend", "frontend")][string]$Name, [int]$Port)
-    $processes = @()
-    $processes += Find-ProjectProcess -Name $Name
-    $processes += Find-ProjectPortProcess -Name $Name -Port $Port
-    $ids = $processes |
-        Where-Object { $_ -and $_.ProcessId } |
-        Select-Object -ExpandProperty ProcessId -Unique |
-        Sort-Object -Descending
-    if (-not $ids) {
-        Write-Host "${Name}: no matching project process"
-        return
-    }
-    foreach ($id in $ids) {
-        Stop-ProcessId -ProcessId ([int]$id) -Label $Name
-    }
-}
-
-Stop-FromPidFile "backend"
-Stop-FromPidFile "frontend"
-Stop-ProjectProcesses -Name "backend" -Port 8000
-Stop-ProjectProcesses -Name "frontend" -Port 5173
-Remove-Item -LiteralPath (Join-Path $RuntimeDir "start.lock") -Force -ErrorAction SilentlyContinue
+Write-Host "Stopped $stopped EYEX process(es) on ports 8000, 5173 and 8765."

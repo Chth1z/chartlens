@@ -1,0 +1,21 @@
+profile_id: local_disabled
+label: Local Conservative Fallback
+provider: disabled
+provider_id: local
+model_ref: local/conservative-local
+api: disabled
+model: conservative-local
+response_format: json_object
+reasoning_effort: low
+prompt_cache_key: eyex-clinical-extraction-v1
+max_output_tokens: 1024
+store: false
+temperature: 0.0
+auth_optional: true
+input:
+  - text
+cost:
+  input: 0
+  output: 0
+  cacheRead: 0
+  cacheWrite: 0

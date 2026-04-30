@@ -1,23 +1,81 @@
 export type ReviewBand = "auto_accept" | "needs_review" | "unknown";
 
+export interface EvidencePack {
+  field_key: string;
+  pack_hash: string;
+  rank: number;
+  block_id: string;
+  text: string;
+  context_text: string;
+  page: number;
+  bbox: number[];
+  section_label: string;
+  document_kind: string;
+  ocr_confidence: number;
+  score: number;
+  match_terms: string[];
+  score_reason?: string | null;
+  negated: boolean;
+  uncertain: boolean;
+  family_context: boolean;
+  token_estimate: number;
+  neighbor_block_ids: string[];
+}
+
 export interface FieldResult {
   field_key: string;
+  field_group_key?: string | null;
   raw_value: string | null;
   normalized_code: string | null;
   confidence: number;
   evidence_text: string | null;
+  evidence_span?: string | null;
+  evidence_block_id?: string | null;
+  evidence_type?: string | null;
   page: number | null;
   bbox: number[];
   reasoning_summary: string | null;
   review_required: boolean;
   error_code: string | null;
+  validator_messages?: string[];
+  provenance?: Record<string, unknown>;
+  acceptance_reason?: string | null;
+  risk_level?: "low" | "medium" | "high" | "critical";
+  evidence_candidates?: Array<{
+    block_id: string;
+    text: string;
+    page: number;
+    bbox: number[];
+    section_label: string;
+    document_kind: string;
+    ocr_confidence: number;
+    score: number;
+    match_terms?: string[];
+    score_reason?: string | null;
+    pack_hash?: string | null;
+    context_text?: string | null;
+    token_estimate?: number;
+    negated?: boolean;
+    uncertain?: boolean;
+    family_context?: boolean;
+    rank?: number;
+  }>;
+  evidence_packs?: EvidencePack[];
+  model_profile_id?: string | null;
+  ocr_engine?: string | null;
+  validation_state?: "unknown" | "accepted" | "needs_review" | "rejected" | "reviewed";
 }
 
 export interface OcrBlock {
+  block_id?: string;
   page: number;
+  reading_order?: number;
   text: string;
   bbox: number[];
   confidence: number;
+  block_type?: DocumentFragment["block_type"];
+  section_label?: string;
+  document_kind?: string;
 }
 
 export interface OcrQuality {
@@ -28,6 +86,24 @@ export interface OcrQuality {
   low_confidence_block_count: number;
   quality_band: "good" | "fair" | "poor";
   needs_vision_fallback: boolean;
+  input_kind?: string | null;
+  ocr_adapter?: string | null;
+  ocr_engine?: string | null;
+  ocr_intelligent_status?: string | null;
+  ocr_attempted_engines?: string[];
+  ocr_unavailable_engines?: string[];
+  ocr_unavailable_reasons?: Record<string, string>;
+  ocr_engine_errors?: Record<string, string>;
+  ocr_page_quality?: Array<{
+    page: number;
+    kind: string;
+    char_count: number;
+    avg_confidence: number;
+    quality_band: "good" | "fair" | "poor" | string;
+    cache_status?: string;
+    engine?: string;
+    failure_reason?: string;
+  }>;
 }
 
 export interface ProcessingRun {
@@ -53,7 +129,7 @@ export interface ProcessingRun {
   output_tokens: number;
   cost_usd: number;
   latency_ms: number;
-  step_timings: Record<string, number | string | number[] | Record<string, number>>;
+  step_timings: Record<string, number | string | number[] | Record<string, number> | Record<string, string>>;
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
@@ -66,8 +142,14 @@ export interface DocumentFragment {
   bbox: number[];
   confidence: number;
   section_name: string;
-  block_type: "line" | "paragraph" | "text" | "table" | "title" | "form_field";
-  source_kind: "pdf_text" | "ocr" | "pp_structure" | "manual";
+  block_type: "line" | "paragraph" | "text" | "table" | "title" | "form_field" | "cell" | "checkbox" | "selection_mark" | "key_value";
+  source_engine?: string | null;
+  source_page_kind?: string;
+  ocr_profile?: string | null;
+  layout_profile?: string | null;
+  quality_flags?: string[];
+  source_kind: "pdf_text" | "ocr" | "pp_structure" | "manual" | "intelligent_document";
+  document_kind?: string;
   layout_region_id?: string | null;
   layout_type?: string | null;
   section_confidence?: number;
@@ -87,7 +169,12 @@ export interface ModelCallLog {
   latency_ms: number;
   status: string;
   error_code: string | null;
+  fallback_attempts?: number;
+  fallback_failures?: number;
+  fallback_errors?: string[];
   created_at: string;
+  llm_cache_status?: "hit" | "miss" | string | null;
+  llm_cache_key?: string | null;
 }
 
 export interface VisionFallbackRecord {
@@ -124,10 +211,12 @@ export interface CaseDiagnostics {
 export interface CaseRecord {
   case_id: string;
   filename: string;
-  file_hash: string;
-  status: "queued" | "processing" | "ocr" | "extracting" | "processed" | "degraded" | "failed";
+  status: "queued" | "processing" | "ocr" | "extracting" | "completed" | "degraded" | "failed";
   error_message: string | null;
   created_at: string;
+  updated_at: string;
+  result_count: number;
+  review_required_count: number;
   results: FieldResult[];
   ocr_blocks: OcrBlock[];
   audit_count: number;
@@ -135,8 +224,25 @@ export interface CaseRecord {
   quality?: OcrQuality;
 }
 
+export interface CaseSummary {
+  case_id: string;
+  filename: string;
+  status: CaseRecord["status"];
+  created_at: string;
+  updated_at: string;
+  result_count: number;
+  review_required_count: number;
+}
+
+export interface DocumentIrResponse {
+  blocks: OcrBlock[];
+  sections?: Array<Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface FieldDefinition {
   key: string;
+  field_group_key?: string | null;
   label: string;
   export_header: string;
   allowed_codes: string[];
@@ -151,12 +257,10 @@ export interface FieldDefinition {
   evidence_window_chars?: number;
   llm?: {
     enabled: boolean;
-    trigger_statuses: string[];
     evidence_budget: number;
-    allow_image_crop: boolean;
+    max_evidence_items: number;
     prompt_profile: string;
     skip_when_no_evidence?: boolean;
-    max_evidence_items_for_llm?: number;
   };
   phase: number;
 }
@@ -164,6 +268,59 @@ export interface FieldDefinition {
 export interface FieldDictionary {
   version: string;
   fields: FieldDefinition[];
+}
+
+export interface FieldGroupDefinition {
+  key: string;
+  label: string;
+  source_sections: string[];
+  prompt_profile: string;
+  max_context_chars: number;
+  semantic_strategy: string;
+}
+
+export interface EvidenceDisplayConfig {
+  basic_field_labels: string[];
+  section_labels: string[];
+  inline_record_labels: string[];
+  section_tones: Record<string, string[]>;
+  document_title_patterns: string[];
+  common_ocr_repairs: Array<{ pattern: string; replacement: string }>;
+}
+
+export interface ProjectConfig {
+  app_profile: {
+    profile_id: string;
+    version?: string;
+    label: string;
+    terms: Record<string, string>;
+    default_document_profile_id: string;
+    default_extraction_schema_id: string;
+    default_export_template_id: string;
+    ocr_engine_policy?: string;
+  };
+  document_profile: {
+    profile_id: string;
+    version?: string;
+    label: string;
+    section_aliases: Record<string, string[]>;
+    frontend: EvidenceDisplayConfig;
+  };
+  extraction_schema: {
+    schema_id: string;
+    version: string;
+    label: string;
+    field_groups: FieldGroupDefinition[];
+    fields: FieldDefinition[];
+  };
+  export_template: {
+    template_id: string;
+    version?: string;
+    label: string;
+    empty_value: string;
+    unknown_value?: string | null;
+    columns: Array<{ field_key: string; header: string; empty_value: string; unknown_value?: string | null }>;
+  };
 }
 
 export interface AuthStatus {
@@ -193,8 +350,8 @@ export interface AuthStatus {
     cookie_name: string;
   };
   model_auth: {
-    auth_mode: "auto" | "api_key" | "chatgpt" | "disabled";
-    provider: "openai_api_key" | "chatgpt_codex" | "local_fallback";
+    auth_mode: "auto" | "online" | "local" | "disabled";
+    provider: "openai_api_key" | "chatgpt_codex" | "local_fallback" | "deepseek" | "openai_compatible" | string;
     online_model_available: boolean;
     api_key_configured: boolean;
     chatgpt_codex_configured: boolean;
@@ -210,11 +367,137 @@ export interface AuthStatus {
   };
 }
 
+export interface ModelProfile {
+  profile_id: string;
+  label?: string | null;
+  provider: "openai_responses" | "openai_compatible" | "anthropic_messages" | "google_gemini" | "disabled" | string;
+  provider_id?: string | null;
+  model_ref?: string | null;
+  api?: "openai-responses" | "openai-completions" | "anthropic-messages" | "google-gemini" | "disabled" | string | null;
+  model: string;
+  base_url?: string | null;
+  api_key_env?: string | null;
+  auth_env_vars?: string[];
+  auth_optional?: boolean;
+  auth_configured?: boolean;
+  response_format?: "json_schema" | "json_object" | string;
+  fallbacks?: string[];
+  input?: string[];
+  context_window?: number | null;
+  context_tokens?: number | null;
+  cost?: Record<string, number>;
+  compat?: Record<string, unknown>;
+}
+
+export interface ModelProfilesResponse {
+  active_profile_id: string;
+  active_model_ref?: string;
+  fallbacks?: string[];
+  resolved_chain?: string[];
+  profiles: ModelProfile[];
+  env: {
+    openai_api_key_configured: boolean;
+    deepseek_api_key_configured: boolean;
+    compatible_api_key_configured: boolean;
+    compatible_base_url_configured: boolean;
+    compatible_model_configured: boolean;
+    providers?: Record<string, { configured: boolean; auth_optional: boolean; env_vars: string[] }>;
+  };
+}
+
+export interface ModelProfileSelectionResponse extends ModelProfilesResponse {
+  ok: boolean;
+  active: ModelProfile;
+}
+
+export interface ProviderModel {
+  id: string;
+  name?: string | null;
+  context_window?: number | null;
+  max_tokens?: number | null;
+  input?: string[];
+  source?: "fetched" | "custom" | "preset" | string | null;
+  runnable?: boolean | null;
+}
+
+export interface ModelProvider {
+  provider_id: string;
+  label: string;
+  description: string;
+  api: "openai-responses" | "openai-completions" | "anthropic-messages" | "google-gemini" | "disabled" | string;
+  default_api?: string;
+  api_options?: string[];
+  default_base_url?: string | null;
+  base_url?: string | null;
+  auth_env_vars: string[];
+  auth_optional: boolean;
+  base_url_editable: boolean;
+  enabled: boolean;
+  selected_model?: string | null;
+  models: ProviderModel[];
+  recommended_models?: ProviderModel[];
+  model_counts?: {
+    fetched: number;
+    custom: number;
+    preset: number;
+  };
+  model_settings?: {
+    reasoning_effort?: string;
+    temperature?: number;
+    max_output_tokens?: number;
+  };
+  option_schema?: {
+    reasoning_effort?: string[];
+    temperature?: { min: number; max: number; step?: number };
+    max_output_tokens?: { min: number; max: number; step?: number };
+  };
+  api_key_configured: boolean;
+  api_key_masked?: string | null;
+  credential_status?: "configured" | "optional" | "missing_api_key" | "missing_base_url" | "disabled" | string;
+  connection_status?: "verified" | "not_tested" | "error" | string;
+  runnable?: boolean;
+  status_message?: string;
+  last_error?: string | null;
+  connected_at?: string | null;
+  active?: boolean;
+}
+
+export interface ModelProvidersResponse {
+  active: {
+    provider_id?: string | null;
+    model_ref?: string | null;
+    model?: string | null;
+  };
+  providers: ModelProvider[];
+}
+
+export interface ModelProviderUpdatePayload {
+  enabled?: boolean;
+  api?: string | null;
+  api_key?: string | null;
+  base_url?: string | null;
+  selected_model?: string | null;
+  custom_models?: ProviderModel[];
+  model_settings?: {
+    reasoning_effort?: string;
+    temperature?: number;
+    max_output_tokens?: number;
+  };
+}
+
 export interface SystemSettingsResponse {
   system_config: {
     path: string;
     version: string;
     ocr_default_profile: string;
+    ocr_active_profile?: Record<string, unknown>;
+    ocr_accelerator?: string;
+    available_accelerators?: Record<string, unknown>;
+    ocr_strategy?: string;
+    ocr_profile_engines?: string[];
+    ocr_document_ai_configured?: boolean;
+    ocr_openai_model?: string;
+    ocr_openai_configured?: boolean;
     layout_default_profile: string;
     llm_default_profile: string;
     ocr_profiles: string[];
@@ -243,6 +526,14 @@ export interface RuntimeSettingsResponse {
     ocr_page_workers: number;
     llm_workers: number;
     ocr_profile: string;
+    ocr_active_profile?: Record<string, unknown>;
+    ocr_accelerator?: string;
+    available_accelerators?: Record<string, unknown>;
+    ocr_strategy?: string;
+    ocr_profile_engines?: string[];
+    ocr_document_ai_configured?: boolean;
+    ocr_openai_model?: string;
+    ocr_openai_configured?: boolean;
     layout_profile: string;
     model_mode: string;
     openai_auth_mode: string;

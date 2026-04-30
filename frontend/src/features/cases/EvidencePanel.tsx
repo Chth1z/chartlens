@@ -1,20 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import type { DocumentFragment, FieldResult } from "../../shared/types/api";
+import type { DocumentFragment, EvidenceDisplayConfig, FieldResult } from "../../shared/types/api";
 
 interface EvidencePanelProps {
   evidenceItems: DocumentFragment[];
   activeResult?: FieldResult;
   activeFieldLabel?: string;
+  displayConfig?: EvidenceDisplayConfig;
 }
 
-export function EvidencePanel({ evidenceItems, activeResult, activeFieldLabel }: EvidencePanelProps) {
+export const EvidencePanel = memo(function EvidencePanel({ evidenceItems, activeResult, activeFieldLabel, displayConfig }: EvidencePanelProps) {
   const activeBlockRef = useRef<HTMLElement | null>(null);
+  const documentPageRef = useRef<HTMLDivElement | null>(null);
   const [selectedEvidenceKey, setSelectedEvidenceKey] = useState<string | null>(null);
-  const activeEvidenceText = activeResult?.evidence_text ?? "";
+  const config = useMemo(() => mergeEvidenceDisplayConfig(displayConfig), [displayConfig]);
+  const activeEvidenceText = activeResult?.evidence_span ?? activeResult?.evidence_text ?? "";
   const activePage = activeResult?.page ?? null;
   const activeBbox = activeResult?.bbox ?? [];
-  const groupedEvidence = useMemo(() => groupEvidenceByPage(evidenceItems), [evidenceItems]);
+  const groupedEvidence = useMemo(() => groupEvidenceByPage(evidenceItems, config), [evidenceItems, config]);
   const displayBlockCount = useMemo(
     () => groupedEvidence.reduce((total, group) => total + group.items.length, 0),
     [groupedEvidence]
@@ -30,24 +33,28 @@ export function EvidencePanel({ evidenceItems, activeResult, activeFieldLabel }:
   }, [activeResult?.field_key, activeEvidenceText]);
 
   useEffect(() => {
-    activeBlockRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    scrollEvidenceIntoPanel(activeBlockRef.current, documentPageRef.current);
   }, [activeEvidenceKey]);
 
   return (
     <section className="document-panel">
       <div className="panel-title">
-        <span>OCR 结构化转写</span>
+        <span>智能文档解析</span>
         <small>{groupedEvidence.length} 页 / {displayBlockCount} 段</small>
       </div>
-      <div className="document-page transcript-page-wrap" aria-label="脱敏 OCR 结构化转写证据">
+      <div className="document-page transcript-page-wrap" aria-label="脱敏智能文档解析证据" ref={documentPageRef}>
         {evidenceItems.length === 0 && <div className="empty-state">暂无证据片段</div>}
         {evidenceItems.length > 0 && (
           <article className="document-sheet transcript-sheet">
             {groupedEvidence.map((group) => (
-              <section className="ocr-page transcript-page" key={group.page} aria-label={`第 ${group.page} 页结构化转写`}>
+              <section
+                className="ocr-page transcript-page"
+                key={`${group.page}-${group.displayPage}`}
+                aria-label={`第 ${group.displayPage} 页智能文档解析`}
+              >
                 <div className="ocr-page-marker">
-                  <span>第 {group.page} 页</span>
-                  <small>结构化转写 · {group.items.length} 段</small>
+                  <span>第 {group.displayPage} 页</span>
+                  <small>智能解析 · {group.items.length} 段</small>
                 </div>
                 <div className="transcript-document">
                   {renderTranscriptBlocks({
@@ -58,6 +65,7 @@ export function EvidencePanel({ evidenceItems, activeResult, activeFieldLabel }:
                       activeBlockRef.current = node;
                     },
                     fieldEvidenceKey,
+                    config,
                     items: group.items,
                     onSelect: setSelectedEvidenceKey
                   })}
@@ -69,6 +77,16 @@ export function EvidencePanel({ evidenceItems, activeResult, activeFieldLabel }:
       </div>
     </section>
   );
+});
+
+function scrollEvidenceIntoPanel(activeBlock: HTMLElement | null, scrollContainer: HTMLElement | null) {
+  if (!activeBlock || !scrollContainer) return;
+  const blockRect = activeBlock.getBoundingClientRect();
+  const containerRect = scrollContainer.getBoundingClientRect();
+  const blockCenter = blockRect.top - containerRect.top + scrollContainer.scrollTop + blockRect.height / 2;
+  const nextTop = Math.max(0, blockCenter - scrollContainer.clientHeight / 2);
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  scrollContainer.scrollTo({ top: nextTop, behavior: reducedMotion ? "auto" : "smooth" });
 }
 
 function renderTranscriptBlocks({
@@ -76,6 +94,7 @@ function renderTranscriptBlocks({
   activeEvidenceText,
   activeFieldLabel,
   bindActiveBlock,
+  config,
   fieldEvidenceKey,
   items,
   onSelect
@@ -84,6 +103,7 @@ function renderTranscriptBlocks({
   activeEvidenceText: string;
   activeFieldLabel?: string;
   bindActiveBlock: (node: HTMLElement | null) => void;
+  config: EvidenceDisplayConfig;
   fieldEvidenceKey: string | null;
   items: EvidenceItem[];
   onSelect: (key: string) => void;
@@ -101,6 +121,7 @@ function renderTranscriptBlocks({
           activeFieldLabel={activeFieldLabel}
           bindActiveBlock={bindActiveBlock}
           block={block}
+          config={config}
           fieldEvidenceKey={fieldEvidenceKey}
           key={block.key}
           onSelect={onSelect}
@@ -126,6 +147,7 @@ function renderTranscriptBlocks({
               activeFieldLabel={activeFieldLabel}
               bindActiveBlock={bindActiveBlock}
               block={field}
+              config={config}
               fieldEvidenceKey={fieldEvidenceKey}
               key={field.key}
               onSelect={onSelect}
@@ -144,6 +166,7 @@ function renderTranscriptBlocks({
         activeFieldLabel={activeFieldLabel}
         bindActiveBlock={bindActiveBlock}
         block={block}
+        config={config}
         fieldEvidenceKey={fieldEvidenceKey}
         key={block.key}
         onSelect={onSelect}
@@ -162,6 +185,7 @@ function EvidenceBlock({
   activeFieldLabel,
   bindActiveBlock,
   block,
+  config,
   fieldEvidenceKey,
   onSelect,
   variant
@@ -171,14 +195,15 @@ function EvidenceBlock({
   activeFieldLabel?: string;
   bindActiveBlock: (node: HTMLElement | null) => void;
   block: EvidenceItem;
+  config: EvidenceDisplayConfig;
   fieldEvidenceKey: string | null;
   onSelect: (key: string) => void;
   variant: "field" | "paragraph" | "title";
 }) {
   const active = block.key === activeEvidenceKey;
   const linkedToField = block.key === fieldEvidenceKey;
-  const tone = sectionTone(`${block.section_name} ${block.text}`);
-  const displayText = normalizeTranscriptDisplayText(block.text, block.section_name, variant);
+  const tone = sectionTone(`${block.section_name} ${block.text}`, config);
+  const displayText = normalizeTranscriptDisplayText(block.text, block.section_name, variant, config);
   const className = [
     "transcript-block",
     `transcript-${variant}`,
@@ -188,8 +213,8 @@ function EvidenceBlock({
   ].filter(Boolean).join(" ");
   const content =
     variant === "field"
-      ? renderFieldContent(displayText, activeEvidenceText, linkedToField)
-      : renderTranscriptText(displayText, activeEvidenceText, linkedToField);
+      ? renderFieldContent(displayText, activeEvidenceText, linkedToField, config)
+      : renderTranscriptText(displayText, activeEvidenceText, linkedToField, config);
 
   return (
     <div
@@ -205,29 +230,29 @@ function EvidenceBlock({
       {variant === "field" ? content : <p>{content}</p>}
       {active && (
         <span className="transcript-evidence-meta" aria-hidden="true">
-          {evidenceDetailLabel(block, linkedToField, activeFieldLabel)} · {Math.round(block.confidence * 100)}%
+          {evidenceDetailLabel(block, linkedToField, activeFieldLabel, config)} · {Math.round(block.confidence * 100)}%
         </span>
       )}
     </div>
   );
 }
 
-function renderFieldContent(text: string, evidenceText: string, active: boolean) {
+function renderFieldContent(text: string, evidenceText: string, active: boolean, config: EvidenceDisplayConfig) {
   const field = splitLeadingLabel(text);
   if (!field) {
-    return <span className="transcript-field-value">{renderTranscriptText(text, evidenceText, active)}</span>;
+    return <span className="transcript-field-value">{renderTranscriptText(text, evidenceText, active, config)}</span>;
   }
   return (
     <>
       <span className="transcript-field-name">{field.label.replace(/[：:]$/, "")}</span>
-      <span className="transcript-field-value">{renderTranscriptText(field.value || "未识别", evidenceText, active)}</span>
+      <span className="transcript-field-value">{renderTranscriptText(field.value || "未识别", evidenceText, active, config)}</span>
     </>
   );
 }
 
-function renderTranscriptText(text: string, evidenceText: string, active: boolean): ReactNode {
+function renderTranscriptText(text: string, evidenceText: string, active: boolean, config: EvidenceDisplayConfig): ReactNode {
   const hitRange = active ? evidenceRange(text, evidenceText) : null;
-  const labelRanges = clinicalLabelRanges(text);
+  const labelRanges = clinicalLabelRanges(text, config);
   const cuts = new Set([0, text.length]);
   if (hitRange) {
     cuts.add(hitRange.start);
@@ -276,23 +301,34 @@ type SourceEvidenceItem = DocumentFragment & {
 
 type EvidencePage = {
   page: number;
+  displayPage: number;
   items: EvidenceItem[];
 };
 
-function groupEvidenceByPage(evidenceItems: DocumentFragment[]): EvidencePage[] {
+export function groupEvidenceByPage(evidenceItems: DocumentFragment[], config: EvidenceDisplayConfig): EvidencePage[] {
   const sourcePages = new Map<number, SourceEvidenceItem[]>();
   evidenceItems
-    .map((item, index) => ({ ...item, sourceKey: `${item.page}-${item.reading_order}-${index}` }))
+    .map((item, index) => {
+      const sourcePage = normalizeEvidencePage(item.page);
+      return { ...item, page: sourcePage, sourceKey: `${sourcePage}-${item.reading_order}-${index}` };
+    })
     .sort((left, right) => left.page - right.page || left.reading_order - right.reading_order)
     .forEach((item) => {
       const list = sourcePages.get(item.page) ?? [];
       list.push(item);
       sourcePages.set(item.page, list);
     });
-  return Array.from(sourcePages, ([page, items]) => ({
-    page,
-    items: buildDisplayItems(prepareSourceItems(items))
-  }));
+  return Array.from(sourcePages, ([page, items]) => ({ page, items }))
+    .sort((left, right) => left.page - right.page)
+    .map((group, index) => ({
+      page: group.page,
+      displayPage: index + 1,
+      items: buildDisplayItems(prepareSourceItems(group.items, config), config)
+    }));
+}
+
+function normalizeEvidencePage(page: number) {
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 }
 
 function findActiveEvidenceKey(groups: EvidencePage[], evidenceText: string, page: number | null, bbox: number[]) {
@@ -324,9 +360,10 @@ function normalizeEvidence(value: string | null | undefined) {
 function findTextOverlapEvidenceKey(groups: EvidencePage[], evidenceText: string, page: number | null) {
   const normalizedEvidence = normalizeEvidence(evidenceText);
   if (normalizedEvidence.length < 4) return null;
+  const hasRequestedPage = page !== null && groups.some((group) => group.page === page || group.displayPage === page);
   let best: { key: string; score: number } | null = null;
   for (const group of groups) {
-    if (page !== null && group.page !== page) continue;
+    if (hasRequestedPage && group.page !== page && group.displayPage !== page) continue;
     for (const item of group.items) {
       const normalizedText = normalizeEvidence(item.text);
       if (normalizedText.length < 4) continue;
@@ -383,24 +420,24 @@ function evidenceRange(text: string, evidenceText: string) {
   return Number.isFinite(start) && Number.isFinite(end) ? { start, end } : null;
 }
 
-function prepareSourceItems(items: SourceEvidenceItem[]) {
-  return repairOverlappingFormFields(removeDuplicateBasicInfoFragments(items));
+function prepareSourceItems(items: SourceEvidenceItem[], config: EvidenceDisplayConfig) {
+  return repairOverlappingFormFields(removeDuplicateBasicInfoFragments(items, config));
 }
 
-function removeDuplicateBasicInfoFragments(items: SourceEvidenceItem[]) {
+function removeDuplicateBasicInfoFragments(items: SourceEvidenceItem[], config: EvidenceDisplayConfig) {
   const formFields = items.filter((item) => item.block_type === "form_field");
   if (formFields.length === 0) return items;
   return items.filter((item) => {
     if (item.block_type === "form_field" || item.block_type === "title") return true;
-    if (!isBasicInfoFragment(item)) return true;
+    if (!isBasicInfoFragment(item, config)) return true;
     if (isDuplicateBasicFieldFragment(item, formFields)) return false;
-    if (basicFieldLabelCount(item.text) < 2) return true;
+    if (basicFieldLabelCount(item.text, config) < 2) return true;
     return overlappingFormFieldCount(item, formFields) < 2;
   });
 }
 
 function isDuplicateBasicFieldFragment(item: SourceEvidenceItem, formFields: SourceEvidenceItem[]) {
-  if (basicFieldLabelCount(item.text) === 0) return false;
+  if (normalizeEvidence(item.text).length === 0) return false;
   const itemText = normalizeEvidence(item.text);
   const itemRect = normalizeBbox(item.bbox);
   if (!itemText || !itemRect) return false;
@@ -475,44 +512,44 @@ function overlappingFormFieldCount(item: SourceEvidenceItem, formFields: SourceE
   }).length;
 }
 
-function isBasicInfoFragment(item: SourceEvidenceItem) {
-  return /基本|首页|信息/.test(item.section_name) || basicFieldLabelCount(item.text) >= 2;
+function isBasicInfoFragment(item: SourceEvidenceItem, config: EvidenceDisplayConfig) {
+  return /基本|首页|信息/.test(item.section_name) || basicFieldLabelCount(item.text, config) >= 2;
 }
 
-function basicFieldLabelCount(text: string) {
-  return BASIC_FIELD_LABELS.reduce((count, label) => count + (new RegExp(`${label}\\s*[:：]`).test(text) ? 1 : 0), 0);
+function basicFieldLabelCount(text: string, config: EvidenceDisplayConfig) {
+  return config.basic_field_labels.reduce((count, label) => count + (new RegExp(`${escapeRegExp(label)}\\s*[:：]`).test(text) ? 1 : 0), 0);
 }
 
-function buildDisplayItems(items: SourceEvidenceItem[]): EvidenceItem[] {
+function buildDisplayItems(items: SourceEvidenceItem[], config: EvidenceDisplayConfig): EvidenceItem[] {
   const displayItems: EvidenceItem[] = [];
   let paragraph: SourceEvidenceItem[] = [];
   let pendingSectionMarker: string | null = null;
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
-    displayItems.push(...splitEmbeddedSections(mergeEvidenceItems(paragraph, displayItems.length)));
+    displayItems.push(...splitEmbeddedSections(mergeEvidenceItems(paragraph, displayItems.length, config), config));
     paragraph = [];
   };
 
   for (const item of items) {
-    const marker = standaloneSectionMarker(item.text);
+    const marker = standaloneSectionMarker(item.text, config);
     if (marker) {
       flushParagraph();
       pendingSectionMarker = marker;
       continue;
     }
 
-    const current = applyPendingSectionMarker(item, pendingSectionMarker);
+    const current = applyPendingSectionMarker(item, pendingSectionMarker, config);
     pendingSectionMarker = null;
 
-    if (shouldKeepAtomic(current)) {
+    if (shouldKeepAtomic(current, config)) {
       flushParagraph();
-      displayItems.push(...splitEmbeddedSections(asDisplayItem(current, displayItems.length)));
+      displayItems.push(...splitEmbeddedSections(asDisplayItem(current, displayItems.length, config), config));
       continue;
     }
 
     const previous = paragraph[paragraph.length - 1];
-    if (!previous || shouldMergeIntoParagraph(previous, current)) {
+    if (!previous || shouldMergeIntoParagraph(previous, current, config)) {
       paragraph.push(current);
     } else {
       flushParagraph();
@@ -523,18 +560,18 @@ function buildDisplayItems(items: SourceEvidenceItem[]): EvidenceItem[] {
   return displayItems;
 }
 
-function asDisplayItem(item: SourceEvidenceItem, index: number): EvidenceItem {
+function asDisplayItem(item: SourceEvidenceItem, index: number, config: EvidenceDisplayConfig): EvidenceItem {
   return {
     ...item,
     key: `block-${item.sourceKey}-${index}`,
-    section_name: evidenceSectionLabel(item.text, item.section_name),
-    block_type: displayBlockType(item)
+    section_name: evidenceSectionLabel(item.text, item.section_name, config),
+    block_type: displayBlockType(item, config)
   };
 }
 
-function mergeEvidenceItems(items: SourceEvidenceItem[], index: number): EvidenceItem {
+function mergeEvidenceItems(items: SourceEvidenceItem[], index: number, config: EvidenceDisplayConfig): EvidenceItem {
   const first = items[0];
-  const sectionName = evidenceSectionLabel(first.text, first.section_name);
+  const sectionName = evidenceSectionLabel(first.text, first.section_name, config);
   return {
     ...first,
     key: `paragraph-${first.page}-${items[0].reading_order}-${items[items.length - 1].reading_order}-${index}`,
@@ -542,13 +579,13 @@ function mergeEvidenceItems(items: SourceEvidenceItem[], index: number): Evidenc
     bbox: mergeBboxes(items.map((item) => item.bbox)),
     confidence: roundConfidence(items.reduce((total, item) => total + item.confidence, 0) / items.length),
     section_name: sectionName,
-    block_type: items.length > 1 || startsWithSectionHeading(first.text) ? "paragraph" : displayBlockType(first)
+    block_type: items.length > 1 || startsWithSectionHeading(first.text, config) ? "paragraph" : displayBlockType(first, config)
   };
 }
 
-function splitEmbeddedSections(item: EvidenceItem): EvidenceItem[] {
+function splitEmbeddedSections(item: EvidenceItem, config: EvidenceDisplayConfig): EvidenceItem[] {
   if (!["line", "paragraph", "text"].includes(item.block_type)) return [item];
-  const splitIndexes = embeddedSectionIndexes(item.text);
+  const splitIndexes = embeddedSectionIndexes(item.text, config);
   if (splitIndexes.length === 0) return [item];
   const cuts = [0, ...splitIndexes, item.text.length];
   const blocks: EvidenceItem[] = [];
@@ -559,16 +596,16 @@ function splitEmbeddedSections(item: EvidenceItem): EvidenceItem[] {
       ...item,
       key: `${item.key}-section-${index}`,
       text,
-      section_name: evidenceSectionLabel(text, item.section_name),
-      block_type: isDocumentTitle(text) ? "title" : "paragraph"
+      section_name: evidenceSectionLabel(text, item.section_name, config),
+      block_type: isDocumentTitle(text, config) ? "title" : "paragraph"
     });
   }
   return blocks.length ? blocks : [item];
 }
 
-function embeddedSectionIndexes(text: string) {
+function embeddedSectionIndexes(text: string, config: EvidenceDisplayConfig) {
   const indexes = new Set<number>();
-  SECTION_LABELS.forEach((label) => {
+  config.section_labels.forEach((label) => {
     let cursor = text.indexOf(label, 1);
     while (cursor > 0) {
       const previous = text[cursor - 1];
@@ -582,20 +619,20 @@ function embeddedSectionIndexes(text: string) {
   return Array.from(indexes).sort((left, right) => left - right);
 }
 
-function shouldKeepAtomic(item: SourceEvidenceItem) {
+function shouldKeepAtomic(item: SourceEvidenceItem, config: EvidenceDisplayConfig) {
   if (["form_field", "table"].includes(item.block_type)) return true;
-  if (item.block_type === "title") return isDocumentTitle(item.text);
+  if (item.block_type === "title") return isDocumentTitle(item.text, config);
   const text = item.text.trim();
   if (!text) return true;
-  if (isDocumentTitle(text)) return true;
-  if (startsWithBasicField(text)) return true;
+  if (isDocumentTitle(text, config)) return true;
+  if (startsWithBasicField(text, config)) return true;
   return false;
 }
 
-function shouldMergeIntoParagraph(previous: SourceEvidenceItem, current: SourceEvidenceItem) {
+function shouldMergeIntoParagraph(previous: SourceEvidenceItem, current: SourceEvidenceItem, config: EvidenceDisplayConfig) {
   if (previous.page !== current.page) return false;
-  if (startsWithBasicField(current.text) || isDocumentTitle(current.text)) return false;
-  if (startsWithSectionHeading(current.text) && !continuesCurrentSection(previous.text, current.text)) return false;
+  if (startsWithBasicField(current.text, config) || isDocumentTitle(current.text, config)) return false;
+  if (startsWithSectionHeading(current.text, config) && !continuesCurrentSection(previous.text, current.text, config)) return false;
 
   const previousRect = normalizeBbox(previous.bbox);
   const currentRect = normalizeBbox(current.bbox);
@@ -626,16 +663,16 @@ function shouldJoinWithoutSpace(previous: string, current: string) {
   return false;
 }
 
-function displayBlockType(item: SourceEvidenceItem): DocumentFragment["block_type"] {
+function displayBlockType(item: SourceEvidenceItem, config: EvidenceDisplayConfig): DocumentFragment["block_type"] {
   if (item.block_type === "form_field" || item.block_type === "table") return item.block_type;
-  if (isDocumentTitle(item.text)) return "title";
+  if (isDocumentTitle(item.text, config)) return "title";
   if (item.block_type === "title") return "paragraph";
   return item.block_type;
 }
 
-function normalizeTranscriptDisplayText(text: string, sectionName: string, variant: "field" | "paragraph" | "title") {
-  let normalized = repairCommonOcrText(text.trim());
-  if (variant === "paragraph" && evidenceSectionLabel(normalized, sectionName) === "体格检查") {
+function normalizeTranscriptDisplayText(text: string, sectionName: string, variant: "field" | "paragraph" | "title", config: EvidenceDisplayConfig) {
+  let normalized = repairCommonOcrText(text.trim(), config);
+  if (variant === "paragraph" && evidenceSectionLabel(normalized, sectionName, config) === "体格检查") {
     normalized = normalized.replace(/^体格检查\s*[:：]?\s*(?=[TＴPBR一-龥])/u, "体格检查：");
     normalized = normalized.replace(/(体格检查：\s*)T\s*[:：]/u, "$1T：");
     normalized = normalized.replace(/\s+(P|R|BP)\s*[:：]/gu, " $1：");
@@ -643,10 +680,10 @@ function normalizeTranscriptDisplayText(text: string, sectionName: string, varia
   return normalized;
 }
 
-function applyPendingSectionMarker(item: SourceEvidenceItem, marker: string | null): SourceEvidenceItem {
+function applyPendingSectionMarker(item: SourceEvidenceItem, marker: string | null, config: EvidenceDisplayConfig): SourceEvidenceItem {
   if (!marker) return item;
   const text = item.text.trim();
-  if (!text || startsWithSectionHeading(text) || isDocumentTitle(text)) {
+  if (!text || startsWithSectionHeading(text, config) || isDocumentTitle(text, config)) {
     return { ...item, section_name: marker };
   }
   return {
@@ -656,15 +693,19 @@ function applyPendingSectionMarker(item: SourceEvidenceItem, marker: string | nu
   };
 }
 
-function repairCommonOcrText(text: string) {
-  return text
-    .replace(/(BP\s*[：:]?\s*\d+\s*\/\s*\d+\s*mmHg)\s*般状况/giu, "$1 一般状况")
-    .replace(/(^|[。；;！？\s])般状况(?=\s*[：:])/gu, "$1一般状况");
+function repairCommonOcrText(text: string, config: EvidenceDisplayConfig) {
+  return config.common_ocr_repairs.reduce((value, repair) => {
+    try {
+      return value.replace(new RegExp(repair.pattern, "giu"), repair.replacement);
+    } catch {
+      return value;
+    }
+  }, text);
 }
 
-function clinicalLabelRanges(text: string) {
+function clinicalLabelRanges(text: string, config: EvidenceDisplayConfig) {
   const ranges: Array<{ start: number; end: number }> = [];
-  INLINE_RECORD_LABELS.forEach((label) => {
+  config.inline_record_labels.forEach((label) => {
     const tokens = [`${label}：`, `${label}:`];
     tokens.forEach((token) => {
       let cursor = text.indexOf(token);
@@ -733,7 +774,7 @@ function findBboxEvidenceKey(groups: EvidencePage[], page: number | null, bbox: 
   if (page === null) return null;
   const target = normalizeBbox(bbox);
   if (!target) return null;
-  const pageItems = groups.find((group) => group.page === page)?.items ?? [];
+  const pageItems = groups.find((group) => group.page === page || group.displayPage === page)?.items ?? [];
   let best: { key: string; score: number } | null = null;
   for (const item of pageItems) {
     const rect = normalizeBbox(item.bbox);
@@ -764,16 +805,16 @@ function bboxIntersectionArea(first: BboxRect, second: BboxRect) {
   return overlapX * overlapY;
 }
 
-function evidenceDetailLabel(block: EvidenceItem, linkedToField: boolean, activeFieldLabel?: string) {
+function evidenceDetailLabel(block: EvidenceItem, linkedToField: boolean, activeFieldLabel: string | undefined, config: EvidenceDisplayConfig) {
   if (linkedToField && activeFieldLabel) return activeFieldLabel;
-  return evidenceSectionLabel(block.text, block.section_name);
+  return evidenceSectionLabel(block.text, block.section_name, config);
 }
 
-function evidenceSectionLabel(text: string, fallback: string) {
+function evidenceSectionLabel(text: string, fallback: string, config: EvidenceDisplayConfig) {
   const trimmed = text.trim();
-  const section = SECTION_LABELS.find((label) => trimmed.startsWith(label));
+  const section = config.section_labels.find((label) => trimmed.startsWith(label));
   if (section) return section;
-  const field = BASIC_FIELD_LABELS.find((label) => new RegExp(`^${label}\\s*[:：]`).test(trimmed));
+  const field = config.basic_field_labels.find((label) => new RegExp(`^${escapeRegExp(label)}\\s*[:：]`).test(trimmed));
   if (field) return field;
   if (fallback && !/OCR\s*原文/.test(fallback)) return fallback;
   return trimmed.includes("\n") ? "段落证据" : "文本证据";
@@ -790,19 +831,19 @@ function splitLeadingLabel(text: string) {
   };
 }
 
-function startsWithBasicField(text: string) {
+function startsWithBasicField(text: string, config: EvidenceDisplayConfig) {
   const trimmed = text.trim();
-  return BASIC_FIELD_LABELS.some((label) => new RegExp(`^${label}\\s*[:：]`).test(trimmed));
+  return config.basic_field_labels.some((label) => new RegExp(`^${escapeRegExp(label)}\\s*[:：]`).test(trimmed));
 }
 
-function startsWithSectionHeading(text: string) {
+function startsWithSectionHeading(text: string, config: EvidenceDisplayConfig) {
   const trimmed = text.trim();
-  return SECTION_LABELS.some((label) => trimmed.startsWith(label));
+  return config.section_labels.some((label) => trimmed.startsWith(label));
 }
 
-function continuesCurrentSection(previousText: string, currentText: string) {
-  const previousSection = SECTION_LABELS.find((label) => previousText.trim().startsWith(label));
-  const currentSection = SECTION_LABELS.find((label) => currentText.trim().startsWith(label));
+function continuesCurrentSection(previousText: string, currentText: string, config: EvidenceDisplayConfig) {
+  const previousSection = config.section_labels.find((label) => previousText.trim().startsWith(label));
+  const currentSection = config.section_labels.find((label) => currentText.trim().startsWith(label));
   return Boolean(previousSection && currentSection && previousSection === currentSection);
 }
 
@@ -813,24 +854,22 @@ function isStandaloneTitle(text: string) {
   return true;
 }
 
-function isDocumentTitle(text: string) {
+function isDocumentTitle(text: string, config: EvidenceDisplayConfig) {
   const trimmed = text.trim();
   if (!isStandaloneTitle(trimmed)) return false;
-  if (standaloneSectionMarker(trimmed)) return false;
-  return /病历|病案|入院记录|出院记录|病程记录|手术记录|首页/.test(trimmed);
+  if (standaloneSectionMarker(trimmed, config)) return false;
+  return config.document_title_patterns.some((pattern) => trimmed.includes(pattern));
 }
 
-function standaloneSectionMarker(text: string) {
+function standaloneSectionMarker(text: string, config: EvidenceDisplayConfig) {
   const normalized = text.trim().replace(/[：:。；;\s]+$/g, "");
-  return SECTION_LABELS.includes(normalized) ? normalized : null;
+  return config.section_labels.includes(normalized) ? normalized : null;
 }
 
-function sectionTone(sectionName: string) {
-  if (/基本|首页|信息|姓名|年龄|性别/.test(sectionName)) return "basic";
-  if (/主诉|现病|入院/.test(sectionName)) return "present";
-  if (/既往|个人|家族|婚育|月经|病史/.test(sectionName)) return "history";
-  if (/诊断|出院|医嘱/.test(sectionName)) return "diagnosis";
-  if (/检验|检查|影像|化验|体格|专科|辅助/.test(sectionName)) return "exam";
+function sectionTone(sectionName: string, config: EvidenceDisplayConfig) {
+  for (const [tone, terms] of Object.entries(config.section_tones)) {
+    if (terms.some((term) => sectionName.includes(term))) return tone;
+  }
   return "default";
 }
 
@@ -907,3 +946,36 @@ const INLINE_RECORD_LABELS = [
   "鉴别诊断",
   "诊疗计划"
 ];
+
+const DEFAULT_EVIDENCE_DISPLAY_CONFIG: EvidenceDisplayConfig = {
+  basic_field_labels: BASIC_FIELD_LABELS,
+  section_labels: SECTION_LABELS,
+  inline_record_labels: INLINE_RECORD_LABELS,
+  section_tones: {
+    basic: ["基本", "首页", "信息", "姓名", "年龄", "性别"],
+    present: ["主诉", "现病", "入院"],
+    history: ["既往", "个人", "家族", "婚育", "月经", "病史"],
+    diagnosis: ["诊断", "出院", "医嘱"],
+    exam: ["检验", "检查", "影像", "化验", "体格", "专科", "辅助"]
+  },
+  document_title_patterns: ["病历", "病案", "入院记录", "出院记录", "病程记录", "手术记录", "首页"],
+  common_ocr_repairs: [
+    { pattern: "(BP\\s*[：:]?\\s*\\d+\\s*\\/\\s*\\d+\\s*mmHg)\\s*般状况", replacement: "$1 一般状况" },
+    { pattern: "(^|[。；;！？\\s])般状况(?=\\s*[：:])", replacement: "$1一般状况" }
+  ]
+};
+
+function mergeEvidenceDisplayConfig(config?: EvidenceDisplayConfig): EvidenceDisplayConfig {
+  return {
+    basic_field_labels: config?.basic_field_labels?.length ? config.basic_field_labels : DEFAULT_EVIDENCE_DISPLAY_CONFIG.basic_field_labels,
+    section_labels: config?.section_labels?.length ? config.section_labels : DEFAULT_EVIDENCE_DISPLAY_CONFIG.section_labels,
+    inline_record_labels: config?.inline_record_labels?.length ? config.inline_record_labels : DEFAULT_EVIDENCE_DISPLAY_CONFIG.inline_record_labels,
+    section_tones: Object.keys(config?.section_tones ?? {}).length ? config!.section_tones : DEFAULT_EVIDENCE_DISPLAY_CONFIG.section_tones,
+    document_title_patterns: config?.document_title_patterns?.length ? config.document_title_patterns : DEFAULT_EVIDENCE_DISPLAY_CONFIG.document_title_patterns,
+    common_ocr_repairs: config?.common_ocr_repairs?.length ? config.common_ocr_repairs : DEFAULT_EVIDENCE_DISPLAY_CONFIG.common_ocr_repairs
+  };
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

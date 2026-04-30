@@ -1,0 +1,30 @@
+profile_id: ollama_local
+label: Ollama Local
+provider: openai_compatible
+provider_id: ollama
+model_ref: ollama/llama3.3
+api: openai-completions
+model: llama3.3
+base_url: http://127.0.0.1:11434/v1
+api_key_env: EYEX_OLLAMA_API_KEY
+auth_env_vars:
+  - EYEX_OLLAMA_API_KEY
+  - OLLAMA_API_KEY
+auth_optional: true
+response_format: json_object
+reasoning_effort: low
+prompt_cache_key: eyex-clinical-extraction-v1
+max_output_tokens: 4096
+store: false
+temperature: 0.0
+fallbacks:
+  - local/conservative-local
+input:
+  - text
+context_window: 200000
+context_tokens: 8192
+cost:
+  input: 0
+  output: 0
+  cacheRead: 0
+  cacheWrite: 0

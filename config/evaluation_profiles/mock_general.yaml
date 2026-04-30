@@ -1,0 +1,12 @@
+profile_id: mock_general
+label: 通用非动脉瘤评测模板
+schema_id: medical_inpatient_zh
+field_tags:
+  ocular_pressure: [ophthalmology, numeric]
+thresholds:
+  auto_accept_precision: 0.95
+  evidence_coverage: 1.0
+token_budget:
+  max_input_tokens_per_case: 1200
+  max_input_tokens_per_accepted_field: 500
+gold_cases: []

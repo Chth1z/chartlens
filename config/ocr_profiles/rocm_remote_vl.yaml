@@ -1,0 +1,48 @@
+profile_id: rocm_remote_vl
+label: Remote ROCm PaddleOCR-VL OCR
+version: 1.0.0
+page_router:
+  - page_kinds: [native_pdf_text, text]
+    engines: [pdf_text]
+  - page_kinds: [image, image_ocr, image_pdf_ocr, scan, screenshot, table, complex_layout, low_quality, difficult_scan]
+    engines: [paddleocr_vl_remote, pp_ocr_v5_paddle, paddle_structure_v3, docling, paddleocr_vl]
+engines:
+  - engine_id: paddleocr_vl_remote
+    label: PaddleOCR-VL-1.5 remote ROCm sidecar
+    model_name: PaddleOCR-VL-1.5
+    model_version: "1.5"
+    accelerator: remote
+    priority: 10
+  - engine_id: pp_ocr_v5_paddle
+    label: PP-OCRv5 Paddle fallback
+    model_name: PP-OCRv5
+    model_version: v5
+    accelerator: cpu
+    priority: 20
+  - engine_id: paddle_structure_v3
+    label: PP-StructureV3 fallback
+    model_name: PP-StructureV3
+    accelerator: cpu
+    priority: 30
+  - engine_id: docling
+    label: Docling fallback
+    model_name: Docling
+    accelerator: cpu
+    priority: 40
+  - engine_id: paddleocr_vl
+    label: PaddleOCR-VL-1.5 CPU fallback
+    model_name: PaddleOCR-VL-1.5
+    model_version: "1.5"
+    accelerator: cpu
+    priority: 50
+cache_policy:
+  include_engine_id: true
+  include_engine_version: true
+  include_accelerator: true
+gpu_policy:
+  target: rocm_remote
+  default_accelerator: remote
+  rocm_default_enabled: true
+quality_thresholds:
+  min_chars: 80
+  min_confidence: 0.65

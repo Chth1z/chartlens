@@ -1,0 +1,14 @@
+version: "1.0.0"
+rules:
+  - key: require_evidence_for_non_unknown
+    description: 非 unknown 结果必须包含 evidence_span 和 evidence_block_id。
+  - key: evidence_span_must_exist
+    description: evidence_span 必须逐字存在于引用的 DocumentIR block。
+  - key: no_no_evidence_values
+    description: no_evidence 类型不能携带非 unknown 编码。
+  - key: inferred_requires_review
+    description: inferred、derived、derived_candidate 必须人工复核。
+  - key: not_mentioned_is_unknown
+    description: 未提及不能推断为无；统一输出 unknown。
+  - key: conflict_requires_review
+    description: 冲突证据必须进入人工复核。

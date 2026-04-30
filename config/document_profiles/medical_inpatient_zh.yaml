@@ -1,0 +1,73 @@
+profile_id: medical_inpatient_zh
+label: 中文住院病例通用 profile
+default_document_kind: admission_note
+section_aliases:
+  基本信息: [基本信息, 病案首页, 住院病案首页, 首页, 入院记录, 入院信息]
+  主诉: [主诉]
+  现病史: [现病史, 入院情况, 入院经过, 病例摘要]
+  既往史: [既往史, 既往病史]
+  个人史: [个人史, 生活史]
+  家族史: [家族史]
+  体格检查: [体格检查, 查体, 专科检查]
+  辅助检查: [辅助检查, 实验室检查, 影像学检查, 检验检查, 影像报告, CTA, DSA, CT]
+  入院诊断: [入院诊断, 初步诊断]
+  出院诊断: [出院诊断, 主要诊断, 其他诊断]
+  手术记录: [手术记录, 手术经过, 手术方式, 手术名称, 操作记录]
+  出院情况: [出院情况, 出院记录, 诊疗经过, 出院小结, 出院转归, 出院医嘱]
+excluded_phi_labels:
+  - 姓名
+  - 身份证
+  - 身份证号
+  - 电话
+  - 联系电话
+  - 住院号
+  - 门诊号
+  - 病案号
+  - 住址
+  - 家庭住址
+  - 联系人
+  - 工作单位
+phi_inline_labels:
+  - 姓名
+  - 身份证
+  - 身份证号
+  - 电话
+  - 联系电话
+  - 住院号
+  - 门诊号
+  - 病案号
+  - 住址
+  - 家庭住址
+  - 联系人
+  - 工作单位
+phi_patterns:
+  - key: id_card
+    pattern: '\b\d{17}[\dXx]\b'
+    replacement: '[ID]'
+  - key: phone
+    pattern: '(?<!\d)(?:1[3-9]\d{9}|\d{3,4}[- ]?\d{7,8})(?!\d)'
+    replacement: '[PHONE]'
+  - key: RESIDUAL_ADDRESS_PATTERN
+    pattern: '(?:居住在|住在|家住|现住|地址[:：]?)[^，,；;\s。]{2,40}(?:省|市|区|县|镇|乡|街道|街|路|园|院|村|号)'
+    replacement: '[ADDRESS]'
+    blocks_online_llm: true
+document_kind_rules:
+  - kind: discharge_note
+    sections: [出院情况, 出院诊断]
+  - kind: operation_note
+    sections: [手术记录]
+  - kind: imaging_or_exam
+    sections: [辅助检查]
+extraction_system_prompt: You extract structured clinical research fields from Chinese medical records. Return evidence-grounded candidates only. Missing means unknown, never negative.
+extraction_rules:
+  - Only use the supplied de-identified evidence_packs.
+  - Do not infer absent information. If a fact is not explicitly mentioned, return normalized_code='unknown'.
+  - A non-unknown result must include evidence_span and evidence_block_id.
+  - evidence_span must be copied verbatim from the referenced block text.
+  - If there is contradiction, return normalized_code='unknown', status='conflict', evidence_type='conflict', review_required=true.
+  - For family history or non-patient experiencer, do not mark the patient as positive.
+  - For suspected or possible conditions, return unknown and review_required=true.
+  - For scores, only auto-fill explicitly recorded scores; computed scores must be derived_candidate and review_required=true.
+  - For aneurysm/procedure fields, include intermediate facts in facts before choosing normalized_code.
+document_ai_prompt: >-
+  你是智能文档解析引擎。请从输入文件中提取可见文本、表格单元格、表单字段和勾选项。只输出严格 JSON，不要 Markdown，不要解释。JSON schema: {"blocks":[{"page":1,"reading_order":1,"text":"...","bbox":[x1,y1,x2,y2],"confidence":0.0,"block_type":"text|paragraph|title|table|cell|form_field|key_value|checkbox|selection_mark","table_id":null,"row":null,"col":null}]}。如果页码或 bbox 无法确定，page 使用 1，bbox 使用空数组。不要根据常识补全文档中看不见的内容。

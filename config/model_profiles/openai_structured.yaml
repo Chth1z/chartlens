@@ -1,0 +1,23 @@
+profile_id: openai_structured
+label: OpenAI Structured Outputs
+provider: openai_responses
+provider_id: openai
+model_ref: openai/gpt-5.4
+api: openai-responses
+model: gpt-5.4
+auth_env_vars:
+  - EYEX_OPENAI_API_KEY
+  - OPENAI_API_KEY
+response_format: json_schema
+reasoning_effort: low
+prompt_cache_key: eyex-clinical-extraction-v1
+max_output_tokens: 4096
+store: false
+fallbacks:
+  - deepseek/deepseek-v4-pro
+  - deepseek/deepseek-v4-flash
+  - local/conservative-local
+input:
+  - text
+context_window: 400000
+context_tokens: 200000

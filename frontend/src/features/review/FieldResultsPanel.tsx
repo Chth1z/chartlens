@@ -1,4 +1,5 @@
-import { Filter, Search } from "lucide-react";
+import { memo, useState } from "react";
+import { ChevronDown, Filter, Search } from "lucide-react";
 import type { FieldDefinition, FieldResult } from "../../shared/types/api";
 import { confidenceBand, type FilterMode } from "../cases/status";
 
@@ -8,27 +9,40 @@ interface FieldResultsPanelProps {
   filter: FilterMode;
   query: string;
   selectedField: string;
+  title?: string;
   setFilter: (filter: FilterMode) => void;
   setQuery: (query: string) => void;
   setSelectedField: (fieldKey: string) => void;
   setReviewCode: (code: string) => void;
 }
 
-export function FieldResultsPanel({
+export const FieldResultsPanel = memo(function FieldResultsPanel({
   filteredResults,
   fieldMap,
   filter,
   query,
   selectedField,
+  title = "字段结果",
   setFilter,
   setQuery,
   setSelectedField,
   setReviewCode
 }: FieldResultsPanelProps) {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterOptions: Array<[FilterMode, string]> = [
+    ["all", "全部"],
+    ["model_failed", "模型失败"],
+    ["ocr_low", "OCR低质"],
+    ["no_evidence", "无证据"],
+    ["review", "需复核"],
+    ["accepted", "已确认"]
+  ];
+  const activeFilterLabel = filterOptions.find(([key]) => key === filter)?.[1] ?? "全部";
+
   return (
     <section className="fields-panel">
       <div className="panel-title">
-        <span>字段结果</span>
+        <span>{title}</span>
         <small>{filteredResults.length} 项</small>
       </div>
       <div className="field-toolbar">
@@ -41,39 +55,55 @@ export function FieldResultsPanel({
             placeholder="搜索字段或证据"
           />
         </label>
-        <div className="filter-tabs" aria-label="字段筛选">
-          {[
-            ["all", "全部"],
-            ["review", "需复核"],
-            ["unknown", "缺失"],
-            ["accepted", "已确认"]
-          ].map(([key, label]) => (
-            <button
-              aria-pressed={filter === key}
-              className={filter === key ? "active" : ""}
-              key={key}
-              onClick={() => setFilter(key as FilterMode)}
-              type="button"
-            >
-              {key === "all" && <Filter size={14} />}
-              {label}
-            </button>
-          ))}
+        <div className="field-filter">
+          <button
+            aria-expanded={filterOpen}
+            aria-haspopup="menu"
+            className="field-filter-trigger"
+            onClick={() => setFilterOpen((open) => !open)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setFilterOpen(false);
+            }}
+            type="button"
+          >
+            <Filter size={15} />
+            <span>{activeFilterLabel}</span>
+            <ChevronDown size={15} aria-hidden="true" />
+          </button>
+          {filterOpen && (
+            <div className="field-filter-menu" role="menu" aria-label="字段筛选">
+              {filterOptions.map(([key, label]) => (
+                <button
+                  aria-checked={filter === key}
+                  className={filter === key ? "active" : ""}
+                  key={key}
+                  onClick={() => {
+                    setFilter(key);
+                    setFilterOpen(false);
+                  }}
+                  role="menuitemradio"
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
+      <div className="field-table-header field-row header" aria-hidden="true">
+        <span>字段</span>
+        <span>编码</span>
+        <span>置信度</span>
+        <span>状态</span>
+      </div>
       <div className="field-table" role="list">
-        <div className="field-row header" aria-hidden="true">
-          <span>字段</span>
-          <span>编码</span>
-          <span>置信度</span>
-          <span>状态</span>
-        </div>
         {filteredResults.length === 0 && <div className="empty-state">暂无字段结果</div>}
-        {filteredResults.map((result) => {
+        {[...filteredResults].sort(compareFieldRisk).map((result) => {
           const field = fieldMap.get(result.field_key);
           const band = confidenceBand(result);
-          const statusText = band === "accepted" ? "自动填入" : band === "review" ? "需复核" : "不详";
+          const statusText = riskStatusText(result, band);
           return (
             <button
               className={`field-row ${selectedField === result.field_key ? "selected" : ""}`}
@@ -103,4 +133,30 @@ export function FieldResultsPanel({
       </div>
     </section>
   );
+});
+
+function compareFieldRisk(left: FieldResult, right: FieldResult) {
+  const score = (result: FieldResult) => {
+    if (result.validation_state === "rejected") return 500;
+    if (result.risk_level === "critical") return 450;
+    if (result.review_required) return 400;
+    if (result.error_code) return 350;
+    if (result.risk_level === "high") return 300;
+    if ((result.normalized_code ?? "unknown") === "unknown") return 200;
+    if (result.risk_level === "medium") return 100;
+    return 0;
+  };
+  return score(right) - score(left) || left.field_key.localeCompare(right.field_key);
+}
+
+function riskStatusText(result: FieldResult, band: ReturnType<typeof confidenceBand>) {
+  if (result.validation_state === "rejected") return "已拦截";
+  if (result.error_code === "NO_EVIDENCE_CANDIDATES_SKIPPED_LLM") return "无证据";
+  if (result.error_code === "DEIDENTIFICATION_RISK_BLOCKED_ONLINE_LLM") return "脱敏复核";
+  if (result.error_code === "LLM_PROVIDER_FAILED") return "模型失败";
+  if (result.error_code === "LOW_OCR_CONFIDENCE") return "OCR低质";
+  if (result.error_code === "COMPLEX_FIELD_REQUIRES_FACTS") return "需事实";
+  if (band === "accepted") return "自动填入";
+  if (band === "review") return "需复核";
+  return "不详";
 }

@@ -1,5 +1,4 @@
-import { AlertTriangle, FileSearch, Loader2, LogIn } from "lucide-react";
-import { loginUrl } from "../../shared/api/client";
+import { AlertTriangle, FileSearch, Loader2 } from "lucide-react";
 import type { AuthStatus } from "../../shared/types/api";
 
 interface LoginRequiredProps {
@@ -47,15 +46,9 @@ export function LoginRequired({ auth, oauthConfigured, missingOauthConfig, oauth
             {oauthWarnings.map((item) => <small key={item}>{item}</small>)}
           </div>
         )}
-        {oauthConfigured ? (
-          <a className="icon-button primary full" href={loginUrl("/")}>
-            <LogIn size={16} /> {auth.auth_provider === "chatgpt" ? "使用 ChatGPT 登录" : "使用 OAuth 登录"}
-          </a>
-        ) : (
-          <button className="icon-button primary full" disabled type="button">
-            <AlertTriangle size={16} /> OAuth 配置不完整
-          </button>
-        )}
+        <button className="icon-button primary full" disabled type="button">
+          <AlertTriangle size={16} /> 当前版本未启用登录入口
+        </button>
       </section>
     </main>
   );

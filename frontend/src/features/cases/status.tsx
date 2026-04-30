@@ -1,12 +1,20 @@
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import type { AuthStatus, CaseRecord, FieldResult } from "../../shared/types/api";
 
-export type FilterMode = "all" | "review" | "unknown" | "accepted";
+export type FilterMode = "all" | "model_failed" | "ocr_low" | "no_evidence" | "review" | "accepted" | "unknown";
 
 export function confidenceBand(result: FieldResult): FilterMode {
   if (result.review_required) return "review";
   if (result.normalized_code === "unknown" || result.error_code) return "unknown";
   return "accepted";
+}
+
+export function resultMatchesFilter(result: FieldResult, filter: FilterMode) {
+  if (filter === "all") return true;
+  if (filter === "model_failed") return result.error_code === "LLM_PROVIDER_FAILED" || result.error_code?.startsWith("LLM_PROVIDER_FAILED:");
+  if (filter === "ocr_low") return result.error_code === "LOW_OCR_CONFIDENCE" || result.evidence_packs?.some((pack) => pack.ocr_confidence < 0.75);
+  if (filter === "no_evidence") return result.error_code === "NO_EVIDENCE_CANDIDATES_SKIPPED_LLM";
+  return confidenceBand(result) === filter;
 }
 
 export function isWorkingStatus(status: CaseRecord["status"]) {
@@ -18,13 +26,13 @@ export function statusLabel(status: CaseRecord["status"]) {
   if (status === "processing") return "处理中";
   if (status === "ocr") return "OCR中";
   if (status === "extracting") return "抽取中";
-  if (status === "processed") return "已完成";
+  if (status === "completed") return "已完成";
   if (status === "degraded") return "已降级";
   return "失败";
 }
 
 export function statusIcon(status: CaseRecord["status"]) {
-  if (status === "processed") return <CheckCircle2 size={16} />;
+  if (status === "completed") return <CheckCircle2 size={16} />;
   if (status === "degraded") return <AlertTriangle size={16} />;
   if (status === "failed") return <XCircle size={16} />;
   return <Loader2 size={16} className="spin" />;
@@ -37,15 +45,28 @@ export function qualityText(band: string | undefined) {
   return "未知";
 }
 
-export function formatMs(value: number | undefined) {
-  if (!value) return "0 ms";
+export function formatMs(value: number | undefined | null) {
+  if (value == null || value <= 0) return "未记录";
   if (value < 1000) return `${value} ms`;
   return `${(value / 1000).toFixed(1)} s`;
 }
 
 export function modelAuthLabel(auth: AuthStatus | null, provider?: string) {
   const activeProvider = provider || auth?.model_auth.provider;
+  if (activeProvider?.includes("deepseek")) return "DeepSeek";
+  if (activeProvider?.includes("openrouter")) return "OpenRouter";
+  if (activeProvider?.includes("ollama")) return "Ollama";
+  if (activeProvider?.includes("lmstudio")) return "LM Studio";
+  if (activeProvider?.includes("vllm")) return "vLLM";
+  if (activeProvider?.includes("local_after_model_fallback") || activeProvider?.includes("conservative-local-provider")) return "本地规则 fallback";
   if (activeProvider === "openai_api_key" || activeProvider === "openai-responses") return "OpenAI API key";
+  if (activeProvider === "deepseek" || activeProvider === "deepseek-chat") return "DeepSeek";
+  if (activeProvider === "openrouter") return "OpenRouter";
+  if (activeProvider === "ollama") return "Ollama";
+  if (activeProvider === "lmstudio") return "LM Studio";
+  if (activeProvider === "vllm") return "vLLM";
+  if (activeProvider === "custom") return "自定义兼容接口";
+  if (activeProvider === "openai_compatible" || activeProvider === "openai-compatible-chat") return "OpenAI-compatible";
   if (activeProvider === "chatgpt_codex" || activeProvider === "chatgpt-codex-responses") return "ChatGPT/Codex";
   return "本地规则 fallback";
 }

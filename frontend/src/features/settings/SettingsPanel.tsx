@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Bot,
   CheckCircle2,
   Database,
   FileCog,
@@ -15,17 +16,21 @@ import {
   clearProcessingCache,
   deleteModelToken,
   getFieldDictionarySettings,
+  getModelProfiles,
   getRuntimeSettings,
   getSystemSettings,
+  updateActiveModelProfile,
   validateSettings
 } from "../../shared/api/client";
 import type {
   AuthStatus,
   FieldDictionarySettingsResponse,
+  ModelProfilesResponse,
   RuntimeSettingsResponse,
   SettingsValidationResponse,
   SystemSettingsResponse
 } from "../../shared/types/api";
+import { ProviderSettingsPanel } from "./ProviderSettingsPanel";
 
 interface SettingsPanelProps {
   auth: AuthStatus;
@@ -43,6 +48,7 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
   const [dictionary, setDictionary] = useState<FieldDictionarySettingsResponse | null>(null);
   const [runtime, setRuntime] = useState<RuntimeSettingsResponse | null>(null);
   const [validation, setValidation] = useState<SettingsValidationResponse | null>(null);
+  const [modelProfiles, setModelProfiles] = useState<ModelProfilesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,16 +66,18 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
     setLoading(true);
     setError(null);
     try {
-      const [systemPayload, dictionaryPayload, runtimePayload, validationPayload] = await Promise.all([
+      const [systemPayload, dictionaryPayload, runtimePayload, validationPayload, modelProfilesPayload] = await Promise.all([
         getSystemSettings(),
         getFieldDictionarySettings(),
         getRuntimeSettings(),
-        validateSettings()
+        validateSettings(),
+        getModelProfiles()
       ]);
       setSystem(systemPayload);
       setDictionary(dictionaryPayload);
       setRuntime(runtimePayload);
       setValidation(validationPayload);
+      setModelProfiles(modelProfilesPayload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "设置读取失败");
     } finally {
@@ -104,16 +112,47 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
     }
   }
 
+  async function selectModelProfile(profileId: string) {
+    setActionLoading("model");
+    setAction(null);
+    try {
+      const payload = await updateActiveModelProfile(profileId);
+      setModelProfiles(payload);
+      setAction({
+        tone: "ok",
+        message: `模型 profile 已切换为 ${payload.active.label ?? payload.active.profile_id}`
+      });
+      await onAuthRefresh();
+      await loadSettings();
+    } catch (err) {
+      setAction({
+        tone: "error",
+        message: err instanceof Error ? err.message : "模型 profile 切换失败"
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   const systemConfig = system?.system_config;
   const dictionaryConfig = dictionary?.field_dictionary;
   const runtimeSettings = runtime?.runtime_settings;
+  const activeModel = modelProfiles?.profiles.find((profile) => profile.profile_id === modelProfiles.active_profile_id);
+  const activeModelRef = modelProfiles?.active_model_ref ?? activeModel?.model_ref ?? activeModel?.model ?? "-";
+  const resolvedModelChain = modelProfiles?.resolved_chain?.join(" -> ") ?? activeModel?.fallbacks?.join(" -> ") ?? "无";
+  const onlineModelState = auth.model_auth.online_model_available ? "在线可用" : "本地回退或未配置凭据";
+  const documentEngine = systemConfig?.ocr_document_ai_configured
+    ? "HTTP sidecar"
+    : systemConfig?.ocr_openai_configured
+      ? systemConfig.ocr_openai_model ?? "OpenAI vision"
+      : "未配置";
 
   return (
     <section className="settings-panel">
       <div className="settings-header">
         <div>
-          <h3>设置</h3>
-          <p>单机运行配置、字段字典、账号凭据与本地维护。</p>
+          <h3>配置概览</h3>
+          <p>核对当前抽取链路、凭据状态、字段字典和本机维护项。</p>
         </div>
         <button className="icon-button" onClick={() => void loadSettings()} disabled={loading} type="button">
           <RefreshCw size={16} className={loading ? "spin" : ""} /> 刷新
@@ -128,6 +167,35 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
         </div>
       )}
 
+      <div className="settings-overview" aria-label="设置概览">
+        <article className={`settings-overview-card ${auth.model_auth.online_model_available ? "tone-ok" : "tone-warning"}`}>
+          <Bot size={18} />
+          <span>抽取模型</span>
+          <strong>{activeModelRef}</strong>
+          <small>{onlineModelState} / {modelAvailabilityText(activeModel, modelProfiles)}</small>
+        </article>
+        <article className={`settings-overview-card ${documentEngine === "未配置" ? "tone-warning" : "tone-ok"}`}>
+          <FileCog size={18} />
+          <span>智能文档</span>
+          <strong>{documentEngine}</strong>
+          <small>{systemConfig?.ocr_profile_engines?.join(" -> ") ?? "读取中"}</small>
+        </article>
+        <article className={`settings-overview-card ${validation ? (validation.ok ? "tone-ok" : "tone-danger") : ""}`}>
+          <CheckCircle2 size={18} />
+          <span>配置校验</span>
+          <strong>{validation ? (validation.ok ? "通过" : `${validation.validation_errors.length} 个问题`) : "读取中"}</strong>
+          <small>{runtime?.restart_required_hints.length ? `需重启：${runtime.restart_required_hints.join(", ")}` : "无需重启提示"}</small>
+        </article>
+        <article className="settings-overview-card">
+          <Database size={18} />
+          <span>工作线程</span>
+          <strong>{runtimeSettings ? `${runtimeSettings.case_workers}/${runtimeSettings.ocr_page_workers}/${runtimeSettings.llm_workers}` : "-"}</strong>
+          <small>病例 / 文档解析 / LLM</small>
+        </article>
+      </div>
+
+      <ProviderSettingsPanel onAuthRefresh={onAuthRefresh} />
+
       <div className="settings-grid">
         <article className="settings-card">
           <div className="settings-card-title">
@@ -141,6 +209,14 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
             <dd>{systemConfig?.version ?? "-"}</dd>
             <dt>OCR 默认</dt>
             <dd>{systemConfig?.ocr_default_profile ?? "-"}</dd>
+            <dt>OCR 策略</dt>
+            <dd>{systemConfig?.ocr_strategy ?? "intelligent"}</dd>
+            <dt>Profile 引擎</dt>
+            <dd>{systemConfig?.ocr_profile_engines?.join(" -> ") ?? "-"}</dd>
+            <dt>外部文档服务</dt>
+            <dd>{systemConfig?.ocr_document_ai_configured ? "已配置" : "未配置"}</dd>
+            <dt>视觉模型</dt>
+            <dd>{systemConfig?.ocr_openai_configured ? systemConfig?.ocr_openai_model ?? "-" : "未配置密钥"}</dd>
             <dt>版面规则</dt>
             <dd>{systemConfig?.layout_default_profile ?? "-"}</dd>
             <dt>LLM profile</dt>
@@ -151,6 +227,52 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
             {(systemConfig?.layout_profiles ?? []).map((item) => <span key={`layout-${item}`}>Layout {item}</span>)}
             {(systemConfig?.llm_profiles ?? []).map((item) => <span key={`llm-${item}`}>LLM {item}</span>)}
           </div>
+        </article>
+
+        <article className="settings-card model-route-card">
+          <div className="settings-card-title">
+            <Bot size={18} />
+            <span>当前抽取链路</span>
+          </div>
+          <dl className="settings-dl">
+            <dt>供应商</dt>
+            <dd>{providerLabel(activeModel?.provider, activeModel?.provider_id)}</dd>
+            <dt>模型引用</dt>
+            <dd><code>{activeModel?.model_ref ?? "-"}</code></dd>
+            <dt>模型</dt>
+            <dd>{activeModel?.model ?? "-"}</dd>
+            <dt>API</dt>
+            <dd>{activeModel?.api ?? "-"}</dd>
+            <dt>Base URL</dt>
+            <dd><code>{activeModel?.base_url ?? "默认"}</code></dd>
+            <dt>输出约束</dt>
+            <dd>{activeModel?.response_format ?? "-"}</dd>
+            <dt>凭据状态</dt>
+            <dd>{modelAvailabilityText(activeModel, modelProfiles)}</dd>
+            <dt>生效状态</dt>
+            <dd className={auth.model_auth.online_model_available ? "text-ok" : "text-warning"}>{onlineModelState}</dd>
+            <dt>回退链</dt>
+            <dd>{resolvedModelChain}</dd>
+          </dl>
+          <details className="settings-advanced">
+            <summary>高级：切换静态 profile</summary>
+            <label className="settings-field compact">
+              <span>静态 profile</span>
+              <select
+                className="settings-select"
+                value={modelProfiles?.active_profile_id ?? ""}
+                disabled={loading || actionLoading !== null || !modelProfiles}
+                onChange={(event) => void selectModelProfile(event.target.value)}
+              >
+                {(modelProfiles?.profiles ?? []).map((profile) => (
+                  <option key={profile.profile_id} value={profile.profile_id}>
+                    {(profile.label ?? profile.profile_id)} · {profile.model_ref ?? profile.model}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p>Provider 页面启用模型后会写入动态 profile。这里仅用于切换配置文件里的静态模型和回退链。</p>
+          </details>
         </article>
 
         <article className="settings-card">
@@ -167,8 +289,12 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
             <dd>{runtimeSettings?.sync_pipeline ? "开启" : "关闭"}</dd>
             <dt>工作线程</dt>
             <dd>
-              病例 {runtimeSettings?.case_workers ?? "-"} / OCR {runtimeSettings?.ocr_page_workers ?? "-"} / LLM {runtimeSettings?.llm_workers ?? "-"}
+              病例 {runtimeSettings?.case_workers ?? "-"} / 文档解析 {runtimeSettings?.ocr_page_workers ?? "-"} / LLM {runtimeSettings?.llm_workers ?? "-"}
             </dd>
+            <dt>Profile 引擎</dt>
+            <dd>{runtimeSettings?.ocr_profile_engines?.join(" -> ") ?? "-"}</dd>
+            <dt>文档服务</dt>
+            <dd>{runtimeSettings?.ocr_document_ai_configured ? "HTTP sidecar" : runtimeSettings?.ocr_openai_configured ? runtimeSettings?.ocr_openai_model ?? "OpenAI vision" : "未配置"}</dd>
             <dt>重启项</dt>
             <dd>{runtime?.restart_required_hints.join(", ") ?? "-"}</dd>
           </dl>
@@ -207,26 +333,24 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
             <span>账号与凭据</span>
           </div>
           <dl className="settings-dl">
-            <dt>应用会话</dt>
-            <dd>{auth.session_auth.authenticated ? "有效" : "无效"} / {auth.session_auth.provider}</dd>
+            <dt>应用访问</dt>
+            <dd>{auth.enabled ? (auth.session_auth.authenticated ? "已登录" : "未登录") : "本机直接访问"} / {auth.session_auth.provider}</dd>
             <dt>会话用户</dt>
             <dd>{auth.session_auth.user?.email ?? auth.session_auth.user?.name ?? auth.user?.email ?? "本地模式"}</dd>
             <dt>Cookie</dt>
             <dd><code>{auth.session_auth.cookie_name}</code></dd>
             <dt>会话过期</dt>
             <dd>{formatTimestamp(auth.session_auth.expires_at)}</dd>
-            <dt>模型通道</dt>
-            <dd>{auth.model_auth.provider} / {auth.model_auth.online_model_available ? "在线可用" : "本地 fallback"}</dd>
-            <dt>Token 文件</dt>
-            <dd>{auth.model_auth.token_cache_exists ? "存在" : "不存在"}</dd>
-            <dt>Token 路径</dt>
-            <dd><code>{auth.model_auth.token_cache_path}</code></dd>
-            <dt>Token 用户</dt>
-            <dd>{modelIdentity}</dd>
+            <dt>抽取通道</dt>
+            <dd>{auth.model_auth.provider} / {onlineModelState}</dd>
+            <dt>API Key</dt>
+            <dd>{auth.model_auth.api_key_configured ? "当前模型凭据已配置" : "当前模型缺少在线凭据"}</dd>
+            <dt>ChatGPT Token</dt>
+            <dd>{auth.model_auth.token_cache_exists ? `已缓存：${modelIdentity}` : "未使用"}</dd>
             <dt>Token 更新</dt>
-            <dd>{formatTimestamp(auth.model_auth.updated_at)}</dd>
+            <dd>{auth.model_auth.token_cache_exists ? formatTimestamp(auth.model_auth.updated_at) : "无"}</dd>
             <dt>Token 过期</dt>
-            <dd>{formatTimestamp(auth.model_auth.expires_at)}</dd>
+            <dd>{auth.model_auth.token_cache_exists ? formatTimestamp(auth.model_auth.expires_at) : "无"}</dd>
           </dl>
         </article>
 
@@ -292,4 +416,26 @@ function formatTimestamp(value: number | string | null | undefined) {
   const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString();
+}
+
+function providerLabel(provider: string | null | undefined, providerId?: string | null) {
+  if (providerId) return providerId;
+  if (provider === "openai_responses") return "OpenAI Responses";
+  if (provider === "openai_compatible") return "OpenAI-compatible Chat";
+  if (provider === "disabled") return "本地保守 fallback";
+  return provider ?? "-";
+}
+
+function modelAvailabilityText(profile: ModelProfilesResponse["profiles"][number] | null | undefined, payload: ModelProfilesResponse | null) {
+  if (!profile || !payload) return "-";
+  if (profile.profile_id === "openai_structured") return payload.env.openai_api_key_configured ? "OpenAI key 已配置" : "缺少 EYEX_OPENAI_API_KEY";
+  if (profile.profile_id.startsWith("deepseek")) return payload.env.deepseek_api_key_configured ? "DeepSeek key 已配置" : "缺少 EYEX_DEEPSEEK_API_KEY";
+  if (profile.auth_configured) return profile.auth_optional ? "本地/可选 key" : "API key 已配置";
+  if (profile.profile_id === "openai_compatible_custom") {
+    if (!profile.base_url) return "缺少 EYEX_COMPATIBLE_BASE_URL";
+    if (!profile.model || profile.model === "custom-model") return "建议设置 EYEX_COMPATIBLE_MODEL";
+    return payload.env.compatible_api_key_configured ? "兼容 key 已配置" : "缺少 EYEX_COMPATIBLE_API_KEY";
+  }
+  if (profile.profile_id === "local_disabled") return "无需在线 key";
+  return "按 profile 配置读取";
 }

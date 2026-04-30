@@ -1,0 +1,304 @@
+schema_id: medical_inpatient_zh
+version: "1.0.0"
+label: 中文住院病例抽取 schema
+field_groups:
+  - key: demographics_group
+    label: 基本信息
+    source_sections: [基本信息, 入院记录, 病案首页]
+    prompt_profile: demographics
+    semantic_strategy: rule_shortcut
+    max_context_chars: 1600
+  - key: history_group
+    label: 病史与生活习惯
+    source_sections: [既往史, 个人史, 生活史, 病史, 入院记录, 出院诊断]
+    prompt_profile: clinical_history
+    semantic_strategy: llm_semantic
+    max_context_chars: 3600
+  - key: aneurysm_group
+    label: 动脉瘤影像事实
+    source_sections: [辅助检查, 影像报告, CTA, DSA, 手术记录, 出院诊断]
+    prompt_profile: aneurysm_facts
+    semantic_strategy: llm_facts_then_compute
+    max_context_chars: 4200
+  - key: surgery_group
+    label: 手术与治疗事件
+    source_sections: [手术记录, 手术经过, 出院记录, 出院诊断, 医嘱]
+    prompt_profile: surgery_events
+    semantic_strategy: llm_facts_then_compute
+    max_context_chars: 3600
+  - key: discharge_group
+    label: 出院结局
+    source_sections: [出院记录, 出院情况, 病案首页, 出院诊断]
+    prompt_profile: discharge
+    semantic_strategy: llm_semantic
+    max_context_chars: 2600
+  - key: score_group
+    label: 评分中间事实
+    source_sections: [入院记录, 现病史, 体格检查, 辅助检查, 影像报告, 出院记录, 随访]
+    prompt_profile: score_facts
+    semantic_strategy: llm_facts_then_compute
+    max_context_chars: 3600
+fields:
+  - key: gender
+    field_group_key: demographics_group
+    label: 性别
+    export_header: 性别(男1，女2)
+    type: enum
+    allowed_codes: ["1", "2", unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页]
+    synonyms: [性别, 男, 女]
+    evidence_priority: [基本信息, 入院记录, 病案首页]
+    rule_patterns:
+      - pattern: '(?:性别\s*[:：]?\s*)?(男|女)(?=$|[，,；;\s])'
+        code_map: {男: "1", 女: "2"}
+        confidence: 0.96
+        summary: 人口学配置模式命中
+      - pattern: '患者[，,]\s*(男|女)[，,]\s*\d{1,3}\s*岁'
+        code_map: {男: "1", 女: "2"}
+        confidence: 0.96
+        summary: 人口学配置模式命中
+    llm:
+      enabled: false
+      evidence_budget: 300
+      prompt_profile: demographics
+  - key: age
+    field_group_key: demographics_group
+    label: 年龄
+    export_header: 年龄
+    type: number
+    allowed_codes: [integer, unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页]
+    synonyms: [年龄, 岁]
+    evidence_priority: [基本信息, 入院记录, 病案首页]
+    rule_patterns:
+      - pattern: '年龄\s*[:：]?\s*(\d{1,3})\s*岁'
+        confidence: 0.96
+        summary: 年龄配置模式命中
+      - pattern: '患者[，,]\s*(?:男|女)[，,]\s*(\d{1,3})\s*岁'
+        confidence: 0.96
+        summary: 年龄配置模式命中
+    llm:
+      enabled: true
+      evidence_budget: 450
+      prompt_profile: demographics
+  - key: hospital
+    field_group_key: demographics_group
+    label: 医院
+    export_header: 医院
+    type: string
+    allowed_codes: [text, unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页]
+    synonyms: [医院, 医学院, 附属医院]
+    evidence_priority: [病案首页, 入院记录]
+    rule_patterns:
+      - pattern: '([\u4e00-\u9fffA-Za-z0-9（）()·\-]{2,50}医院)'
+        confidence: 0.88
+        summary: 医院名称配置模式命中
+    llm:
+      enabled: true
+      evidence_budget: 550
+      prompt_profile: demographics
+  - key: hypertension_history
+    field_group_key: history_group
+    label: 高血压病史
+    export_header: 高血压病史（有1，无0，不详）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
+    synonyms: [高血压, 高血压病, 血压升高]
+    negation_terms: [否认, 无, 未见]
+    evidence_priority: [既往史, 病史, 入院记录]
+  - key: diabetes_history
+    field_group_key: history_group
+    label: 糖尿病史
+    export_header: 糖尿病史（有1，无0，不详）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
+    synonyms: [糖尿病, 2型糖尿病, 血糖升高]
+    negation_terms: [否认, 无, 未见]
+    evidence_priority: [既往史, 病史, 入院记录]
+  - key: hyperlipidemia_history
+    field_group_key: history_group
+    label: 高血脂病史
+    export_header: 高血脂病史（有1，无0，不详）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
+    synonyms: [高脂血症, 高血脂, 血脂异常]
+    negation_terms: [否认, 无, 未见]
+    evidence_priority: [既往史, 病史, 入院记录]
+  - key: heart_disease_history
+    field_group_key: history_group
+    label: 既往心脏疾病分组
+    export_header: 既往心脏疾病分组
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
+    synonyms: [冠心病, 心肌梗死, 房颤, 心脏病, 心力衰竭]
+    negation_terms: [否认, 无, 未见]
+    evidence_priority: [既往史, 病史, 入院记录]
+  - key: stroke_history
+    field_group_key: history_group
+    label: 卒中分组
+    export_header: 卒中分组（有：1；无：0）
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
+    synonyms: [脑卒中, 卒中, 脑梗死, 脑出血]
+    negation_terms: [否认, 无, 未见]
+    evidence_priority: [既往史, 病史, 入院记录]
+  - key: tumor_history
+    field_group_key: history_group
+    label: 既往肿瘤
+    export_header: 既往肿瘤
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [既往史, 病史, 入院记录, 出院诊断]
+    excluded_sections: [家族史]
+    synonyms: [肿瘤, 癌, 癌症, 恶性肿瘤]
+    negation_terms: [否认, 无, 未见]
+    evidence_priority: [既往史, 病史]
+  - key: smoking_history
+    field_group_key: history_group
+    label: 是否吸烟
+    export_header: 是否吸烟
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [个人史, 生活史, 入院记录]
+    excluded_sections: [家族史]
+    synonyms: [吸烟, 烟龄, 戒烟, 烟酒, 嗜烟酒]
+    negation_terms: [否认, 无, 不吸烟, 未吸烟, 无烟酒不良嗜好]
+    evidence_priority: [个人史, 生活史, 入院记录]
+  - key: drinking_history
+    field_group_key: history_group
+    label: 是否饮酒
+    export_header: 是否饮酒
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [个人史, 生活史, 入院记录]
+    excluded_sections: [家族史]
+    synonyms: [饮酒, 饮酒史, 酒精, 烟酒, 嗜烟酒]
+    negation_terms: [否认, 无, 不饮酒, 未饮酒, 无烟酒不良嗜好]
+    evidence_priority: [个人史, 生活史, 入院记录]
+  - key: single_multiple
+    field_group_key: aneurysm_group
+    label: 单发多发
+    export_header: 单发多发
+    type: enum
+    allowed_codes: [single, multiple, unknown]
+    extract_mode: fact_then_code
+    source_sections: [辅助检查, 影像报告, CTA, DSA, 手术记录]
+    synonyms: [单发, 多发, 多个动脉瘤, 动脉瘤]
+    evidence_priority: [DSA, CTA, 影像报告, 手术记录]
+    code_map:
+      single: [单发动脉瘤, 单发]
+      multiple: [多发动脉瘤, 多个动脉瘤, 多发]
+  - key: aneurysm_location
+    field_group_key: aneurysm_group
+    label: 动脉瘤位置
+    export_header: 动脉瘤位置（1.颈内，2.中，3.前，4后循环）
+    type: enum
+    allowed_codes: ["1", "2", "3", "4", unknown]
+    extract_mode: fact_then_code
+    source_sections: [辅助检查, 影像报告, CTA, DSA, 手术记录, 出院诊断]
+    synonyms: [颈内动脉, 大脑中动脉, 前交通, 大脑前动脉, 后交通, 椎动脉, 基底动脉, 小脑后下动脉]
+    evidence_priority: [DSA, CTA, 影像报告, 手术记录]
+    code_map:
+      "1": [颈内动脉, 后交通, 海绵窦段]
+      "2": [大脑中动脉, 中动脉, MCA]
+      "3": [前交通, 大脑前动脉, ACoA, ACA]
+      "4": [基底动脉, 椎动脉, 后循环, 小脑后下动脉, PICA, SCA, PCA]
+  - key: surgery_method
+    field_group_key: surgery_group
+    label: 最终手术方式
+    export_header: 最终手术方式
+    type: enum
+    allowed_codes: [介入栓塞术, 开颅夹闭术, 支架辅助栓塞术, 保守治疗, unknown]
+    extract_mode: fact_then_code
+    source_sections: [手术记录, 手术经过, 出院记录, 出院诊断]
+    synonyms: [夹闭, 栓塞, 介入, 开颅, 手术方式, 动脉瘤夹闭术, 保守治疗]
+    evidence_priority: [手术记录, 出院记录, 医嘱]
+    code_map:
+      介入栓塞术: [弹簧圈栓塞, 介入栓塞, 栓塞术]
+      支架辅助栓塞术: [支架辅助栓塞, 支架辅助弹簧圈]
+      开颅夹闭术: [开颅夹闭, 夹闭术, 动脉瘤夹闭术]
+      保守治疗: [保守治疗, 未行手术, 拒绝手术]
+  - key: in_hospital_death
+    field_group_key: discharge_group
+    label: 在院死亡
+    export_header: 在院死亡
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [出院记录, 病案首页, 出院诊断]
+    synonyms: [死亡, 自动出院, 抢救无效, 出院情况, 好转, 治愈, 存活]
+    negation_terms: [好转, 治愈, 未死亡, 存活]
+    evidence_priority: [出院记录, 病案首页]
+  - key: transfer
+    field_group_key: discharge_group
+    label: 是否转诊
+    export_header: 是否转诊
+    type: enum
+    allowed_codes: ["1", "0", unknown]
+    extract_mode: llm_semantic
+    source_sections: [出院记录, 病案首页]
+    synonyms: [转诊, 转院, 上级医院, 下级医院, 未转诊, 未转院]
+    negation_terms: [否认, 无, 未转诊, 未转院]
+    evidence_priority: [出院记录, 病案首页]
+  - key: hh_grade
+    field_group_key: score_group
+    label: HH分组
+    export_header: HH分组
+    type: enum
+    allowed_codes: ["1", "2", "3", "4", "5", unknown]
+    extract_mode: computed_from_facts
+    source_sections: [入院记录, 评分, 现病史]
+    synonyms: [Hunt-Hess, HH, Hunt Hess]
+    evidence_priority: [入院记录, 评分]
+  - key: wfns_grade
+    field_group_key: score_group
+    label: WFNS分组
+    export_header: WFNS分组
+    type: enum
+    allowed_codes: ["1", "2", "3", "4", "5", unknown]
+    extract_mode: computed_from_facts
+    source_sections: [入院记录, 评分, 体格检查]
+    synonyms: [WFNS, GCS]
+    evidence_priority: [入院记录, 评分]
+  - key: fisher_grade
+    field_group_key: score_group
+    label: Fisher分级
+    export_header: Fisher分级
+    type: enum
+    allowed_codes: ["1", "2", "3", "4", unknown]
+    extract_mode: computed_from_facts
+    source_sections: [影像报告, CT, 辅助检查]
+    synonyms: [Fisher, CT, 蛛网膜下腔出血]
+    evidence_priority: [影像报告, CT]
+  - key: mrs_score
+    field_group_key: score_group
+    label: mRS评分
+    export_header: mRS评分
+    type: enum
+    allowed_codes: ["0", "1", "2", "3", "4", "5", "6", unknown]
+    extract_mode: computed_from_facts
+    source_sections: [出院记录, 随访, 出院情况]
+    synonyms: [mRS, MRS, 改良Rankin, Rankin]
+    evidence_priority: [随访, 出院记录]

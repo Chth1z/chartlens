@@ -1,0 +1,64 @@
+profile_id: windows_radeon_balanced
+label: Windows Radeon balanced OCR
+version: 1.0.0
+page_router:
+  - page_kinds: [native_pdf_text, text]
+    engines: [pdf_text]
+    description: Use embedded text when the PDF page already has enough text.
+  - page_kinds: [image, image_ocr, image_pdf_ocr, scan, screenshot]
+    engines: [pp_ocr_v5_onnx_directml, pp_ocr_v5_paddle, paddle_structure_v3, docling, paddleocr_vl]
+    description: Prefer local Windows GPU-capable text OCR, then stable Paddle/Docling fallbacks.
+  - page_kinds: [table, complex_layout]
+    engines: [paddle_structure_v3, paddleocr_vl]
+    description: Prefer document layout engines for table-heavy pages.
+  - page_kinds: [low_quality, difficult_scan]
+    engines: [paddleocr_vl_remote, paddleocr_vl]
+    description: Use remote ROCm/VL sidecar first when available, CPU VL only as slow fallback.
+engines:
+  - engine_id: pp_ocr_v5_onnx_directml
+    label: PP-OCRv5 ONNX DirectML
+    model_name: PP-OCRv5
+    model_version: v5
+    accelerator: directml
+    priority: 10
+    experimental: true
+  - engine_id: pp_ocr_v5_paddle
+    label: PP-OCRv5 Paddle
+    model_name: PP-OCRv5
+    model_version: v5
+    accelerator: cpu
+    priority: 20
+  - engine_id: paddle_structure_v3
+    label: PP-StructureV3
+    model_name: PP-StructureV3
+    accelerator: cpu
+    priority: 30
+  - engine_id: docling
+    label: Docling
+    model_name: Docling
+    accelerator: cpu
+    priority: 40
+  - engine_id: paddleocr_vl
+    label: PaddleOCR-VL-1.5 CPU fallback
+    model_name: PaddleOCR-VL-1.5
+    model_version: "1.5"
+    accelerator: cpu
+    priority: 50
+  - engine_id: paddleocr_vl_remote
+    label: PaddleOCR-VL remote ROCm sidecar
+    model_name: PaddleOCR-VL-1.5
+    model_version: "1.5"
+    accelerator: remote
+    priority: 60
+cache_policy:
+  include_engine_id: true
+  include_engine_version: true
+  include_accelerator: true
+gpu_policy:
+  target: windows_radeon
+  default_accelerator: directml_if_ready_else_cpu
+  rocm_default_enabled: false
+  unofficial_gpu_overrides: false
+quality_thresholds:
+  min_chars: 80
+  min_confidence: 0.65
