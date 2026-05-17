@@ -13,6 +13,7 @@ Treat these files as the canonical layers. Read them in this order when starting
 - `docs/REFERENCE_PROJECTS.md`: open-source projects EYEX borrows ideas from, with commit-pinned URLs, license verification, and an explicit non-copy boundary per entry.
 - `docs/FIELD_COVERAGE.md`: inventory of every export-template field, current `mock_general` baseline coverage, and the phased fixture-expansion plan that walks `mock_general` from demographics + history to the full export sheet.
 - `docs/OCR_POST_PROCESSING.md`: research notes on character correction, medical entity normalization, table structure recovery, and reading order in Chinese clinical OCR. Reference research only; nothing here is a runtime dependency yet.
+- `docs/LLM_PROVIDER_REFACTOR.md`: deep analysis behind ROADMAP `E1-011`. Explains why DeepSeek / Anthropic / Gemini / OpenRouter etc. silently fall back to rule extraction today, the open-source patterns (LiteLLM Router, LangChain `BaseChatModel`, DeepSeek prompt-cache prefix) used as references, and the three-phase refactor plan that closes the gap.
 - `docs/DECISIONS.md`: short, dated decision log for high-impact architecture, data, security, OCR, LLM, or workflow choices.
 - `docs/CODEX_WORKFLOW.md`: per-session checklist and prompt template for Codex sessions.
 - `docs/API_BOUNDARY.md`: backend/frontend API contract rules.

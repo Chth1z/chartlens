@@ -167,13 +167,16 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Prerequisites: E1-007 (Docling eval) so the `.venv-ocr` runtime can host another optional NLP package; or independent if pycorrector is added to `.venv-ocr` directly.
 - Reference: pycorrector (shibing624) Apache-2.0; "OCR Error Post-Correction with LLMs in Historical Documents" arxiv 2025.resourceful-1.8 cautions on naively wiring SOTA correctors. See `docs/OCR_POST_PROCESSING.md`.
 
-### E1-011 — OpenAICompatibleChatProvider implements collect_evidence
+### E1-011 — LLM provider adapters complete the evidence-first contract (multi-phase)
 
-- Goal: implement `collect_evidence` (and the matching `adjudicate_fields` if non-trivial) in `services/llm_provider/adapters.py:OpenAICompatibleChatProvider` so that when the active model profile is DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom, the evidence-first multimodal extraction path actually calls the remote model. Today only `OpenAIResponsesProvider` implements it; every other adapter inherits the default `SemanticExtractionProvider.collect_evidence` shim that silently delegates to `collect_local_evidence` and reports zero input tokens.
-- Acceptance: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --baseline` against any OpenAI-compatible profile produces a `mock_general_llm.json` baseline with non-zero `input_tokens` and the warning emitted by the script (`WARN: --provider llm requested but the baseline recorded zero input tokens`) is gone. The new adapter respects DeepSeek prompt-cache prefix invariants (E1-002) and falls back to `ConservativeLocalProvider` evidence on any HTTP / decode error so accuracy never regresses below the rule-only baseline.
-- Prerequisites: E0-004 (router/protocols/credentials split) so the protocol code does not balloon `adapters.py`.
-- Reference: `OpenAIResponsesProvider.collect_evidence` is the working template; the JSON-schema-strict pattern in `_responses_evidence_first_payload` adapts cleanly to chat-completions JSON mode.
-- Surfaced by: 2026-05-18 LLM baseline bootstrap on DeepSeek showed `input_tokens=0` because the adapter does not override the default. Scripted warning will keep the gap visible until this task lands.
+- Goal: every concrete `SemanticExtractionProvider` adapter must implement `collect_evidence` either as a real upstream call or as an explicit delegation to local rule extraction. Today only `OpenAIResponsesProvider` does; DeepSeek / Anthropic / Gemini / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom inherit a base-class shim that silently falls back to rule extraction and reports zero input tokens. Surfaced on 2026-05-18 by the `mock_general_llm.json` baseline showing `input_tokens=0`. Detailed analysis and phase plan in `docs/LLM_PROVIDER_REFACTOR.md`.
+- Phases (one PLAN task each):
+  - **Phase 1 — make the gap a hard error**: turn `collect_evidence` into `@abstractmethod` on the base class; every adapter declares an explicit override that either calls the upstream or returns `local_collect_evidence_fallback(...)`. Contract test asserts no adapter inherits the default. No behavior change on disk.
+  - **Phase 2 — OpenAI-compatible chat collect_evidence**: real implementation that calls DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom through `client.chat.completions.create` with `response_format: json_object`, JSON schema descriptor in the system prompt prefix for DeepSeek prompt-cache stability, malformed-JSON degradation to local fallback. Mock_general LLM baseline records non-zero `input_tokens` after this phase.
+  - **Phase 3 — Anthropic + Gemini + router cleanup**: same shape for the remaining two adapters; extract `Router` class with separate `with_retries()` and `with_fallbacks()` methods (LiteLLM pattern); replace `_provider_for_profile` if/elif with a registry; document and gate the legacy `extract_group` path.
+- Acceptance per phase: see `docs/LLM_PROVIDER_REFACTOR.md` section 6.
+- Prerequisites: E0-008 (eval runner exists). E1-001 / E1-002 / E1-003 are blocked until at least Phase 2 lands.
+- Reference: LiteLLM `Router` 3-layer architecture (`function_with_fallbacks` / `function_with_retries` / unified completion); LangChain `BaseChatModel.with_structured_output`; DeepSeek prompt-cache prefix discipline. See `docs/REFERENCE_PROJECTS.md` and `docs/LLM_PROVIDER_REFACTOR.md` section 5.
 
 ### E1-010 — mock_general fixture expansion (multi-phase)
 

@@ -34,6 +34,33 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
 - Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
 
+### todo PLAN-llm-provider-phase-1
+
+- Goal: ROADMAP E1-011 Phase 1. Make `collect_evidence` `@abstractmethod` on `SemanticExtractionProvider`. Move the current default body to `local_collect_evidence_fallback(document_context, fields)` exported from `services/llm_provider/types.py`. Every concrete adapter (`OpenAIResponsesProvider` keeps real impl; `OpenAICompatibleChatProvider` / `AnthropicMessagesProvider` / `GoogleGeminiProvider` / `ConservativeLocalProvider` all gain explicit overrides; the LLM ones return `local_collect_evidence_fallback(...)` for now). Add `tests/test_provider_contracts.py` asserting no adapter inherits the default and every `provider` value in `config/model_providers/mainstream.yaml` resolves through `_provider_for_profile`. AGENTS.md gains the rule "Every concrete `SemanticExtractionProvider` adapter must explicitly choose between calling its remote API and delegating to `local_collect_evidence_fallback`."
+- Out of scope: No new LLM call. No prompt change. No accuracy change. Phase 2 / 3 work.
+- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. The `mock_general_llm.json` baseline still records `input_tokens=0` (because adapters explicitly chose to delegate); the WARN line still fires; both are now expected, pinned behavior.
+- Risk: Very low. This is a refactor that names an existing behavior with no on-disk metric change. The contract test is the ratchet that prevents the gap from re-hiding.
+- Trigger: ROADMAP E1-011 Phase 1.
+- Done condition: `SemanticExtractionProvider.collect_evidence` is `@abstractmethod`; every concrete adapter has an explicit override; the contract test exists; AGENTS.md "Architecture Boundaries" gains the explicit-delegation rule; DECISIONS.md gains a new entry "Default-inheritance shim for collect_evidence is forbidden"; rule-only baseline (1.0/54) is unchanged.
+
+### todo PLAN-llm-provider-phase-2
+
+- Goal: ROADMAP E1-011 Phase 2. Implement `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom actually call their `/chat/completions` endpoint with `response_format: json_object` and the evidence-first JSON schema. New `_chat_completions_evidence_first_payload` mirrors `_responses_evidence_first_payload`. Cacheable prefix (system prompt + extraction rules + JSON schema descriptor) is byte-stable for DeepSeek prompt-cache hits. Malformed JSON degrades to `local_collect_evidence_fallback` instead of crashing. New test stubs an OpenAI-compatible HTTP server, asserts payload shape and graceful degradation.
+- Out of scope: Anthropic / Gemini implementations (Phase 3). Prompt content rewrite (E1-001). Retry-with-validation-feedback (E1-003). New fixtures.
+- Acceptance commands: `python scripts/check-llm-connectivity.py --profile-id deepseek_v4_flash`; `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Risk: Medium. Real network round trip per fixture during baseline regenerate. Rate limits possible. Mitigations: existing `_api_keys_for_attempts` cooldown; client-side cache absorbs reruns; second consecutive run should hit DeepSeek server-side prompt cache.
+- Trigger: After Phase 1.
+- Done condition: `mock_general_llm.json` baseline records `input_tokens > 0`, `output_tokens > 0`, `cost_usd > 0`; accuracy stays at 1.0/54 (or higher); a second consecutive run records `cached_input_tokens > 0`; the bootstrap WARN line is gone; new contract tests pass.
+
+### todo PLAN-llm-provider-phase-3
+
+- Goal: ROADMAP E1-011 Phase 3. Implement `AnthropicMessagesProvider.collect_evidence` (system + messages + tool_use shape) and `GoogleGeminiProvider.collect_evidence` (systemInstruction + responseSchema shape). Extract `services/llm_provider/router.py` with separate `with_retries()` and `with_fallbacks()` methods (LiteLLM pattern). Replace `fallback._provider_for_profile` if/elif with `services/llm_provider/registry.py`. Document or remove the legacy `extract_group` path now that no committed schema selects it.
+- Out of scope: Streaming. Multi-modal page-image input beyond what `_responses_evidence_first_payload` already gates on `policy.allow_page_images`. Provider catalog YAML changes.
+- Acceptance commands: same as Phase 2 plus a per-adapter parametrized run with at least one model_profile from each adapter family in CI mock mode (no real API key required for the mock-server tests).
+- Risk: Higher than Phase 2 because every adapter changes. Mitigation: explicit-delegation shim from Phase 1 still serves as fallback for any specific adapter that hits a bug; registry coverage test prevents adding a new provider without an adapter wiring.
+- Trigger: After Phase 2.
+- Done condition: every adapter has a real `collect_evidence`; registry-based dispatch; `Router` class separates retry from fallback; `extract_group` is either removed or gated behind a documented non-default extraction strategy; ROADMAP E1-011 marked done; the way is clear for E1-001 / E1-002 / E1-003.
+
 ### todo PLAN-mock-general-phase-A
 
 - Goal: ROADMAP E1-010 Phase A. Extend the `mock_general` baseline to cover the two demographics fields currently outside the 8-case set: `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Reuse one existing fixture by adding the `医院: XXX市XXX医院` line and a sample address; add one new fixture with no address to verify `urban_residence` rule does not over-fire and stays unknown when the source has no usable signal.
