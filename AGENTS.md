@@ -8,16 +8,16 @@ Treat these files as the canonical layers. Read them in this order when starting
 
 - `AGENTS.md` (this file): project constitution and rule source. Edit only when the rule is meant to be enforced today.
 - `README.md`: how to install, configure, and run EYEX. User-facing only; architecture detail belongs elsewhere.
-- `docs/ARCHITECTURE.md` (planned): single source of truth for the main pipeline, layering, and module responsibilities. Until it lands, the authoritative architecture description lives in `README.md` plus `docs/DECISIONS.md`.
-- `docs/ROADMAP.md` (planned): phased optimization plan with task IDs (`E0-NNN` / `E1-NNN` / `E2-NNN`).
-- `docs/REFERENCE_PROJECTS.md` (planned): open-source projects EYEX borrows ideas from, with commit-pinned URLs.
+- `docs/ARCHITECTURE.md`: single source of truth for the main pipeline, layering, module responsibilities, and boundary contracts (DocumentIR, DocumentContext, EvidenceCandidate, FieldDecision, ExtractionCandidate, ValidatedFieldResult).
+- `docs/ROADMAP.md`: phased optimization plan with task IDs (`E0-NNN` / `E1-NNN` / `E2-NNN`). Each roadmap task has an eval-profile-anchored acceptance line.
+- `docs/REFERENCE_PROJECTS.md`: open-source projects EYEX borrows ideas from, with commit-pinned URLs, license verification, and an explicit non-copy boundary per entry.
 - `docs/DECISIONS.md`: short, dated decision log for high-impact architecture, data, security, OCR, LLM, or workflow choices.
 - `docs/CODEX_WORKFLOW.md`: per-session checklist and prompt template for Codex sessions.
 - `docs/API_BOUNDARY.md`: backend/frontend API contract rules.
 - `docs/OCR_UPGRADE.md`, `docs/LLM_PROVIDER_ALIGNMENT.md`: subsystem-specific notes; defer to `docs/DECISIONS.md` when the two disagree.
 - `PLAN.md`: lightweight personal task board. Each item has goal, out-of-scope, acceptance commands, risk, trigger, done condition, and a stable task ID.
 
-When a planned doc above does not exist yet, that fact itself is a tracked task in `PLAN.md`.
+When `docs/ARCHITECTURE.md` and a `docs/DECISIONS.md` entry disagree, the decision wins and the architecture doc is updated to match. When `PLAN.md` and `docs/ROADMAP.md` disagree on the same task, `PLAN.md` is the one being executed.
 
 ## Personal Codex Workflow
 

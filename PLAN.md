@@ -25,24 +25,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo PLAN-write-architecture-doc
-
-- Goal: Produce `docs/ARCHITECTURE.md` as the authoritative description of the EYEX main pipeline: input ingestion, OCR routing, layout normalization, de-identification, document context, evidence collection (local rule + LLM evidence-first), adjudication, validation, manual review, export, and observability ledger. Include the layering diagram, the contracts at each boundary (DocumentIR, DocumentContext, EvidenceCandidate, FieldDecision, ExtractionCandidate, ValidatedFieldResult), and where each module currently lives.
-- Out of scope: No code change. No new architecture decision in this task; if a new decision surfaces, file it as a separate `docs/DECISIONS.md` entry first.
-- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
-- Risk: Writing the doc may surface real boundary violations that already exist (for example overlap between `canonicalize.py` and `layout_normalizer.py`). Capture them as separate PLAN tasks instead of fixing them in the same commit.
-- Trigger: AGENTS.md documentation map references this file as planned.
-- Done condition: `docs/ARCHITECTURE.md` exists, `AGENTS.md` documentation map removes the `(planned)` tag, every module under `backend/app/services/` is mapped to exactly one layer.
-
-### todo PLAN-write-roadmap
-
-- Goal: Produce `docs/ROADMAP.md` with phased optimization tasks for precision in OCR, layout, evidence collection, and LLM prompts. Use `E0-NNN` for governance and structural prerequisites, `E1-NNN` for borrow-from-open-source improvements, `E2-NNN` for product-grade precision and throughput. Each task has goal, motivating reference (if any), acceptance metric tied to an eval profile, and prerequisite IDs.
-- Out of scope: No code change. No replacement of `PLAN.md`; the roadmap is the long-horizon view, `PLAN.md` is the current task board.
-- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
-- Risk: Without measured baselines, the roadmap can become wishful. Each E-task must reference an existing or proposed eval profile.
-- Trigger: AGENTS.md documentation map references this file as planned.
-- Done condition: `docs/ROADMAP.md` exists, every roadmap task has a stable ID and an eval-profile acceptance line, AGENTS.md documentation map removes the `(planned)` tag.
-
 ### todo PLAN-split-styles-css
 
 - Goal: Split `frontend/src/styles.css` (currently 3211 lines) into feature-scoped stylesheets that match the `frontend/src/features/` layout. Aim for ≤ 800 lines per file. Suggested split: a base/reset module, an evidence panel module, a settings module, a diagnostics module, and a review module. Use CSS imports or component-level imports, not a runtime concatenation step.
@@ -51,15 +33,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Risk: Selectors that depend on rule order can break when split across files; verify by running the build and a smoke pass.
 - Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
 - Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
-
-### todo PLAN-write-reference-projects
-
-- Goal: Produce `docs/REFERENCE_PROJECTS.md`, the open-source reference registry. Cover at minimum: PaddleOCR PP-StructureV3, PaddleOCR PP-OCRv5, MinerU 2.5, Docling, Marker, olmOCR 2, dots.ocr, Outlines, Instructor, LiteLLM, Continue, OpenClaw. Each entry has upstream URL, license, EYEX use today (or "studied for design ideas only"), commit-pinned references where ideas were borrowed, and a clear non-copy boundary.
-- Out of scope: No upstream source committed. No `references/` clone in this task.
-- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
-- Risk: Slipping from "design reference" into source-level copy without proper attribution. The Reference Projects Policy in AGENTS.md governs this; the registry must explicitly mark which entries are reference-only versus adapter-vendored.
-- Trigger: AGENTS.md Reference Projects Policy and documentation map both reference this file as planned.
-- Done condition: `docs/REFERENCE_PROJECTS.md` exists with at least the projects listed above, every entry has a license and an EYEX use line, AGENTS.md documentation map removes the `(planned)` tag.
 
 ### todo Decide application/ vs services/ flat layout
 
@@ -142,14 +115,14 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: Quarterly schema-cleanup checkpoint declared in AGENTS.md.
 - Done condition: Every remaining Pydantic field has at least one explicit read site outside `domain/models.py`; deletion lands with passing tests.
 
-### todo Add Docling as offline OCR eval second source
+### todo Add Docling as offline OCR eval second source (ROADMAP E1-007)
 
 - Goal: Make Docling available as an evaluation-only OCR engine. Add it to `.venv-ocr` (not main backend deps), wire `scripts/run-ocr-eval.py` to accept `--engine docling`, and produce a parallel layout/table/reading-order report against the same fixture set.
 - Out of scope: No change to the runtime OCR route. No CUDA/ROCm requirement.
 - Acceptance commands: `.\scripts\run-ocr-eval.ps1 -ProfileId mock_general -Engine docling` runs to completion. Existing eval runs still work without `-Engine`.
 - Risk: Docling pulls heavy transitive deps; must stay in `.venv-ocr` so backend deps do not balloon.
-- Trigger: Next OCR layout/table regression that PP-StructureV3 alone cannot diagnose.
-- Done condition: Repository can produce a Docling layout/table report on existing fixtures; AGENTS.md or `docs/OCR_UPGRADE.md` documents that Docling is eval-only.
+- Trigger: Tracked in `docs/ROADMAP.md` as E1-007. Pull forward when an OCR layout/table regression appears that PP-StructureV3 alone cannot diagnose.
+- Done condition: Repository can produce a Docling layout/table report on existing fixtures; `docs/OCR_UPGRADE.md` documents that Docling is eval-only.
 
 ### todo Convert frontend tests to Vitest when assertions grow
 
@@ -161,6 +134,24 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
 
 ## Done
+
+### done PLAN-write-architecture-doc
+
+- Goal: Produce `docs/ARCHITECTURE.md` as the authoritative description of the EYEX main pipeline.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Done condition: `docs/ARCHITECTURE.md` exists with full pipeline, layering, services map, boundary contracts, data flow detail, and known boundary frictions linked to PLAN tasks. AGENTS.md documentation map updated to remove the `(planned)` tag.
+
+### done PLAN-write-roadmap
+
+- Goal: Produce `docs/ROADMAP.md` with phased optimization tasks for precision in OCR, layout, evidence collection, and LLM prompts. Use `E0-NNN` for governance and structural prerequisites, `E1-NNN` for borrow-from-open-source improvements, `E2-NNN` for product-grade precision and throughput.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Done condition: `docs/ROADMAP.md` exists with E0/E1/E2 phases (8 + 8 + 6 tasks). Every entry carries a stable ID, an eval-profile-anchored acceptance line, and prerequisite IDs. AGENTS.md documentation map updated to remove the `(planned)` tag.
+
+### done PLAN-write-reference-projects
+
+- Goal: Produce `docs/REFERENCE_PROJECTS.md`, the open-source reference registry.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Done condition: `docs/REFERENCE_PROJECTS.md` exists with PaddleOCR, MinerU, Docling, olmOCR, Marker, dots.ocr, Unstructured, Instructor, Outlines, LiteLLM, Continue, OpenClaw, Cline, Open WebUI, Dify. Every entry verifies license against the upstream URL, names today's EYEX use, lists what is borrowed by reference, and states the non-copy boundary. License-restricted projects (MinerU OSL with additions, Marker GPL-3.0, Open WebUI, Dify) flagged as ideas-only without a `docs/DECISIONS.md` approval. AGENTS.md documentation map updated to remove the `(planned)` tag.
 
 ### done Triage and merge the in-progress ChartLens upgrade into dev
 
