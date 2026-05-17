@@ -40,3 +40,304 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Why: This repository is being upgraded substantially from the previous ChartLens baseline. A named `dev` branch communicates that it is the active integration line, while task branches still keep Codex sessions bounded.
 - Rejected: Direct pushes to `main`, one-off import branch names for the long-lived upgrade line, and large mixed-purpose task branches.
 - Revisit when: More contributors start changing the repository or the project needs release branches.
+
+## 2026-04-30 - Address-derived fields use safe local derivations
+
+- Decision: Sensitive source text may be used only by local pre-redaction derivation rules. Final extraction evidence must reference a safe derived DocumentIR block, never the original address.
+- Why: Chinese medical research fields such as urban/non-urban residence may require address clues, but PHI must not enter online LLM prompts, exports, or user-facing evidence.
+- Rejected: Sending redacted addresses to the LLM for inference, storing raw address spans as evidence, and hard-coding medical address rules in the pipeline.
+- Revisit when: A privacy-reviewed local geocoder or consented address feature becomes part of the product contract.
+
+## 2026-04-30 - Stitch tiled OCR line fragments before evidence display
+
+- Decision: OCR line fragments from overlapping image tiles are stitched in the OCR de-duplication path and mirrored in the evidence UI for already-processed cases.
+- Why: DirectML safe-mode tiling can emit left/right partial text for the same visual line; treating those fragments as separate blocks corrupts paragraph boundaries and review evidence.
+- Rejected: Fixing only the class-Word layout or hiding duplicate fragments in the UI without correcting OCR block semantics.
+- Revisit when: The OCR engine returns stable full-line polygons without tiled duplicate candidates.
+
+## 2026-04-30 - Evidence UI folds same-line OCR alternatives
+
+- Decision: Same-line OCR candidates with overlapping boxes, fuzzy suffix/prefix overlap, or fuzzy containment are collapsed before class-Word rendering and original-image OCR review; OCR-missing section delimiters are normalized only for configured clinical headings.
+- Why: Real scanned cases can produce both a full-line candidate and local duplicates with punctuation, one-character OCR drift, or `l/1` differences, which otherwise duplicates paragraphs and breaks section boundaries even when the OCR recognized the page.
+- Rejected: Asking the model to repair duplicated paragraphs, deleting all overlapping boxes blindly, globally deleting checkbox-like OCR symbols from backend output, and treating the source-image OCR view as image-only without readable converted text.
+- Revisit when: The OCR pipeline stores ranked line alternatives explicitly instead of emitting duplicate primary blocks.
+
+## 2026-04-30 - Medical extraction uses evidence-first document context
+
+- Decision: Chinese medical extraction defaults to `evidence_first_multimodal`: build a full-page `DocumentContext`, collect field evidence candidates, adjudicate with field policies, validate evidence grounding, and leave missing fields for review instead of calling the old group evidence-pack fallback.
+- Why: Local section cropping and field-level evidence packs lose page context, table structure, OCR alternatives, and counter-evidence; medical extraction needs traceable field evidence and conflict handling more than token minimization.
+- Rejected: Sending one flat OCR transcript to the model for direct answers, letting model confidence decide auto-fill, and adding field-specific hard-coded fixes for sex/history errors.
+- Revisit when: The evidence-first eval set shows a field category that consistently needs a new first-class evidence strategy rather than fallback to old group prompts.
+
+## 2026-04-30 - Processing observability is a first-class database ledger
+
+- Decision: Every processing attempt writes a durable `processing_runs` record with child `processing_events` and `model_calls`, all tied to `case_id` and `run_id`; diagnostics read historical runs from the ledger instead of reconstructing a single latest snapshot.
+- Why: Codex needs stable, queryable runtime evidence to debug regressions, compare reprocess attempts, isolate slow stages, and choose whether the next fix belongs in OCR, evidence collection, model routing, or validation.
+- Rejected: Relying on stdout access logs, overwriting `diagnostics_json` as the only run record, storing raw secrets or unsafe tracebacks in ordinary diagnostics, and keeping the old evidence-pack fallback inside the evidence-first path.
+- Revisit when: Multi-user retention policy requires purging or encrypting per-run event payloads beyond the existing protected raw DocumentIR.
+
+## 2026-04-30 - Screen-capture noise and non-patient context are not evidence
+
+- Decision: Chinese medical OCR prompts and evidence policy ignore Word rulers, window tabs, toolbars, taskbars, stickers, monitor edges, and untrusted system chrome; family, maternal pregnancy, spouse, and children context cannot produce patient positive or negative history decisions.
+- Why: Real cases are often photographed from hospital systems, and those images contain repeated headers, UI metadata, signatures, and family-history sentences that can look like valid field evidence after OCR linearization.
+- Rejected: Treating every visible string in a screen photo as clinical evidence, and using broad negative phrases in family or pregnancy context as patient history.
+- Revisit when: The document context model has explicit trusted/non-trusted region labels from layout analysis and an eval set proves those regions are reliable.
+
+## 2026-05-01 - Manual review overrides are auditable export values
+
+- Decision: A human reviewer may confirm a non-`unknown` value without a grounded DocumentIR evidence span only through the manual review endpoint; the result is marked `reviewed`, keeps `acceptance_reason=manual_review`, records `manual_review_without_document_evidence` in provenance and validator messages, and writes an immutable `review_audit` before/after record.
+- Why: Some fields can be known to the reviewer even when OCR/evidence collection failed. Blocking those reviews prevents the local workflow and Excel export from completing, but silently treating them as model evidence would violate traceability.
+- Rejected: Allowing the extraction pipeline to emit non-`unknown` values without grounded evidence, faking evidence spans, and exporting manually-entered values without an audit row.
+- Revisit when: The UI supports selecting or drawing a source evidence region for every manual override, so manual values can be grounded to DocumentIR or image coordinates by default.
+
+## 2026-05-01 - Remote medical extraction is safe-evidence-only by default
+
+- Decision: `medical_inpatient_zh` forbids remote upload of full `DocumentContext`, raw OCR block text, and page images by default. Online evidence collection must fall back to local evidence generation unless a versioned schema explicitly enables full context exposure.
+- Why: Real medical records contain sensitive health and identity data. Evidence-first extraction still needs optional model routing, but the default boundary must prevent whole-document OCR or original images from leaving the local machine.
+- Rejected: Sending the entire OCR transcript to a cheap online model, relying on model prompts alone to avoid PHI use, and hiding the upload policy inside provider code instead of schema configuration.
+- Revisit when: There is a reviewed deployment profile with consent, data-processing agreements, retention controls, and an eval showing that remote full-context evidence collection is required for an accepted field category.
+
+## 2026-05-01 - Case deletion means archive, not purge
+
+- Decision: Frontend delete removes a case from the active list by setting `status=archived`; original uploads, extracted results, manual review audit rows, processing runs, model calls, and vision fallback requests remain in the database/storage for traceability.
+- Why: Codex debugging and clinical review both need the full chain of custody after an operator hides a case from daily work.
+- Rejected: Physical deletion from the case row cascade and deleting the upload directory through the UI delete action.
+- Revisit when: A separate retention/purge workflow with explicit confirmation and exportable audit evidence is added.
+
+## 2026-05-01 - Unknown export code is literal `unknown`
+
+- Decision: Medical export templates write missing/indeterminate coded fields as `unknown`, not numeric `9`.
+- Why: Several research fields may legitimately contain numeric values, so encoding unknown as `9` can be confused with real field values during analysis.
+- Rejected: Keeping the historical code-9 convention in headers or per-column unknown mappings.
+- Revisit when: A downstream registry contract requires numeric unknown codes and has field-level collision rules.
+
+## 2026-05-01 - OCR layout normalization separates raw OCR from extraction IR
+
+- Decision: Case processing preserves the raw OCR `DocumentIR` in protected storage, then applies profile-driven layout normalization before de-identification and extraction. The normalizer removes configured screen chrome, rebuilds reading order, merges same-line fragments, detects patient headers, marks document regions, and carries clinical sections across pages. It also derives local `layout_key_value` blocks from configured labels such as `姓名`, `性别`, `年龄`, `床号`, `病案号`, and operation-note metadata; derived sensitive values are de-identified together with the derived block text before extraction or remote evidence use. Field evidence policies may reject candidates from non-patient regions such as signatures and footers.
+- Why: Screen-captured Chinese cases have semi-fixed page templates but flexible narrative content. Extraction needs a stable local text/layout layer without sending full records to remote models or hard-coding individual medical fields.
+- Rejected: Directly uploading full OCR text for model repair, field-specific post-hoc fixes for sex/history errors, and treating hospital system chrome as clinical evidence.
+- Revisit when: The OCR/layout engine emits trusted region classes and table cells with enough accuracy to replace these profile-level normalization rules.
+
+## 2026-05-01 - Split header labels are rebuilt locally as key-value evidence
+
+- Decision: Layout normalization may mark same-line patient header fragments as one trusted header row and derive `layout_key_value` evidence from adjacent configured labels and values, even when OCR split labels such as `性别：` and values such as `男` into separate blocks. The join is bounded by same-line tolerance, configured source regions, configured labels, and a maximum horizontal gap.
+- Why: Real Chinese EMR screenshots often have fixed header rows, but OCR engines can split label and value into separate fragments. Mature document pipelines solve this with local reading-order/layout/key-value reconstruction before field extraction; doing it locally improves auto-pass precision without adding human review or uploading full records.
+- Rejected: Adding field-specific gender/age fixes, asking users to review every split header field, and sending full OCR text or original screenshots to a remote model for repair.
+- Revisit when: Native OCR/table engines provide reliable keyed header cells with bbox and confidence for these EMR templates.
+
+## 2026-05-01 - Medical export requires PASS or manual review
+
+- Decision: Medical export templates may require non-`unknown` values to be either evidence-first `PASS` decisions or auditable manual review overrides. `medical_inpatient_zh` enables this gate, and the Evidence Audit sheet records `exportable` plus `export_gate_reason` for every field result.
+- Why: A non-review model result with high confidence is not enough for medical export. The export boundary must enforce the local evidence ledger and keep blocked candidates visible for audit.
+- Rejected: Treating model confidence, `review_required=false`, or any non-`unknown` normalized code as sufficient for Excel export.
+- Revisit when: Additional export templates need different downstream acceptance contracts, such as numeric unknown codes or explicit reviewer signatures per field.
+
+## 2026-05-01 - Radeon OCR defaults are GPU-guarded, not CPU-heavy
+
+- Decision: `windows_radeon_balanced` requires local PP-OCRv5 server ONNX on DirectML and treats PaddleOCR-VL as an optional remote AMD/ROCm sidecar stage through `EYEX_OCR_PADDLEOCR_VL_URL`. The no-argument installer and probe read that URL from project `.env`; DirectML runtime failures are surfaced in health diagnostics. Local CPU PaddleOCR-VL, PP-StructureV3, and Docling are not default runtime stages or DirectML install warmups.
+- Why: On RX 6600-class Windows machines, PP-OCRv5 can run through ONNX Runtime DirectML, but local PaddleOCR-VL/Structure/Docling load CPU-heavy model stacks and can exhaust memory. Accuracy should improve through GPU paths, not by silently falling back to CPU stages that freeze the workstation.
+- Rejected: Running PaddleOCR-VL locally on CPU when AMD GPU execution is unavailable, using the backend-to-local-sidecar `EYEX_OCR_DOCUMENT_AI_URL` as the remote VL URL, and making PP-OCRv5 fall back to CPU Paddle when DirectML is missing.
+- Revisit when: A tested local AMD GPU backend for PaddleOCR-VL is available on the target Radeon stack, or the user provisions a stable ROCm host that can run the VL sidecar continuously.
+
+## 2026-05-01 - PaddleOCR-VL AMD GPU means official ROCm sidecar, not local CPU fallback
+
+- Decision: The installer now automatically probes and prepares a project-local official AMD GPU PaddleOCR-VL Docker sidecar using the official `latest-amd-gpu` PaddleOCR images, writing only under `var/`. EYEX consumes both its own `/extract` sidecar shape and the official PaddleOCR-VL `/layout-parsing` API. The `rocm_remote_vl` profile is remote-only and has no local CPU heavy fallbacks.
+- Why: PaddleOCR documents AMD GPU support through Docker/ROCm services, while the target RX 6600 Windows setup lacks a ready local ROCm/Paddle runtime. Keeping the VL path sidecar-only prevents another memory-saturating CPU run and gives a concrete GPU route when Docker/ROCm is available.
+- Rejected: Asking the user to manually wire the official service URL, using the local `EYEX_OCR_DOCUMENT_AI_URL` as a hidden VL proxy, and retaining CPU PaddleOCR-VL/PP-StructureV3/Docling fallback engines in the ROCm profile.
+- Revisit when: Docker/ROCm is installed and a real PaddleOCR-VL sidecar health check and OCR eval run are available on the target machine.
+
+## 2026-05-01 - Source OCR preview uses materialized page images
+
+- Decision: Original-image OCR review uses project-local materialized page images under `var/storage/source_pages`, keyed by case, page, file hash, and OCR page DPI. The API serves cached page images first and renders missing PDF pages at the per-page OCR DPI, not at a stale document-level DPI.
+- Why: Overlay drift and repeated "original preview unavailable" failures came from a brittle contract: the frontend inferred coordinates from live image loading while the backend rendered PDFs on demand from the original upload and could use a different DPI than the OCR blocks. A stable page-image contract keeps the preview, bbox space, and OCR evidence tied to the same page geometry.
+- Rejected: Retrying the frontend image tag indefinitely, hiding coordinate boxes when previews fail, relying on document-level `render_dpi` when block-level OCR DPI exists, and serving only transient in-memory rendered PNG responses.
+- Revisit when: OCR stores a first-class page raster manifest in `DocumentIR.pages` and the frontend can consume signed local asset references directly.
+
+## 2026-05-01 - Strong OCR is layout-led canonical merging
+
+- Decision: The default Radeon OCR profile is a fixed strong pipeline: PaddleOCR-VL provides primary document layout, PP-StructureV3 provides layout/table/read-order structure, and PP-OCRv5 DirectML provides line/cell text candidates. `DocumentIR.blocks` contains only backend canonical blocks; raw stage output is kept in `raw_candidates`/`candidate_sets` and suppressed candidate audit metadata.
+- Why: The observed failures were caused by raw OCR candidates and unreliable stage reading order leaking into final text, producing repeated boxes, page-number boxes, and cross-section reorderings even when the source image text was visible. Layout-led canonical merging keeps bbox coordinates in one source-page coordinate system and makes candidate conflicts auditable without corrupting evidence/LLM input.
+- Rejected: Letting PP-OCRv5 raw line order become final document text, silently falling back to PP-OCR-only production output when VL/Structure are unavailable, and fixing visual drift only in the frontend overlay.
+- Revisit when: A validated OCR engine emits trusted canonical DocumentIR with table cells, layout regions, and stable reading order at equal or better eval scores than the current canonical merger.
+
+## 2026-05-01 - Runtime readiness is a backend API contract
+
+- Decision: `/api/settings/runtime` reports backend, frontend, and OCR service readiness, including OCR sidecar health, strong pipeline stage checks, actionable repair commands, and current profile metadata. Frontend status cards must consume this backend readiness instead of inferring OCR state only from the last failed processing run. Public local operations are reduced to `install-ocr.cmd`, `start.cmd`, and `stop.cmd`; sidecar-specific scripts are not user-facing commands.
+- Why: After reboot, the backend can be reachable while OCR sidecar or PaddleOCR-VL/Structure/DirectML stages are not. The operator needs a precise service-level diagnosis before uploading or reprocessing a case.
+- Rejected: Keeping startup state only in console logs, showing "缺失 0 / 尝试 1" when the real failure is sidecar/stage readiness, making each frontend card re-interpret low-level OCR error strings independently, and asking users to manually chain internal `scripts\...` commands.
+- Revisit when: EYEX gains a supervised process manager that can expose first-class service lifecycle events without polling `/health`.
+
+## 2026-05-01 - Installer owns Docker Desktop bootstrap
+
+- Decision: `install-ocr.cmd` automatically downloads the official Docker Desktop installer into `var\cache\docker`, runs a project-local elevated Docker install helper, repairs stale partial Docker Desktop ProgramData state when it blocks installation, installs/starts Docker Desktop with the WSL2 backend, waits for the Docker engine, and then starts the optional official AMD/ROCm PaddleOCR-VL compose sidecar. Root `.cmd` wrappers pause before closing unless another EYEX script sets `EYEX_NO_PAUSE=1`.
+- Why: OCR setup must remain one-click after reboot or on a clean Windows workstation. Missing Docker should not send the operator into a manual side path, and installer/startup failures must remain visible in the console.
+- Rejected: Keeping Docker as a manual prerequisite, printing internal setup commands in the frontend, and allowing double-clicked `.cmd` windows to close before the error can be read.
+- Revisit when: EYEX adopts a real Windows service/process manager or a packaged installer that can declare Docker/WSL as managed prerequisites.
+
+## 2026-05-01 - PaddleOCR-VL is parked outside the default OCR route
+
+- Decision: This supersedes the Docker/ROCm PaddleOCR-VL bootstrap decision above. `install-ocr.cmd`, `start.cmd`, runtime readiness, and the default `windows_radeon_balanced` profile no longer prepare, start, or require PaddleOCR-VL. The installer ignores `-RemoteRocmSidecarUrl`, clears `EYEX_OCR_PADDLEOCR_VL_URL`, and uses the local PP-OCRv5 DirectML route plus PP-StructureV3 when available.
+- Why: On the target RX 6600 Windows workstation, the official Docker/ROCm route pulled very large images and failed at the local device layer, while local CPU PaddleOCR-VL can exhaust memory. Rebuilding PaddleOCR-VL on DirectML would require owning tokenizer, image preprocessing, generation, postprocessing, bbox recovery, and Markdown/layout reconstruction, which is too risky for the default OCR path.
+- Rejected: Default Docker Desktop installation, default ROCm/VL compose startup, local CPU PaddleOCR-VL fallback, and ZLUDA/hand-rolled ONNX PaddleOCR-VL as a production shortcut.
+- Revisit when: A supported ROCm host or maintained Windows GPU PaddleOCR-VL adapter is available and passes EYEX OCR evals without breaking the one-click local installer.
+
+## 2026-05-05 - OCR overlay and canonical merge are layer-safe
+
+- Decision: Source-image OCR review may suppress duplicate or obviously bad raw candidates, but it must not invent a wide union bbox for distant same-line fields. Backend layout normalization may join a field label to its adjacent value, but it must not merge the next independent label into the same canonical block. Cross-label raw candidates are hidden from the source overlay when individual field boxes are present.
+- Why: Mature document parsers keep raw OCR lines, layout/table regions, and canonical reading order as separate layers. The observed `姓名`/`现住址` connection and overlapping source boxes came from crossing that boundary: display cleanup and same-line normalization were allowed to combine independent fields.
+- Rejected: Treating the long connected boxes as a CSS-only issue, merging by text similarity without bbox geometry, and relying on a later LLM/evidence step to repair broken OCR reading order.
+- Revisit when: The OCR sidecar emits trusted layout regions and keyed form cells that make these local split/merge guards redundant.
+
+## 2026-05-05 - OCR merge policy v2 uses visual order before raw reading order
+
+- Decision: OCR merge policy `ocr-canonical-layout-v2` treats bbox geometry as the final ordering guard for OCR source text and transcript preparation. Raw engine `reading_order` is only a fallback when no usable bbox exists. Same-line OCR stitching may merge left-to-right suffix/prefix or near-duplicate alternatives, but it must not run reverse text-overlap synthesis that can create right-half-before-left-half lines from tiled OCR output.
+- Why: The repeated misordered text issue was reproduced from OCR cache where the right-side tile fragment had a lower raw `reading_order` than the left-side fragment on the same visual line. PP-StructureV3, Docling, MinerU, and LayoutParser-style pipelines all separate layout/coordinates from OCR candidates; EYEX must follow that boundary instead of trusting raw OCR order.
+- Rejected: Clearing the frontend symptom only, keeping the v1 cache key, and letting fuzzy overlap rules invent a line that contradicts page geometry.
+- Revisit when: The OCR sidecar emits validated canonical line groups with stable reading order and enough debug artifacts to retire the local visual-order guard.
+
+## 2026-05-05 - Modular OCR engine split (`intelligent_ocr.py` → `ocr_engine/`)
+
+- Decision: Split the 2454-line monolithic `intelligent_ocr.py` into a modular `app/services/ocr_engine/` package with 8 submodules: `types`, `errors`, `bbox_utils`, `preprocessing`, `postprocessing`, `payload_parse`, `engine_base`, `canonicalize`, plus `engines/` subpackage with one module per engine. The original bridge has since been deleted after all in-repo callers migrated to canonical imports.
+- Why: The monolith violated single-responsibility, made engine-level testing and feature iteration expensive, and blocked image preprocessing enhancements (deskew, CLAHE, adaptive binarize) and structured error codes (DirectML auto-recovery with cooldown). Mature OCR projects (Surya, MinerU, PaddleOCR) use modular package structures.
+- Rejected: In-place refactor of the monolith (too risky without regression suite), full re-import migration of all callers in one pass (high blast radius).
+- Revisit when: An external package or documented integration requires a compatibility namespace; if that happens, add an explicit deprecated namespace with a dated deletion condition instead of recreating the old service file.
+
+## 2026-05-05 - Remote browser access is token-gated and CORS-aligned
+
+- Decision: Local remote-browser access is allowed only when `EYEX_ALLOW_REMOTE_ACCESS=true` and `EYEX_LOCAL_API_TOKEN` are both set. In that mode, backend request guards and CORS allow remote browser origins so LAN clients can use the app with an explicit bearer token. Browser clients still need the token; loopback stays the default.
+- Why: The README promised token-gated LAN access, but the backend originally blocked non-loopback browser origins at the CORS layer. Aligning the CORS policy with the request guard keeps the loopback default intact while making the documented remote mode actually work.
+- Rejected: Opening CORS broadly without auth, keeping remote access looped only through non-browser clients, and adding a separate compatibility flag just for browser origins.
+- Revisit when: EYEX grows a formal deployment profile for remote access with origin allowlists, reverse proxy guidance, or a stronger auth model.
+
+## 2026-05-05 - Provider API responses are contract-validated at the frontend boundary
+
+- Decision: Frontend provider calls validate `model-providers` payloads at runtime and throw `ApiError(502)` on malformed 2xx responses instead of treating them as success. Provider update, fetch, and activation responses are modeled explicitly rather than `unknown`.
+- Why: Mature API clients fail fast on contract breaks and do not silently render or persist malformed provider state. This makes backend/frontend drift visible in tests and in the UI instead of hiding it behind loose typing.
+- Rejected: Leaving provider payloads as `unknown`, assuming 2xx always means valid data, or translating contract errors into success states.
+- Revisit when: The provider API becomes stable enough for generated client types and schema-driven validation across the whole frontend API surface.
+
+## 2026-05-05 - Model singleton pool adopted for all OCR engines
+
+- Decision: All OCR model instances (RapidOCR/ONNX, PaddleOCR v5, PP-StructureV3) are cached per-process via `ocr_engine/model_pool.py`. Models are loaded once, optionally warmed up, and reused for every subsequent `extract()` call. Config changes (detected via hash) trigger automatic eviction and reload.
+- Why: PaddleOCR init takes 2-5s; ONNX/DirectML compilation takes 1-3s. In production, a document processing queue would re-pay this cost on every request without the pool. Aligned with GOT-OCR, Surya, and MinerU singleton patterns.
+- Rejected: Per-request model instantiation (existing behavior), global module-level variables (not evictable), class-level cached instances on the engine class (not thread-safe across pool key variants).
+- Revisit when: Memory constraints on the sidecar host require explicit model eviction policies or LRU limits.
+
+## 2026-05-05 - Retry with exponential backoff added to engine orchestration
+
+- Decision: The `extract_with_intelligent_ocr` orchestrator now wraps each engine call with `retry_with_backoff()` (max 2 retries, base 1s, max 8s, ±50% jitter). Error classification via `OcrErrorCode.classify()` distinguishes retryable (DirectML crash, timeout, network) from permanent (invalid input, engine unavailable) errors. Permanent errors skip retry immediately.
+- Why: Transient DirectML and ONNX runtime failures on Windows/AMD occur occasionally but are recoverable. Without retry, a single hardware glitch fails the entire document silently. Aligned with GOT-OCR and production OCR best practices.
+- Rejected: Unlimited retry (DoS risk), same delay retry (thundering herd), retrying on all errors (wastes time on permanent failures).
+- Revisit when: Retry storm is observed in telemetry; at that point add per-document retry budget accounting.
+
+## 2026-05-05 - Graceful degradation: partial results returned when no engine meets threshold
+
+- Decision: When all engines fail to meet the quality threshold (`ocr_intelligent_min_chars`, `ocr_intelligent_min_confidence`), the orchestrator now returns the best partial result (by char_count + avg_confidence) with `ocr_intelligent_status: "degraded"` instead of an empty block list. The degradation reason is recorded in `ocr_degradation_reason` metadata.
+- Why: A document with 18 good pages and 2 noisy pages should not fail entirely. Returning partial results with explicit status lets the pipeline proceed to LLM extraction while the review UI can flag the quality issue. Aligned with production OCR best practices for partial result acceptance.
+- Rejected: Silently lowering quality thresholds system-wide, returning empty result (current behavior), or triggering a hard failure for below-threshold results.
+- Revisit when: The degraded status needs to map to a distinct pipeline status in the case record (e.g., `status: "degraded"` instead of `status: "completed"`).
+
+## 2026-05-05 - MinerU-style bbox containment added to dedup alongside IoU
+
+- Decision: OCR block deduplication now checks both IoU ≥ 0.6 AND containment ratio ≥ 0.85 (one block's area fully inside another). Either condition alone qualifies as a duplicate when text is also equivalent.
+- Why: DirectML tiled OCR produces overlapping tiles where the same text appears in a small block (tile boundary) and a large block (full tile). IoU is low due to size difference, so the original IoU-only check misses this case. MinerU uses containment checks for the same reason.
+- Rejected: Lowering the IoU threshold globally (increases false positives for genuinely different adjacent text), text-only dedup (fragile for OCR variants).
+- Revisit when: Medical forms with intentionally repeated labels in different regions show false-positive dedup.
+
+## 2026-05-05 - OCR engine import order resolves Windows DLL load conflicts (WinError 127)
+
+- Decision: Ensure `import torch` executes before any `paddle` or `paddlex` module is imported within the sidecar process (specifically enforced at the top of `ocr_sidecar/main.py`).
+- Why: When `paddle` is imported first on Windows, it loads bundled DLLs (like OpenMP's `libiomp5md.dll` or MSVC runtimes) into the process space. When `torch` is subsequently imported, its transitive dependencies (like `shm.dll`) fail to load because they attempt to link against the already-loaded, incompatible DLLs from paddle, resulting in a cryptic `[WinError 127]` (procedure not found). Forcing `torch` to load first resolves the conflict.
+- Rejected: Relying exclusively on `os.add_dll_directory` (fails for transitive dependencies loaded via `LoadLibraryExW` with restricted flags), modifying the global system PATH (brittle and affects other apps), or attempting to deduplicate the bundled DLLs on disk.
+- Revisit when: PaddleOCR or PyTorch dependencies are upgraded to versions that either statically link their dependencies or use isolated DLL load paths.
+
+## 2026-05-05 - Sidecar OCR route is config-only, not env-overridable
+
+- Decision: The OCR sidecar no longer reads `EYEX_OCR_SIDECAR_ENGINES`, and the installer removes that stale key from `.env` instead of keeping an empty placeholder. Sidecar engine order now comes only from `config/ocr_profiles/*.yaml`.
+- Why: Mature document parsers such as Surya, MinerU, Docling, and PaddleOCR separate engine capability selection from runtime process flags. EYEX already declared profile-driven OCR routing as the product contract, but the hidden sidecar env override kept a second conflicting control plane alive.
+- Rejected: Keeping a hidden emergency override for local debugging, and clearing the value to empty while still allowing stale `.env` keys to silently reactivate engine drift later.
+- Revisit when: EYEX needs a reviewed operational override path with explicit auditability, test coverage, and a rollback story separate from ordinary local `.env` edits.
+
+## 2026-05-05 - OCR orchestration now enforces timeouts and emits structured traces
+
+- Decision: Both backend intelligent OCR orchestration and the local OCR sidecar now wrap each engine attempt with a bounded timeout and emit `ocr_trace` metadata containing per-engine stage status, duration, page metrics, selected engine, and final quality summary. Engine timeouts are classified as `PAGE_TIMEOUT` and fall through to the next engine instead of retrying the same hung workload.
+- Why: Surya, MinerU, Docling, and PaddleOCR all treat OCR as a staged pipeline with explicit timing and failure boundaries. EYEX already had `concurrency.py` and `observability.py`, but they were not connected to the real OCR execution path, so a stuck engine looked like a generic failure and left no internal timing trail.
+- Rejected: Blindly retrying timed-out OCR work, keeping timeout protection only in helper modules, and relying on outer HTTP timeouts as the only guardrail for local OCR hangs.
+- Revisit when: OCR profiles need stage-specific timeout budgets or page-parallel scheduling that should move timeout policy from global settings into profile-owned route contracts.
+
+## 2026-05-05 - OCR regression profiles are versioned config, not ad hoc notes
+
+- Decision: EYEX now has first-class `config/ocr_evaluation_profiles/*.yaml` OCR regression profiles plus a repository command entrypoint (`scripts/run-ocr-eval.ps1`). OCR regression cases point to versioned fixture documents and page-level truth text, and the runner emits weighted CER/WER summaries with OCR engine and trace metadata.
+- Why: Surya, MinerU, Docling, and PaddleOCR all depend on repeatable OCR benchmarks, not just qualitative review. EYEX already had CER/WER utilities, but no config-owned way to run them against stable fixture documents, so OCR optimization ideas could not be turned into a consistent regression gate.
+- Rejected: Keeping OCR evaluation only in markdown notes, reusing extraction eval profiles for page-text OCR truth, and introducing sample-dependent runtime data under ignored directories as the first benchmark source.
+- Revisit when: The project has a reviewed de-identified medical OCR corpus large enough to justify fielding separate benchmark tiers for layout, table structure, and end-to-end extraction.
+
+## 2026-05-05 - OCR failures and latency must be diagnosable end-to-end
+
+- Decision: Processing diagnostics now propagate OCR engine errors, OCR trace summaries, selected engine, slowest OCR stage, timeout counts, and stage timings from backend processing runs to the frontend diagnostics strip. The UI prefers explicit execution failure reasons such as timeout, DirectML runtime failure, and sidecar call failure over generic "engine not ready" text when a run actually attempted OCR work.
+- Why: A long-running OCR failure that ends as "缺失 0 / 尝试 1" hides the real bottleneck and makes the operator debug the wrong layer. Mature OCR stacks expose execution-stage evidence, not only dependency readiness, especially when hybrid routes can be configured correctly but still fail at runtime.
+- Rejected: Keeping dependency-readiness text as the only failure surface, relying on log inspection to distinguish timeout vs DirectML crash vs sidecar outage, and adding more runtime switches before the current chain is observable.
+- Revisit when: The app has a richer diagnostics page that can render full OCR trace stages directly without squeezing the summary through `step_timings` and compact status text.
+
+## 2026-05-06 - NVIDIA OCR uses the same canonical layout pipeline as Radeon
+
+- Decision: The `cuda_paddle` OCR profile now routes scanned/image/table pages through `paddleocr_hybrid` with PP-StructureV3 as the required layout/table stage and PP-OCRv5 Paddle CUDA as the text-recognition stage, producing canonical `ocr-canonical-layout-v3` output.
+- Why: NVIDIA CUDA acceleration should improve throughput without bypassing the final OCR business contract for precise boxes, visual reading order, table cells, candidate suppression, and structured traces. Running raw CUDA engines independently would reintroduce a second OCR path with different layout semantics.
+- Rejected: Keeping separate direct engine routing for CUDA, falling back to Docling or PaddleOCR-VL CPU stages in the CUDA profile, and letting GPU vendor choice change the extraction-facing `DocumentIR` contract.
+- Revisit when: A validated CUDA OCR engine emits canonical layout, text, table cells, and reading order with equal or better regression scores than the hybrid merger.
+
+## 2026-05-06 - Source OCR and model schemas preserve table evidence
+
+- Decision: Source OCR payload filtering must preserve numeric boxed OCR values such as ages, scores, dates, and table cells; only explicit Chinese page-marker text is suppressed. OpenAI Responses structured-output schemas are strict-mode compatible, including bounded conflict objects with `additionalProperties: false` and required nullable fields.
+- Why: Numeric-only OCR boxes are business data in medical forms, not disposable page chrome. Strict provider schemas prevent upstream request rejection and keep model conflict output auditable without accepting arbitrary JSON.
+- Rejected: Hiding all digit-only OCR candidates in the source view, relying on frontend overlays to recover numeric cells, and leaving open-ended schema objects in strict JSON-schema payloads.
+- Revisit when: The canonical OCR layer stores page markers as a first-class block type that can be filtered without text heuristics, or provider schemas are generated from Pydantic models with automated strict-schema validation.
+
+## 2026-05-06 - Table cells remain atomic through extraction and export
+
+- Decision: Layout normalization must not merge table cells into same-line text blocks. Exact configured label cells may derive local `layout_key_value` blocks from adjacent same-row value cells, and those derived blocks are the evidence used by extraction/export. Runtime OCR readiness now treats profile mismatch or CPU-backed sidecars as not ready for GPU profiles.
+- Why: Hospital homepage tables often encode business fields as separate cells (`性别 | 男`, `年龄 | 58`). Merging cells destroys table provenance, while failing to derive key-values causes missing structured export. GPU profile readiness must prove the configured accelerator path is active rather than silently accepting a stale or CPU sidecar.
+- Rejected: Letting same-line OCR text merge table cells, relying on LLM prompts to infer table label/value relationships, accepting sidecar `/health` as ready without profile/device checks, and keeping untracked debug scripts as undocumented fallback workflows.
+- Revisit when: OCR engines emit a trusted first-class table schema with label/value cell links and a supervised process manager can enforce sidecar profile/device alignment before backend startup.
+
+## 2026-05-06 - Hardware OCR evals are blocked unless real corpus and GPU route exist
+
+- Decision: The medical OCR regression profile declares a real-hardware contract (`requires_real_hardware`, `requires_deidentified_corpus`, minimum case count, and target accelerator list) and the eval runner exits non-zero when that contract has no fixtures, unless explicitly asked to print the blocker report. Any non-empty real-hardware case must now include page truth, block annotations with bbox/order/text, and table cell truth for layout/table evaluation.
+- Why: Mock text fixtures prove the eval harness, not NVIDIA/AMD OCR precision, table layout quality, or image/PDF recognition. Completion reports must not imply hardware OCR readiness without a de-identified corpus and an active DirectML/CUDA/ROCm route.
+- Rejected: Treating the mock OCR profile as evidence for production hardware readiness, silently passing an empty medical eval profile, and documenting GPU precision as complete from readiness probes alone.
+- Revisit when: At least five de-identified medical image/PDF cases with page-level truth text and table/field expectations are available for DirectML, CUDA, and ROCm remote runs.
+
+## 2026-05-06 - OCR eval reports include hardware readiness evidence
+
+- Decision: OCR eval reports now include an `environment` payload with local accelerator probes, per-target readiness for `directml`, `cuda`, and `rocm_remote`, and copyable run/probe commands. `scripts/run-ocr-eval.ps1` prefers the project `.venv-ocr` runtime when present, and `real_hardware_case_template` is a blocked template profile with complete page/block/table annotation shape.
+- Why: The target workstation can have usable DirectML assets while system Python, Paddle CUDA, ROCm, or remote VL are missing. The eval output must distinguish "harness works", "DirectML appears installed", and "real GPU OCR precision verified on a de-identified corpus".
+- Rejected: Relying on external notes for environment evidence, defaulting evals to whichever `python` is first on PATH, and keeping the manifest template only inside markdown where tests cannot validate its contract.
+- Revisit when: The hardware corpus is populated and the eval runner needs accelerator-sliced scoring for the same cases across DirectML, CUDA, and ROCm remote hosts.
+
+## 2026-05-06 - OCR regression scores layout/table truth, not text alone
+
+- Decision: OCR eval reports now score truth block annotations with text match, bbox IoU, center tolerance, and reading-order accuracy, and score truth table cells with cell text, row/column key preservation, and bbox/center accuracy. These metrics are reported per case under `layout_metrics` and `table_metrics`, with weighted summary averages when truth annotations exist.
+- Why: CER/WER can pass while table cells are swapped, boxes drift off the source image, or reading order breaks downstream extraction. The real-hardware OCR contract already requires block and table truth, so the eval runner must use those annotations instead of storing them as inert metadata.
+- Rejected: Waiting for a full PubTables-style structure metric before adding any layout signal, and treating exact table object reconstruction as required before useful cell-level regression scoring.
+- Revisit when: A reviewed de-identified corpus exists and the project can add stricter table structure metrics such as row/column span graph accuracy and accelerator-sliced layout thresholds.
+
+## 2026-05-06 - Stale OCR sidecars must fail with restart instructions
+
+- Decision: The OCR sidecar `/health` payload now exposes `api_contract_version=eyex-ocr-sidecar-v2` and a build id. Backend runtime readiness and the HTTP OCR adapter reject local sidecars missing that contract, and the adapter turns known pre-fix NumPy parser failures into restart-required OCR errors instead of treating them as ordinary empty results.
+- Why: A stale long-running sidecar can keep serving old code after repository fixes, causing eval/API failures that look like OCR quality problems. The operator needs a precise restart instruction, not a process kill or generic "no blocks" report.
+- Rejected: Killing sidecar processes from eval/API code, silently accepting old health payloads, and relying only on log inspection to spot known stale-parser failure strings.
+- Revisit when: EYEX has a supervised process manager that can restart sidecars safely and atomically during local upgrades.
+
+## 2026-05-17 - Governance baseline tightened: complexity ceiling, dependency rules, perf baselines
+
+- Decision: AGENTS.md now declares (a) a 500-line single-file ceiling for backend Python and frontend TS/TSX, with a "next task touching the file must split" rule, (b) a 60-dirty-file ceiling on long-running branches that blocks new feature work, (c) a 2-week life cap on `codex/<goal>` branches, (d) explicit architecture boundaries forbidding business pipelines from importing protocol adapters directly and forbidding `ocr_engine/` from owning profile-driven layout rules, (e) a Dependency Management section requiring exact pins, supply-chain checks, and typo-adjacency review, (f) a Testing Discipline section introducing pytest markers (`unit`/`contract`/`regression`/`slow`/`needs_gpu`) and an 800-line ceiling on test files, (g) Performance Baselines (single-page OCR P95 ≤ 12s on DirectML PP-OCRv5, single-field evidence-first extraction P95 ≤ 6s on DeepSeek v4-flash, > 30% regression must be flagged), (h) a quarterly dead-field prune for `ExtractionCandidate`/`EvidencePack`/`EvidenceCandidate`/`DocumentIRBlock`.
+- Why: A repo audit found 5 source files over 600 lines (top: `EvidencePanel.tsx` 2017, `routes.py` 810, `layout_normalizer.py` 767, `ChartLensApp.tsx` 703, `model_providers.py` 659), 1 test file over 1000 lines, 97 in-progress dirty files on the active branch, and the dev-vs-main divergence on whether `application/` exists. Without explicit ceilings and triggers, these patterns recur in every refactor.
+- Rejected: Soft "consider splitting" guidance without a numeric trigger; lint-only enforcement (does not catch the architecture boundary rules); a single big-bang refactor task in PLAN that mixes triage, layer decision, DB migration, and provider split.
+- Revisit when: The ceilings stop reflecting real complexity (e.g., a single domain layer legitimately needs > 500 lines and splitting hurts cohesion), or when the project gains a second regular contributor and lint/CI rules can replace written norms.
+
+## 2026-05-17 - Pending: application/ vs services/ flat layout
+
+- Decision: PENDING. The dev branch (current) deletes the `backend/app/application/` package that exists on main (with `cases.py`, `document_fragments.py`, `evidence.py`, `llm_context.py`, `process_case.py`, `ports/`, `rule_extractor.py`, etc., totalling ~2000 lines) and merges its responsibilities back into `backend/app/services/`. The next focused task (`codex/architecture-decision`) must choose one of: (1) restore `application/` as the orchestration layer with `services/` reduced to protocol/framework adapters, or (2) keep the flat `services/` shape but enforce subpackage boundaries (`services/extraction/`, `services/ocr_engine/`, `services/llm_provider/`, `services/observability/`, `services/persistence/`) plus the AGENTS.md 500-line ceiling.
+- Why: The reverse-direction refactor on dev is now blocking other planned splits (provider three-tier, OCR/layout boundary, dead-field prune) because they all target the same module surface. PLAN.md and AGENTS.md cannot be coherent until the layer choice is recorded.
+- Rejected: Letting the dev branch implicit choice stand without a decision entry; mixing the layer choice into another task; keeping a hybrid where some orchestration sits in `application/` and some in `services/`.
+- Revisit when: The pending task `codex/architecture-decision` lands; this entry is then replaced with a dated decision recording the chosen layout and a one-line completion summary.

@@ -10,6 +10,9 @@ This file is the project constitution for personal Codex-assisted development. K
 - Prefer test-first or verification-first changes for behavior work: write or adjust the failing test/check, confirm it fails, then change implementation.
 - Remove old logic, routes, fields, and environment variables by default. Do not add compatibility layers unless a real external dependency exists; if compatibility is kept, document its deletion condition.
 - If unrelated dirty files exist, leave them alone. If they affect the task, explain the conflict before changing the affected area.
+- Single-file complexity ceiling: any backend Python file or frontend `.ts`/`.tsx` file exceeding 500 lines is a trigger; the next task touching that file must include a split. The pre-split task must still pass full quality gates.
+- Major architecture direction changes (introducing or removing `application/`, reshaping `services/` subpackages, swapping the primary data flow) must be recorded in `docs/DECISIONS.md` before code lands.
+- After any approach has failed twice, stop incremental patching and write a one-line root-cause hypothesis before the third attempt.
 
 ## Personal GitHub Management
 
@@ -21,6 +24,8 @@ This file is the project constitution for personal Codex-assisted development. K
 - Never stage `.env`, runtime state, model downloads, caches, generated test output, or frontend build artifacts. Runtime data belongs in ignored directories such as `var/`, `storage/`, `logs/`, `output/`, and `tmp/`.
 - Every pushed branch must have a completion note covering changed behavior, validation commands, intentionally skipped areas, and residual risks.
 - High-impact decisions for API contracts, OCR/LLM routing, evidence integrity, storage, security, or GitHub workflow must be recorded in `docs/DECISIONS.md` before or with the branch.
+- Long-running branches (`dev`, any `codex/<goal>`) that accumulate more than 60 dirty files must stop new feature work until the dirty set is merged, split, or discarded. Mixing in fresh refactors on top of that state is forbidden.
+- Each `codex/<goal>` branch has a 2-week life cap. If it is still open after that, write the cause in `PLAN.md` and either close it or split it; do not silently let task branches age.
 
 ## Codex Task Template
 
@@ -54,14 +59,39 @@ Completion report: changed files + validation results + risks + next best step
 - Non-`unknown` extraction results must keep evidence spans grounded in the de-identified `DocumentIR`.
 - Config is product behavior. Changes under `config/` require config contract tests.
 - Do not introduce abstractions just to hide old behavior. Add an abstraction only when it reduces real duplication or isolates a stable boundary.
+- LLM calls must go through the LLM provider router (currently `backend/app/services/llm_provider/`). Business pipelines must not import a specific protocol adapter directly; routing, fallback, and key cooldown policy belong to the router layer.
+- OCR engines under `backend/app/services/ocr_engine/` only produce raw and single-engine canonical output. Profile-driven same-line merging, paragraph reflow, screen-chrome removal, patient-header detection, and key-value derivation belong to `backend/app/services/layout_normalizer.py`.
+- Any change to `processing_runs`, `processing_events`, or `model_calls` schema is an observability contract change and must be recorded in `docs/DECISIONS.md`.
+- `ExtractionCandidate`, `EvidencePack`, `EvidenceCandidate`, and `DocumentIRBlock` go through a quarterly dead-field prune: any Pydantic field with no read site in `services/` or `frontend/` must be removed.
 
 ## Quality Gates
 
 - Backend: `python -m pytest backend\tests`
 - Frontend tests: `cd frontend; npm test`
 - Frontend build: `cd frontend; npm run build`
-- Residual scan after cleanup work: search for old route names, old fields, `legacy`, `latest`, duplicate API clients, and generated caches.
+- Governance scan after cleanup work: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`
 - High-risk LLM/OCR/evidence changes also need an eval profile run or a documented reason why no eval data applies.
+
+## Dependency Management
+
+- Backend `requirements*.txt` must pin exact versions. New dependencies must be checked for upstream activity (one update in the last year), license compatibility for personal use, and absence of known supply-chain incidents.
+- Frontend dependencies are locked through `package-lock.json`. Adding a new npm package requires a one-line justification (purpose, alternative considered) in the PR description.
+- Do not introduce a package that has had a public supply-chain incident in the last 12 months unless the upstream has published a public post-incident remediation note.
+- Treat new typo-adjacent package names with extra scrutiny. If a name is one character away from a popular package, confirm the namespace and publisher before installing.
+
+## Testing Discipline
+
+- Backend tests are tagged with pytest markers: `unit`, `contract`, `regression`, `slow`, `needs_gpu`. Default CI runs `unit` and `contract`. `regression`, `slow`, and `needs_gpu` run locally or in dedicated workflows.
+- Any single test file exceeding 800 lines is a trigger; the next task touching that file must split it along business boundaries.
+- High-risk subsystems (OCR engine, LLM router, evidence validation, security guards) require a contract or regression test added in the same change. A change with no test must explain why in the completion report.
+- Frontend tests stay on the current minimal runner until a test legitimately needs DOM assertions, async lifecycle, fake timers, or mocking; at that point switch to Vitest as a single migration task.
+
+## Performance Baselines
+
+- Single-page OCR P95 must stay at or under 12 seconds on the DirectML PP-OCRv5 server route on the reference Radeon RX 6600 workstation. CUDA and ROCm targets get their own baselines once a real corpus is wired in.
+- Single-field evidence-first extraction P95 must stay at or under 6 seconds on the default DeepSeek v4-flash route.
+- Any change that degrades a recorded P95 by more than 30% must be flagged in the completion report with eval profile evidence and either a documented mitigation plan or an explicit acceptance.
+- Performance baselines are stored alongside the corresponding eval profile results, not in code; they are evidence, not assertions.
 
 ## Completion Report
 
