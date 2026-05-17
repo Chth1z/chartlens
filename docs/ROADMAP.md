@@ -159,6 +159,28 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Prerequisites: E0-005.
 - Reference: PaddleOCR PP-OCR confidence scoring; Marker block-confidence calibration ideas (no source copy). See `docs/REFERENCE_PROJECTS.md`.
 
+### E1-009 — Eval-only OCR character correction diagnostic
+
+- Goal: run pycorrector's n-gram + pinyin/shape correction layer (Apache-2.0) over the OCR output of the existing OCR eval profiles and produce a "what fraction of characters the corrector would flip, and on which fields" report. Pure diagnostic — does not modify the runtime route. Output decides whether to invest in a real character-correction stage between `ocr_engine` canonical merge and `layout_normalizer`.
+- Acceptance: `scripts/run-ocr-eval.ps1 -ProfileId synthetic_medical_directml -CorrectorDiagnostic` (new flag) emits a per-block diff between original OCR text and pycorrector output, plus a count of flips by character and by `DocumentIRBlock.section_label`. Report committed under `config/ocr_evaluation_profiles/diagnostics/<profile>.json`.
+- Prerequisites: E1-007 (Docling eval) so the `.venv-ocr` runtime can host another optional NLP package; or independent if pycorrector is added to `.venv-ocr` directly.
+- Reference: pycorrector (shibing624) Apache-2.0; "OCR Error Post-Correction with LLMs in Historical Documents" arxiv 2025.resourceful-1.8 cautions on naively wiring SOTA correctors. See `docs/OCR_POST_PROCESSING.md`.
+
+### E1-010 — mock_general fixture expansion (multi-phase)
+
+- Goal: expand the synthetic `mock_general` baseline from 8 fixtures (covering 9 of 22 schema fields) to coverage of every export-template column. Phased so that each phase is one PLAN task with its own baseline regeneration. Phase plan documented in `docs/FIELD_COVERAGE.md`.
+- Phases (one PLAN task each, executed sequentially):
+  - **A** demographics completion (`hospital`, `urban_residence`).
+  - **B** history completion (`tumor_history`).
+  - **C** imaging facts (`single_multiple`, `aneurysm_location`).
+  - **D** score grades (`hh_grade`, `wfns_grade`, `fisher_grade`, `mrs_score`).
+  - **E** surgery method (`surgery_method`).
+  - **F** timeline durations (`onset_to_admission_time`, `admission_to_surgery_time`).
+  - **G** discharge outcome (`in_hospital_death`, `transfer`).
+- Acceptance per phase: matching fixtures committed; gold YAML extended; baseline regenerated; `test_eval_fixtures.py` accuracy floor and fixture-count assertion updated; `docs/ROADMAP.md` Active Baselines row reflects the new total. New recall gaps are pinned in `test_evidence_first_extraction.py` rather than silently regressed.
+- Prerequisites: E0-008, current `mock_general` baseline (8 cases).
+- Reference: `docs/FIELD_COVERAGE.md` for the rationale of each phase ordering.
+
 ## E2 — Product-Grade Precision and Throughput
 
 ### E2-001 — Real medical OCR corpus and `medical_inpatient_zh` unblock

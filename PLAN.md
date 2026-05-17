@@ -34,6 +34,15 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
 - Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
 
+### todo PLAN-mock-general-phase-A
+
+- Goal: ROADMAP E1-010 Phase A. Extend the `mock_general` baseline to cover the two demographics fields currently outside the 8-case set: `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Reuse one existing fixture by adding the `医院: XXX市XXX医院` line and a sample address; add one new fixture with no address to verify `urban_residence` rule does not over-fire and stays unknown when the source has no usable signal.
+- Out of scope: No change to schema synonyms. No new schema field. No phase B-G work.
+- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Risk: `urban_residence` runs through `pre_redaction_derivations`, which executes BEFORE deidentification. A malformed fixture address could leak into the de-identified DocumentIR if the rule misfires. Verify the resulting `DocumentIR` blocks contain only the safe derived block, not the original address. The two new (or modified + new) fixtures must follow `docs/DECISIONS.md` 2026-04-30 "Address-derived fields use safe local derivations".
+- Trigger: `mock_general` is the current precision baseline; E1-010 phases close the field-coverage gap surfaced by `docs/FIELD_COVERAGE.md`.
+- Done condition: at least one fixture asserts `hospital` non-empty; at least one fixture asserts `urban_residence` with a recognized code; at least one fixture asserts `urban_residence=unknown` to verify the unknown path; `test_eval_fixtures.py::test_fixture_count_matches_committed_baseline` updated; baseline JSON regenerated; `docs/ROADMAP.md` Active Baselines row updated; `docs/FIELD_COVERAGE.md` Phase A status moved from todo to done.
+
 ### todo Decide application/ vs services/ flat layout
 
 - Goal: Resolve the dev-vs-main divergence. Either restore the `backend/app/application/` layer that exists on `main`, or formalize `backend/app/services/` subpackages with hard size limits in AGENTS.md. The chosen direction is recorded in `docs/DECISIONS.md` before any code in `services/` or `application/` is reorganized.
@@ -134,6 +143,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
 
 ## Done
+
+### done PLAN-field-coverage-and-ocr-postprocessing-research
+
+- Goal: Produce two research/planning docs that scope the next phases of precision work. `docs/FIELD_COVERAGE.md` inventories every export-template column, the current `mock_general` baseline coverage (9 of 22 schema fields), and a 7-phase fixture expansion plan. `docs/OCR_POST_PROCESSING.md` maps the open-source landscape (pycorrector, ChineseErrorCorrector, CBLUE, PromptCBLUE, SNOMED CT/ICD-10-CN, MinerU, Docling) to EYEX's pipeline stages, with license verification and explicit non-copy boundaries.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Done condition: both docs exist; AGENTS.md documentation map references them; ROADMAP gains E1-009 (eval-only OCR character correction diagnostic via pycorrector) and E1-010 (multi-phase mock_general fixture expansion) backed by FIELD_COVERAGE phases A-G.
 
 ### done PLAN-mock-general-challenge-case
 
