@@ -5,7 +5,8 @@ param(
   [ValidateSet("rule", "llm")]
   [string]$Provider = "rule",
   [switch]$Baseline,
-  [switch]$CleanOnly
+  [switch]$CleanOnly,
+  [switch]$UnsafeEvalAllowRemoteContext
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,6 +28,9 @@ if ($Baseline) {
 }
 if ($CleanOnly) {
   $cliArgs += "--clean-only"
+}
+if ($UnsafeEvalAllowRemoteContext) {
+  $cliArgs += "--unsafe-eval-allow-remote-context"
 }
 
 & $resolvedPython $runner @cliArgs

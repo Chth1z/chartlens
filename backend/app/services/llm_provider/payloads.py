@@ -112,6 +112,63 @@ def _responses_evidence_first_payload(
     return payload
 
 
+def _chat_completions_evidence_first_payload(
+    *,
+    document_context: DocumentContext,
+    fields: list[FieldDefinition],
+    model: str,
+    profile=None,
+) -> dict[str, Any]:
+    """Build a /chat/completions payload that mirrors the Responses-API
+    evidence-first contract. Used by `OpenAICompatibleChatProvider` so
+    DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom can
+    actually participate in evidence collection.
+
+    Two design invariants:
+
+    1. The cacheable prefix is the system prompt + extraction rules +
+       JSON schema descriptor. It is byte-stable across cases so DeepSeek's
+       prompt cache (`api-docs.deepseek.com/guides/kv_cache`) can hit on
+       repeat runs and bring the input-token cost down by ~90%.
+    2. The per-case content (document_context + fields list) sits in the
+       user message AFTER the cacheable prefix. The schema lives in the
+       system message via a stringified description so it never changes
+       between cases and never breaks the cache.
+    """
+    model_profile = profile or get_active_model_profile()
+    remote_policy = _remote_exposure_policy()
+    user_payload = _evidence_first_user_payload(
+        document_context=document_context,
+        fields=fields,
+        remote_policy=remote_policy,
+    )
+    base_system = _evidence_first_system_prompt(document_context)
+    schema_descriptor = json.dumps(
+        _evidence_candidate_response_schema(), ensure_ascii=False, sort_keys=True
+    )
+    # The word "json" must appear in the system prompt for DeepSeek json_object
+    # mode (per api-docs.deepseek.com/guides/json_mode). The descriptor below
+    # also gives the model the exact target shape, which is the most reliable
+    # way to get a usable response on chat-completions endpoints that do not
+    # support strict json_schema mode.
+    full_system = (
+        base_system
+        + "\n\n"
+        + "Output one JSON object that strictly matches this schema:\n"
+        + schema_descriptor
+    )
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": full_system},
+            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": model_profile.temperature,
+        "max_tokens": model_profile.max_output_tokens,
+    }
+
+
 def _chat_completions_payload(
     *,
     document_ir: DocumentIR,
@@ -228,10 +285,37 @@ def _evidence_first_user_payload(
 
 
 def _remote_exposure_policy() -> RemoteExposurePolicy:
+    if _RUNTIME_EXPOSURE_POLICY_OVERRIDE is not None:
+        return _RUNTIME_EXPOSURE_POLICY_OVERRIDE
     try:
         return load_extraction_schema().remote_exposure_policy
     except Exception:
         return RemoteExposurePolicy()
+
+
+_RUNTIME_EXPOSURE_POLICY_OVERRIDE: RemoteExposurePolicy | None = None
+
+
+def set_runtime_exposure_policy_override(policy: RemoteExposurePolicy | None) -> None:
+    """Process-local override of the schema-derived RemoteExposurePolicy.
+
+    Designed for the LLM-baseline bootstrap script and mock evaluation
+    runs that need to send full DocumentContext to the remote model
+    without modifying the live medical schema YAML. Production code paths
+    (FastAPI request handlers, the case-processing worker pool) MUST NOT
+    set this override; the per-schema policy in
+    `config/extraction_schemas/<id>.yaml` is the only authoritative
+    source for runtime behavior outside of evaluation tooling.
+
+    Setting the override to None restores the schema-derived policy. The
+    override is process-local and does not persist across restarts.
+
+    See `docs/DECISIONS.md` 2026-05-01 "Remote medical extraction is
+    safe-evidence-only by default" for the production policy that this
+    override deliberately sidesteps in evaluation contexts only.
+    """
+    global _RUNTIME_EXPOSURE_POLICY_OVERRIDE
+    _RUNTIME_EXPOSURE_POLICY_OVERRIDE = policy
 
 
 def _requires_local_evidence_collection(policy: RemoteExposurePolicy) -> bool:

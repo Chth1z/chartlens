@@ -60,9 +60,11 @@ from app.core.database import (  # noqa: E402
     SessionLocal,
     init_db,
 )
+from app.domain.models import RemoteExposurePolicy  # noqa: E402
 from app.services.extraction_eval import run_extraction_evaluation_profile  # noqa: E402
 from app.services.llm_provider.fallback import build_semantic_provider  # noqa: E402
 from app.services.llm_provider.local_extraction import ConservativeLocalProvider  # noqa: E402
+from app.services.llm_provider.payloads import set_runtime_exposure_policy_override  # noqa: E402
 from app.services.llm_provider.types import SemanticExtractionProvider  # noqa: E402
 from app.services.model_auth import api_keys_for_profile  # noqa: E402
 from app.services.model_selection import get_active_model_profile  # noqa: E402
@@ -158,9 +160,47 @@ def main() -> int:
         action="store_true",
         help="Delete the matching case rows without reprocessing. Useful before switching providers or running a full re-baseline.",
     )
+    parser.add_argument(
+        "--unsafe-eval-allow-remote-context",
+        action="store_true",
+        help=(
+            "EVAL MODE ONLY. Override the active extraction schema's "
+            "remote_exposure_policy in this process so the LLM adapter sends "
+            "full DocumentContext (raw block text + page images) to the remote "
+            "provider. Does not touch any YAML or settings on disk; takes "
+            "effect only inside this script's process. Without this flag, "
+            "the medical schema's safe-evidence-only policy keeps the LLM "
+            "path in local fallback because remote uploads of raw clinical "
+            "text are forbidden by docs/DECISIONS.md 2026-05-01. Use only "
+            "with synthetic fixtures (e.g. config/evaluation_profiles/"
+            "fixtures/mock_general/*.txt)."
+        ),
+    )
     args = parser.parse_args()
 
     init_db()
+
+    if args.unsafe_eval_allow_remote_context:
+        if args.provider != "llm":
+            print(
+                "FAIL: --unsafe-eval-allow-remote-context requires --provider llm.",
+                file=sys.stderr,
+            )
+            return 4
+        eval_policy = RemoteExposurePolicy(
+            allow_full_document_context=True,
+            allow_raw_block_text=True,
+            allow_page_images=False,
+            allow_safe_evidence_candidates=True,
+            max_evidence_chars_per_field=1200,
+        )
+        set_runtime_exposure_policy_override(eval_policy)
+        print(
+            "WARN: process-local exposure-policy override active. The remote "
+            "provider will receive full DocumentContext for the duration of "
+            "this script run. Per docs/DECISIONS.md 2026-05-01, this MUST "
+            "only be used with synthetic fixtures."
+        )
 
     if args.provider == "llm":
         ok, label = _verify_llm_key()
