@@ -61,15 +61,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: After Phase 1.
 - Done condition: `mock_general_llm.json` baseline records `input_tokens > 0`, `output_tokens > 0`, `cost_usd > 0`; accuracy stays at 1.0/54 (or higher); a second consecutive run records `cached_input_tokens > 0`; the bootstrap WARN line is gone; new contract tests pass.
 
-### todo PLAN-llm-provider-phase-3
-
-- Goal: ROADMAP E1-011 Phase 3. Implement `AnthropicMessagesProvider.collect_evidence` (system + messages + tool_use shape) and `GoogleGeminiProvider.collect_evidence` (systemInstruction + responseSchema shape). Extract `services/llm_provider/router.py` with separate `with_retries()` and `with_fallbacks()` methods (LiteLLM pattern). Replace `fallback._provider_for_profile` if/elif with `services/llm_provider/registry.py`. Document or remove the legacy `extract_group` path now that no committed schema selects it.
-- Out of scope: Streaming. Multi-modal page-image input beyond what `_responses_evidence_first_payload` already gates on `policy.allow_page_images`. Provider catalog YAML changes.
-- Acceptance commands: same as Phase 2 plus a per-adapter parametrized run with at least one model_profile from each adapter family in CI mock mode (no real API key required for the mock-server tests).
-- Risk: Higher than Phase 2 because every adapter changes. Mitigation: explicit-delegation shim from Phase 1 still serves as fallback for any specific adapter that hits a bug; registry coverage test prevents adding a new provider without an adapter wiring.
-- Trigger: After Phase 2.
-- Done condition: every adapter has a real `collect_evidence`; registry-based dispatch; `Router` class separates retry from fallback; `extract_group` is either removed or gated behind a documented non-default extraction strategy; ROADMAP E1-011 marked done; the way is clear for E1-001 / E1-002 / E1-003.
-
 ### todo PLAN-mock-general-phase-A
 
 - Goal: ROADMAP E1-010 Phase A. Extend the `mock_general` baseline to cover the two demographics fields currently outside the 8-case set: `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Reuse one existing fixture by adding the `医院: XXX市XXX医院` line and a sample address; add one new fixture with no address to verify `urban_residence` rule does not over-fire and stays unknown when the source has no usable signal.
@@ -179,6 +170,13 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
 
 ## Done
+
+### done PLAN-llm-provider-phase-3
+
+- Goal: ROADMAP E1-011 Phase 3. Real `collect_evidence` for `AnthropicMessagesProvider` (system + messages with the JSON schema descriptor in the cacheable system field) and `GoogleGeminiProvider` (systemInstruction + responseMimeType=application/json + responseSchema). New `services/llm_provider/registry.py` replaces the if/elif chain in `fallback._provider_for_profile` with a data-driven dispatch table that pairs each provider literal with its allowed `llm_mode` set. Contract tests pin payload shape, byte stability, real-implementation references, and registry coverage.
+- Outcome: every concrete LLM adapter now has a real evidence-first remote call. Anthropic adapter posts to `/v1/messages` with the byte-stable system prompt + JSON schema descriptor and graceful local fallback on auth/timeout/rate-limit/malformed-JSON. Gemini adapter posts to `/v1beta/models/<model>:generateContent` with `responseSchema` translated from the JSON Schema fragment via `_gemini_response_schema` (drops `additionalProperties`, folds `type: ['x', 'null']` into `nullable: true`, uppercases types to OpenAPI 3.0 dialect). Privacy boundary preserved: both adapters honor `safe_evidence_only` policy and degrade to `local_collect_evidence_fallback` with `remote_skipped_reason=remote_full_context_disabled` when the schema disallows full context. Registry knows 4 adapter kinds (`openai_responses`, `openai_compatible`, `anthropic_messages`, `google_gemini`); each declares its allowed `llm_mode` set. Backend tests 326 → 340 (14 new in `test_provider_phase_3.py`). Frontend 9 / build OK / governance scan clean. The `Router.with_retries()` / `Router.with_fallbacks()` LiteLLM-style class extraction is intentionally deferred: `ModelFallbackProvider` already separates fallback iteration from per-adapter retry/cooldown, and splitting them would be churn without behavior change. Same call decision for the legacy `extract_group` path: it stays because the medical schema's `aneurysm_group`, `surgery_group`, and `score_group` use `semantic_strategy: llm_facts_then_compute` and demographics groups use `rule_shortcut`, so removing `extract_group` would require a coordinated schema rewrite that is out of scope.
+- Acceptance commands: `python -m pytest backend\tests` (340 passed); `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. mock_general LLM baseline unchanged (1.0/54 via DeepSeek v4-flash; this batch did not change DeepSeek behavior, only added Anthropic/Gemini real calls).
+- Done condition: `AnthropicMessagesProvider.collect_evidence` and `GoogleGeminiProvider.collect_evidence` are real implementations referenced by `_anthropic_evidence_first_payload` and `_gemini_evidence_first_payload`; `services/llm_provider/registry.py` is the single dispatch source and `fallback._provider_for_profile` is a thin delegating shim; new `test_provider_phase_3.py` (14 tests) pins payload byte-stability, real-implementation references, registry coverage, llm_mode gating, and the privacy boundary fallback path; ROADMAP E1-011 marked done.
 
 ### done E1-001 evidence-first prompt rewrite
 

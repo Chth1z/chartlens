@@ -27,7 +27,7 @@ from app.services.safe_errors import safe_error_message
 from .types import SemanticExtractionProvider, local_collect_evidence_fallback, local_evidence_fallback_usage
 from .cache import _llm_cache_key, _read_llm_result_cache, _write_llm_result_cache, _cache_hit_usage, _cache_miss_usage, _evidence_first_cache_key, _read_evidence_candidate_cache, _write_evidence_candidate_cache
 from .utils import _base_url_for_profile, _api_keys_for_attempts, _is_rate_limit_or_timeout, _mark_api_key_cooldown, _model_for_profile, _openai_compatible_base_url_candidates, _should_try_next_openai_compatible_response, _should_try_next_openai_compatible_base_url, _chat_response_content, _model_ref
-from .payloads import _responses_payload, _responses_evidence_first_payload, _requires_local_evidence_collection, _remote_exposure_policy, _remote_context_mode, _chat_completions_payload, _chat_completions_evidence_first_payload, _anthropic_payload, _gemini_payload
+from .payloads import _responses_payload, _responses_evidence_first_payload, _requires_local_evidence_collection, _remote_exposure_policy, _remote_context_mode, _chat_completions_payload, _chat_completions_evidence_first_payload, _anthropic_payload, _anthropic_evidence_first_payload, _gemini_payload, _gemini_evidence_first_payload
 from .parsing import _candidates_from_text, _evidence_candidates_from_text, _anthropic_text, _gemini_text
 
 class OpenAIResponsesProvider(SemanticExtractionProvider):
@@ -466,11 +466,118 @@ class AnthropicMessagesProvider(SemanticExtractionProvider):
         document_context: DocumentContext,
         fields: list[FieldDefinition],
     ) -> dict[str, list[EvidenceCandidate]]:
-        # E1-011 Phase 1: explicit delegation. Phase 3 will replace this
-        # with an Anthropic Messages call shaped as a `submit_evidence_candidates`
-        # tool_use that wraps the evidence-first JSON schema.
-        self.last_usage = local_evidence_fallback_usage()
-        return local_collect_evidence_fallback(document_context, fields)
+        """Real implementation: call Anthropic Messages API with the
+        evidence-first JSON contract. Falls back to local rule extraction
+        when remote exposure policy disallows full document context, when
+        the call fails permanently (auth, model-not-found), or when the
+        response is not valid JSON.
+
+        E1-011 Phase 3 (2026-05-18). Replaces the explicit-delegation
+        shim from Phase 1.
+        """
+        cache_key = _evidence_first_cache_key(self.profile, document_context, fields, stage="collect")
+        cached = _read_evidence_candidate_cache(cache_key)
+        if cached is not None:
+            self.last_usage = _cache_hit_usage(cache_key)
+            return cached
+
+        remote_policy = _remote_exposure_policy()
+        if _requires_local_evidence_collection(remote_policy):
+            result = local_collect_evidence_fallback(document_context, fields)
+            self.last_usage = {
+                **local_evidence_fallback_usage(),
+                "remote_context_mode": _remote_context_mode(remote_policy),
+                "remote_skipped_reason": "remote_full_context_disabled",
+                **_cache_miss_usage(cache_key),
+            }
+            _write_evidence_candidate_cache(cache_key, result)
+            return result
+
+        payload = _anthropic_evidence_first_payload(
+            document_context=document_context,
+            fields=fields,
+            model=self.model,
+            profile=self.profile,
+        )
+
+        last_error: Exception | None = None
+        data: dict[str, Any] | None = None
+        for api_key in _api_keys_for_attempts(self.profile, self.api_keys):
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            try:
+                with httpx.Client(timeout=settings.openai_timeout_seconds) as client:
+                    response = client.post(
+                        f"{self.base_url}/v1/messages", headers=headers, json=payload
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                break
+            except Exception as exc:
+                last_error = exc
+                if not _is_rate_limit_or_timeout(exc):
+                    return self._anthropic_evidence_local_fallback(
+                        document_context=document_context,
+                        fields=fields,
+                        cache_key=cache_key,
+                        failure=exc,
+                        failure_reason="permanent_error",
+                    )
+                _mark_api_key_cooldown(self.profile, api_key, exc)
+
+        if data is None:
+            return self._anthropic_evidence_local_fallback(
+                document_context=document_context,
+                fields=fields,
+                cache_key=cache_key,
+                failure=last_error,
+                failure_reason="no_response",
+            )
+
+        try:
+            text = _anthropic_text(data)
+            result = _evidence_candidates_from_text(text)
+        except Exception as exc:
+            return self._anthropic_evidence_local_fallback(
+                document_context=document_context,
+                fields=fields,
+                cache_key=cache_key,
+                failure=exc,
+                failure_reason="malformed_json",
+            )
+
+        usage = data.get("usage", {}) or {}
+        self.last_usage = {
+            "input_tokens": int(usage.get("input_tokens") or 0),
+            "output_tokens": int(usage.get("output_tokens") or 0),
+            "cached_input_tokens": int(usage.get("cache_read_input_tokens") or 0),
+            "cost_usd": 0.0,
+            "evidence_collection_method": "remote_anthropic_messages",
+            **_cache_miss_usage(cache_key),
+        }
+        _write_evidence_candidate_cache(cache_key, result)
+        return result
+
+    def _anthropic_evidence_local_fallback(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+        cache_key: str,
+        failure: Exception | None,
+        failure_reason: str,
+    ) -> dict[str, list[EvidenceCandidate]]:
+        result = local_collect_evidence_fallback(document_context, fields)
+        self.last_usage = {
+            **local_evidence_fallback_usage(),
+            "remote_skipped_reason": failure_reason,
+            "remote_failure": safe_error_message(failure) if failure is not None else None,
+            **_cache_miss_usage(cache_key),
+        }
+        return result
 
 
 class GoogleGeminiProvider(SemanticExtractionProvider):
@@ -543,9 +650,111 @@ class GoogleGeminiProvider(SemanticExtractionProvider):
         document_context: DocumentContext,
         fields: list[FieldDefinition],
     ) -> dict[str, list[EvidenceCandidate]]:
-        # E1-011 Phase 1: explicit delegation. Phase 3 will replace this
-        # with a Gemini generateContent call using systemInstruction +
-        # responseMimeType=application/json + responseSchema for the
-        # evidence-first JSON contract.
-        self.last_usage = local_evidence_fallback_usage()
-        return local_collect_evidence_fallback(document_context, fields)
+        """Real implementation: call Gemini generateContent with
+        responseMimeType=application/json + responseSchema for the
+        evidence-first JSON contract. Falls back to local rule
+        extraction on policy block, permanent error, or malformed JSON.
+
+        E1-011 Phase 3 (2026-05-18). Replaces the explicit-delegation
+        shim from Phase 1.
+        """
+        cache_key = _evidence_first_cache_key(self.profile, document_context, fields, stage="collect")
+        cached = _read_evidence_candidate_cache(cache_key)
+        if cached is not None:
+            self.last_usage = _cache_hit_usage(cache_key)
+            return cached
+
+        remote_policy = _remote_exposure_policy()
+        if _requires_local_evidence_collection(remote_policy):
+            result = local_collect_evidence_fallback(document_context, fields)
+            self.last_usage = {
+                **local_evidence_fallback_usage(),
+                "remote_context_mode": _remote_context_mode(remote_policy),
+                "remote_skipped_reason": "remote_full_context_disabled",
+                **_cache_miss_usage(cache_key),
+            }
+            _write_evidence_candidate_cache(cache_key, result)
+            return result
+
+        payload = _gemini_evidence_first_payload(
+            document_context=document_context,
+            fields=fields,
+            model=self.model,
+            profile=self.profile,
+        )
+
+        last_error: Exception | None = None
+        data: dict[str, Any] | None = None
+        for api_key in _api_keys_for_attempts(self.profile, self.api_keys):
+            try:
+                with httpx.Client(timeout=settings.openai_timeout_seconds) as client:
+                    response = client.post(
+                        f"{self.base_url}/v1beta/models/{self.model}:generateContent",
+                        params={"key": api_key},
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                break
+            except Exception as exc:
+                last_error = exc
+                if not _is_rate_limit_or_timeout(exc):
+                    return self._gemini_evidence_local_fallback(
+                        document_context=document_context,
+                        fields=fields,
+                        cache_key=cache_key,
+                        failure=exc,
+                        failure_reason="permanent_error",
+                    )
+                _mark_api_key_cooldown(self.profile, api_key, exc)
+
+        if data is None:
+            return self._gemini_evidence_local_fallback(
+                document_context=document_context,
+                fields=fields,
+                cache_key=cache_key,
+                failure=last_error,
+                failure_reason="no_response",
+            )
+
+        try:
+            text = _gemini_text(data)
+            result = _evidence_candidates_from_text(text)
+        except Exception as exc:
+            return self._gemini_evidence_local_fallback(
+                document_context=document_context,
+                fields=fields,
+                cache_key=cache_key,
+                failure=exc,
+                failure_reason="malformed_json",
+            )
+
+        usage = data.get("usageMetadata", {}) or {}
+        self.last_usage = {
+            "input_tokens": int(usage.get("promptTokenCount") or 0),
+            "output_tokens": int(usage.get("candidatesTokenCount") or 0),
+            "cached_input_tokens": int(usage.get("cachedContentTokenCount") or 0),
+            "cost_usd": 0.0,
+            "evidence_collection_method": "remote_gemini_generate_content",
+            **_cache_miss_usage(cache_key),
+        }
+        _write_evidence_candidate_cache(cache_key, result)
+        return result
+
+    def _gemini_evidence_local_fallback(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+        cache_key: str,
+        failure: Exception | None,
+        failure_reason: str,
+    ) -> dict[str, list[EvidenceCandidate]]:
+        result = local_collect_evidence_fallback(document_context, fields)
+        self.last_usage = {
+            **local_evidence_fallback_usage(),
+            "remote_skipped_reason": failure_reason,
+            "remote_failure": safe_error_message(failure) if failure is not None else None,
+            **_cache_miss_usage(cache_key),
+        }
+        return result

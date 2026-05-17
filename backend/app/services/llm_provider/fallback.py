@@ -27,8 +27,7 @@ from app.services.safe_errors import safe_error_message
 from .types import SemanticExtractionProvider, _unknown_model_unavailable
 from .local_extraction import ConservativeLocalProvider
 from .utils import _format_provider_failure, _is_failover_worthy, _model_ref
-
-from .adapters import OpenAIResponsesProvider, OpenAICompatibleChatProvider, AnthropicMessagesProvider, GoogleGeminiProvider
+from .registry import provider_for_profile, registered_provider_kinds
 
 class ModelFallbackProvider(SemanticExtractionProvider):
     name = "openclaw-style-model-fallback"
@@ -128,15 +127,14 @@ def build_semantic_provider() -> SemanticExtractionProvider:
 
 
 def _provider_for_profile(profile) -> SemanticExtractionProvider:
-    if profile.provider == "disabled":
-        return ConservativeLocalProvider()
-    if profile.provider == "openai_responses" and settings.llm_mode in {"auto", "online"}:
-        return OpenAIResponsesProvider(profile)
-    if profile.provider == "openai_compatible" and settings.llm_mode in {"auto", "online", "local"}:
-        return OpenAICompatibleChatProvider(profile)
-    if profile.provider == "anthropic_messages" and settings.llm_mode in {"auto", "online"}:
-        return AnthropicMessagesProvider(profile)
-    if profile.provider == "google_gemini" and settings.llm_mode in {"auto", "online"}:
-        return GoogleGeminiProvider(profile)
-    raise RuntimeError(f"Model profile is not runnable in current mode: {_model_ref(profile)}")
+    """Backward-compatible thin shim that delegates to the registry.
+
+    Existing callers and contract tests still import the
+    `_provider_for_profile` symbol from this module. The actual
+    dispatch table lives in `services.llm_provider.registry`; see
+    `docs/LLM_PROVIDER_REFACTOR.md` and `docs/DECISIONS.md`
+    2026-05-18 "Provider registry replaces if/elif dispatch" for the
+    rationale.
+    """
+    return provider_for_profile(profile)
 

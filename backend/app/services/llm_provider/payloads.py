@@ -169,6 +169,149 @@ def _chat_completions_evidence_first_payload(
     }
 
 
+def _anthropic_evidence_first_payload(
+    *,
+    document_context: DocumentContext,
+    fields: list[FieldDefinition],
+    model: str,
+    profile=None,
+) -> dict[str, Any]:
+    """Build an Anthropic Messages payload for evidence-first collection.
+
+    Mirrors `_chat_completions_evidence_first_payload`. Two design
+    invariants:
+
+    1. Cacheable prefix discipline (system prompt + extraction rules +
+       JSON schema descriptor) sits in the `system` field. Anthropic's
+       prompt caching reads from `system` plus `messages` headers, so
+       keeping the schema in `system` keeps it byte-stable across cases.
+    2. Per-case content (document_context + fields list) sits in the
+       single user message after the cacheable prefix.
+
+    Anthropic does not support `response_format=json_object` directly;
+    instead we put the schema descriptor inside the system prompt and
+    request strict JSON-only output. Adapters parse the response with
+    the same `_evidence_candidates_from_text` helper used for
+    OpenAI-compatible chat.
+    """
+    model_profile = profile or get_active_model_profile()
+    remote_policy = _remote_exposure_policy()
+    user_payload = _evidence_first_user_payload(
+        document_context=document_context,
+        fields=fields,
+        remote_policy=remote_policy,
+    )
+    base_system = _evidence_first_system_prompt(document_context)
+    schema_descriptor = json.dumps(
+        _evidence_candidate_response_schema(), ensure_ascii=False, sort_keys=True
+    )
+    full_system = (
+        base_system
+        + "\n\n"
+        + "Output one JSON object that strictly matches this schema, "
+        + "no prose, no markdown fences:\n"
+        + schema_descriptor
+    )
+    return {
+        "model": model,
+        "max_tokens": model_profile.max_output_tokens,
+        "temperature": model_profile.temperature,
+        "system": full_system,
+        "messages": [
+            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+        ],
+    }
+
+
+def _gemini_evidence_first_payload(
+    *,
+    document_context: DocumentContext,
+    fields: list[FieldDefinition],
+    model: str,
+    profile=None,
+) -> dict[str, Any]:
+    """Build a Gemini generateContent payload for evidence-first collection.
+
+    Uses Gemini's native structured-output capability:
+
+    - `systemInstruction` carries the byte-stable prompt prefix so
+      Gemini's context cache (Gemini API "Context caching") can hit
+      across cases.
+    - `responseMimeType=application/json` and `responseSchema` make
+      Gemini emit one strict JSON object that matches the EYEX
+      evidence-candidate schema. No fenced markdown to strip.
+
+    Per-case content (document_context + fields list) sits in the user
+    message AFTER the system instruction so the cacheable prefix is
+    stable.
+    """
+    del model  # Gemini puts the model id in the URL path, not the payload.
+    model_profile = profile or get_active_model_profile()
+    remote_policy = _remote_exposure_policy()
+    user_payload = _evidence_first_user_payload(
+        document_context=document_context,
+        fields=fields,
+        remote_policy=remote_policy,
+    )
+    base_system = _evidence_first_system_prompt(document_context)
+    return {
+        "systemInstruction": {
+            "parts": [{"text": base_system}],
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": json.dumps(user_payload, ensure_ascii=False)}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": model_profile.temperature,
+            "maxOutputTokens": model_profile.max_output_tokens,
+            "responseMimeType": "application/json",
+            "responseSchema": _gemini_response_schema(_evidence_candidate_response_schema()),
+        },
+    }
+
+
+def _gemini_response_schema(json_schema: dict[str, Any]) -> dict[str, Any]:
+    """Translate a JSON Schema fragment into Gemini's `responseSchema`
+    dialect (a subset of OpenAPI 3.0). Drops fields Gemini does not
+    accept, in particular `additionalProperties` and `enum` on null
+    types. Recursive."""
+    if not isinstance(json_schema, dict):
+        return json_schema
+    out: dict[str, Any] = {}
+    for key, value in json_schema.items():
+        if key == "additionalProperties":
+            continue
+        if key == "type" and isinstance(value, list):
+            # Gemini accepts a single type. Drop the null variant and
+            # use `nullable: true` instead.
+            non_null = [item for item in value if item != "null"]
+            if non_null:
+                out["type"] = non_null[0].upper() if isinstance(non_null[0], str) else non_null[0]
+                if "null" in value:
+                    out["nullable"] = True
+            else:
+                out["type"] = "STRING"
+                out["nullable"] = True
+            continue
+        if key == "type" and isinstance(value, str):
+            out["type"] = value.upper()
+            continue
+        if key in {"properties"} and isinstance(value, dict):
+            out["properties"] = {
+                prop_key: _gemini_response_schema(prop_value)
+                for prop_key, prop_value in value.items()
+            }
+            continue
+        if key == "items":
+            out["items"] = _gemini_response_schema(value) if isinstance(value, dict) else value
+            continue
+        out[key] = value
+    return out
+
+
 def _chat_completions_payload(
     *,
     document_ir: DocumentIR,
