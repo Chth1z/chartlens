@@ -49,7 +49,7 @@ npm run dev
 - `GET /api/config/catalog`：列出当前激活配置和所有可用 profile/schema/template/model/OCR/eval 配置。
 - `GET /api/config/{kind}/{config_id}`：读取单个 YAML 配置及解析后的 JSON；`kind` 支持 `document_profiles`、`extraction_schemas`、`export_templates`、`model_profiles`、`ocr_profiles`、`evaluation_profiles`、`validation_rules`。
 
-领域差异通过 domain plugin 入口收敛，默认 `config` plugin 直接执行 profile 中声明的文档类型、提示词和脱敏规则；后续如医疗、发票、合同需要领域计算器或特殊召回策略，应注册独立 plugin，而不是改公共 pipeline。
+领域差异通过 `config/document_profiles/*.yaml` + `config/extraction_schemas/*.yaml` 收敛，由 `backend/app/services/domain_profile.py` 和 `backend/app/services/layout_normalizer.py` 读取执行：文档类型映射、抽取系统提示词、抽取规则、脱敏正则、layout 规范化、字段证据政策都在 YAML 里写。新增领域（医疗、发票、合同等）应优先扩展这些 YAML 文件；公共 pipeline 不接受场景分支。曾经设想过的运行时 `domain_plugins` 注册机制已废弃（见 `docs/DECISIONS.md`），governance scan 会拦截相关命名。
 
 `unknown` 是内部唯一“不详/未提及”表示；导出模板决定映射为空值或 `9`。复杂字段不得把未提及推断为 `0`。
 

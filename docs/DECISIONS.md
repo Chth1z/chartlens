@@ -13,7 +13,20 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Revisit when:
 ```
 
-## 2026-04-30 - Personal Codex governance over team process
+
+## 2026-05-17 - Governance foundation refresh
+
+- Decision: Rewrite `AGENTS.md` so every rule describes the current repository, not aspirations. Concrete changes: drop the unimplemented pytest-marker regime; restate the OCR engine vs layout normalizer split as a target boundary with a tracked PLAN task instead of a present fact; align the single-file complexity ceiling with the governance scan as 500-line soft trigger plus 800-line hard warning; add a documentation map that lists `AGENTS.md`, `README.md`, planned `docs/ARCHITECTURE.md`, planned `docs/ROADMAP.md`, planned `docs/REFERENCE_PROJECTS.md`, `docs/DECISIONS.md`, `docs/CODEX_WORKFLOW.md`, and `PLAN.md`; add a Commit Traceability section that requires every commit to carry a `Refs:` task ID and a `Verification:` line; add a Reference Projects Policy that defaults to reference-only borrowing and reserves a gitignored `references/` directory for shallow study clones; add a Precision Tasks section that requires before/after eval evidence for OCR, evidence-grounding, extraction, and prompt changes.
+- Why: Several existing rules described mechanisms that did not exist in code (pytest markers, OCR boundary, domain plugin registry), which made the constitution unreliable for new sessions. The user explicitly required traceable commits, source-attributed reference work, and precision-driven optimization, none of which were governed by the previous text.
+- Rejected: Quietly relaxing the 500-line ceiling to match the governance scan; keeping marker discipline as a written rule with no enforcement; describing the OCR boundary as already enforced; introducing a heavyweight ADR or PR template just for traceability.
+- Revisit when: Marker-based test selection actually lands; `application/` versus `services/` layout decision lands and changes the architecture boundary; a real multi-developer workflow needs full PR review.
+
+## 2026-05-17 - Domain plugin registry stays retired
+
+- Decision: Domain behavior in EYEX is configured exclusively through `config/document_profiles/*.yaml` and `config/extraction_schemas/*.yaml`, read by `backend/app/services/domain_profile.py` and `backend/app/services/layout_normalizer.py`. Identifiers `domain_plugins`, `register_domain_plugin`, and `get_domain_plugin` remain on the governance scan stale-identifier list and must not return. The previous wording in `README.md` and the 2026-04-30 governance entry that suggested registering new plugins for new domains is superseded.
+- Why: The plugin registry was never implemented in code; only the documentation referred to it. Keeping aspirational mechanisms in user-facing docs creates drift and lets future sessions accidentally rebuild the wrong abstraction. Profile-driven YAML covers the medical inpatient domain today and is the documented extension path.
+- Rejected: Building the runtime plugin registry now to match old documentation; allowing pipeline branches keyed on `profile_id`; documenting both options in parallel.
+- Revisit when: A real new domain needs behavior that cannot be expressed through `document_profiles` plus `extraction_schemas` plus existing `services/` modules, and a profile-only solution is shown to be inadequate by an eval profile.## 2026-04-30 - Personal Codex governance over team process
 
 - Decision: Use `AGENTS.md` as the project constitution, `PLAN.md` as a lightweight task board, and this file as the short decision log.
 - Why: EYEX is currently a personal Codex-assisted project, so low-friction written rules are more useful than heavyweight issue, PR, and ADR processes.

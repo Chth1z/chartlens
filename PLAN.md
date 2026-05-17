@@ -25,6 +25,42 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
+### todo PLAN-write-architecture-doc
+
+- Goal: Produce `docs/ARCHITECTURE.md` as the authoritative description of the EYEX main pipeline: input ingestion, OCR routing, layout normalization, de-identification, document context, evidence collection (local rule + LLM evidence-first), adjudication, validation, manual review, export, and observability ledger. Include the layering diagram, the contracts at each boundary (DocumentIR, DocumentContext, EvidenceCandidate, FieldDecision, ExtractionCandidate, ValidatedFieldResult), and where each module currently lives.
+- Out of scope: No code change. No new architecture decision in this task; if a new decision surfaces, file it as a separate `docs/DECISIONS.md` entry first.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Risk: Writing the doc may surface real boundary violations that already exist (for example overlap between `canonicalize.py` and `layout_normalizer.py`). Capture them as separate PLAN tasks instead of fixing them in the same commit.
+- Trigger: AGENTS.md documentation map references this file as planned.
+- Done condition: `docs/ARCHITECTURE.md` exists, `AGENTS.md` documentation map removes the `(planned)` tag, every module under `backend/app/services/` is mapped to exactly one layer.
+
+### todo PLAN-write-roadmap
+
+- Goal: Produce `docs/ROADMAP.md` with phased optimization tasks for precision in OCR, layout, evidence collection, and LLM prompts. Use `E0-NNN` for governance and structural prerequisites, `E1-NNN` for borrow-from-open-source improvements, `E2-NNN` for product-grade precision and throughput. Each task has goal, motivating reference (if any), acceptance metric tied to an eval profile, and prerequisite IDs.
+- Out of scope: No code change. No replacement of `PLAN.md`; the roadmap is the long-horizon view, `PLAN.md` is the current task board.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Risk: Without measured baselines, the roadmap can become wishful. Each E-task must reference an existing or proposed eval profile.
+- Trigger: AGENTS.md documentation map references this file as planned.
+- Done condition: `docs/ROADMAP.md` exists, every roadmap task has a stable ID and an eval-profile acceptance line, AGENTS.md documentation map removes the `(planned)` tag.
+
+### todo PLAN-split-styles-css
+
+- Goal: Split `frontend/src/styles.css` (currently 3211 lines) into feature-scoped stylesheets that match the `frontend/src/features/` layout. Aim for ≤ 800 lines per file. Suggested split: a base/reset module, an evidence panel module, a settings module, a diagnostics module, and a review module. Use CSS imports or component-level imports, not a runtime concatenation step.
+- Out of scope: No visual change. No design-system or Tailwind migration in this task.
+- Acceptance commands: `cd frontend; npm test; npm run build`. Manual smoke: open the app, walk through cases, settings, diagnostics, and review and confirm visuals are unchanged.
+- Risk: Selectors that depend on rule order can break when split across files; verify by running the build and a smoke pass.
+- Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
+- Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
+
+### todo PLAN-write-reference-projects
+
+- Goal: Produce `docs/REFERENCE_PROJECTS.md`, the open-source reference registry. Cover at minimum: PaddleOCR PP-StructureV3, PaddleOCR PP-OCRv5, MinerU 2.5, Docling, Marker, olmOCR 2, dots.ocr, Outlines, Instructor, LiteLLM, Continue, OpenClaw. Each entry has upstream URL, license, EYEX use today (or "studied for design ideas only"), commit-pinned references where ideas were borrowed, and a clear non-copy boundary.
+- Out of scope: No upstream source committed. No `references/` clone in this task.
+- Acceptance commands: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Doc-only commit.
+- Risk: Slipping from "design reference" into source-level copy without proper attribution. The Reference Projects Policy in AGENTS.md governs this; the registry must explicitly mark which entries are reference-only versus adapter-vendored.
+- Trigger: AGENTS.md Reference Projects Policy and documentation map both reference this file as planned.
+- Done condition: `docs/REFERENCE_PROJECTS.md` exists with at least the projects listed above, every entry has a license and an EYEX use line, AGENTS.md documentation map removes the `(planned)` tag.
+
 ### todo Decide application/ vs services/ flat layout
 
 - Goal: Resolve the dev-vs-main divergence. Either restore the `backend/app/application/` layer that exists on `main`, or formalize `backend/app/services/` subpackages with hard size limits in AGENTS.md. The chosen direction is recorded in `docs/DECISIONS.md` before any code in `services/` or `application/` is reorganized.

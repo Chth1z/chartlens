@@ -23,6 +23,9 @@ logs/
 output/
 tmp/
 
+# Local-only study clones of upstream open-source projects (read-only research)
+references/
+
 # IDE / editor workspace state
 .vscode/
 .idea/

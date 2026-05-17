@@ -98,6 +98,13 @@ foreach ($file in $staleFiles) {
     if ($file.FullName -eq $PSCommandPath) {
         continue
     }
+    # docs/DECISIONS.md is the decision log; it must be allowed to record
+    # which legacy identifiers are deliberately retired. The stale-identifier
+    # check still covers all live code and live docs.
+    $decisionsLogPath = (Resolve-Path -LiteralPath (Join-Path $RepoRoot "docs\DECISIONS.md")).Path
+    if ($file.FullName -eq $decisionsLogPath) {
+        continue
+    }
     $matches = Select-String -Path $file.FullName -Pattern $stalePatterns -SimpleMatch
     foreach ($match in $matches) {
         Add-Violation ("{0}:{1}: stale legacy identifier remains: {2}" -f (Relative-Path $file.FullName), $match.LineNumber, $match.Line.Trim())
