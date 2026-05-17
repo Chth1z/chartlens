@@ -1,3 +1,14 @@
+import { ApiError } from "./apiError.js";
+import { parse } from "./parse.js";
+import {
+  authStatusSchema,
+  modelProviderActivationResponseSchema,
+  modelProviderFetchResponseSchema,
+  modelProviderUpdateResponseSchema,
+  modelProvidersResponseSchema,
+  runtimeSettingsResponseSchema,
+  systemSettingsResponseSchema
+} from "./schemas.js";
 import type {
   AuthStatus,
   CaseDiagnostics,
@@ -8,31 +19,25 @@ import type {
   FieldDictionarySettingsResponse,
   FieldResult,
   MaintenanceResult,
-  ModelProviderUpdatePayload,
-  ModelProvidersResponse,
   ModelProfileSelectionResponse,
   ModelProfilesResponse,
+  ModelProviderActivationResponse,
+  ModelProviderFetchResponse,
+  ModelProviderUpdatePayload,
+  ModelProviderUpdateResponse,
+  ModelProvidersResponse,
   ProjectConfig,
   RuntimeSettingsResponse,
   SettingsValidationPayload,
   SettingsValidationResponse,
+  SourceOcrResponse,
   SystemSettingsResponse,
   VisionFallbackRecord
 } from "../types/api";
 
+export { ApiError };
+
 const API_BASE = import.meta.env?.VITE_API_BASE ?? "";
-
-export class ApiError extends Error {
-  readonly status: number;
-  readonly detail: unknown;
-
-  constructor(status: number, message: string, detail: unknown = null) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.detail = detail;
-  }
-}
 
 type ResponseValidator<T> = (payload: unknown) => T;
 
@@ -69,24 +74,14 @@ async function apiErrorFromResponse(response: Response): Promise<ApiError> {
 }
 
 function detailToMessage(detail: unknown): string {
-  if (typeof detail === "string") {
-    return detail;
-  }
-  if (Array.isArray(detail)) {
-    return detail.map(detailToMessage).filter(Boolean).join("; ");
-  }
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map(detailToMessage).filter(Boolean).join("; ");
   if (isRecord(detail)) {
-    if (typeof detail.msg === "string") {
-      return detail.msg;
-    }
-    if (typeof detail.message === "string") {
-      return detail.message;
-    }
+    if (typeof detail.msg === "string") return detail.msg;
+    if (typeof detail.message === "string") return detail.message;
     return JSON.stringify(detail);
   }
-  if (detail == null) {
-    return "";
-  }
+  if (detail == null) return "";
   return String(detail);
 }
 
@@ -94,33 +89,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function requireRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!isRecord(value)) {
-    throw new ApiError(200, `${label} response must be an object`, value);
-  }
-  return value;
-}
-
-function validateAuthStatus(payload: unknown): AuthStatus {
-  const root = requireRecord(payload, "AuthStatus");
-  const modelAuth = requireRecord(root.model_auth, "AuthStatus.model_auth");
-  const authMode = modelAuth.auth_mode;
-  if (!["auto", "online", "local", "disabled"].includes(String(authMode))) {
-    throw new ApiError(200, `Unsupported model auth mode: ${String(authMode)}`, payload);
-  }
-  return payload as AuthStatus;
-}
-
-function validateRootObject<T>(payload: unknown, label: string, key: string): T {
-  const root = requireRecord(payload, label);
-  if (!(key in root)) {
-    throw new ApiError(200, `${label} response is missing ${key}`, payload);
-  }
-  return payload as T;
-}
+// --- Public API ---
 
 export function getAuthStatus(): Promise<AuthStatus> {
-  return request<AuthStatus>("/api/auth/me", undefined, validateAuthStatus);
+  return request<AuthStatus>("/api/auth/me", undefined, (payload) => parse(authStatusSchema, payload, "AuthStatus") as AuthStatus);
 }
 
 export function getModelProfiles(): Promise<ModelProfilesResponse> {
@@ -136,29 +108,45 @@ export function updateActiveModelProfile(profileId: string): Promise<ModelProfil
 }
 
 export function getModelProviders(): Promise<ModelProvidersResponse> {
-  return request<ModelProvidersResponse>("/api/model-providers");
+  return request<ModelProvidersResponse>(
+    "/api/model-providers",
+    undefined,
+    (payload) => parse(modelProvidersResponseSchema, payload, "ModelProvidersResponse") as ModelProvidersResponse
+  );
 }
 
-export function updateModelProvider(providerId: string, payload: ModelProviderUpdatePayload): Promise<{ ok: boolean; provider: unknown }> {
-  return request<{ ok: boolean; provider: unknown }>(`/api/model-providers/${providerId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+export function updateModelProvider(providerId: string, payload: ModelProviderUpdatePayload): Promise<ModelProviderUpdateResponse> {
+  return request<ModelProviderUpdateResponse>(
+    `/api/model-providers/${providerId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    },
+    (responsePayload) =>
+      parse(modelProviderUpdateResponseSchema, responsePayload, "ModelProviderUpdateResponse") as ModelProviderUpdateResponse
+  );
 }
 
-export function fetchProviderModels(providerId: string): Promise<{ ok: boolean } & Record<string, unknown>> {
-  return request<{ ok: boolean } & Record<string, unknown>>(`/api/model-providers/${providerId}/models/fetch`, {
-    method: "POST"
-  });
+export function fetchProviderModels(providerId: string): Promise<ModelProviderFetchResponse> {
+  return request<ModelProviderFetchResponse>(
+    `/api/model-providers/${providerId}/models/fetch`,
+    { method: "POST" },
+    (payload) => parse(modelProviderFetchResponseSchema, payload, "ModelProviderFetchResponse") as ModelProviderFetchResponse
+  );
 }
 
-export function activateProviderModel(providerId: string, modelId: string): Promise<ModelProvidersResponse & { ok: boolean }> {
-  return request<ModelProvidersResponse & { ok: boolean }>("/api/model-providers/active", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider_id: providerId, model_id: modelId })
-  });
+export function activateProviderModel(providerId: string, modelId: string): Promise<ModelProviderActivationResponse> {
+  return request<ModelProviderActivationResponse>(
+    "/api/model-providers/active",
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider_id: providerId, model_id: modelId })
+    },
+    (payload) =>
+      parse(modelProviderActivationResponseSchema, payload, "ModelProviderActivationResponse") as ModelProviderActivationResponse
+  );
 }
 
 export function deleteModelToken(): Promise<MaintenanceResult> {
@@ -184,6 +172,7 @@ export function deleteCase(caseId: string): Promise<MaintenanceResult> {
 export function requestVisionFallback(
   caseId: string,
   payload: {
+    field_key?: string | null;
     page: number;
     bbox: number[];
     reason: string;
@@ -207,9 +196,10 @@ export function getProjectConfig(): Promise<ProjectConfig> {
 }
 
 export function getSystemSettings(): Promise<SystemSettingsResponse> {
-  return request<SystemSettingsResponse>("/api/settings/system", undefined, (payload) =>
-    validateRootObject<SystemSettingsResponse>(payload, "SystemSettings", "system_config")
-  );
+  return request<SystemSettingsResponse>("/api/settings/system", undefined, (payload) => {
+    parse(systemSettingsResponseSchema, payload, "SystemSettings");
+    return payload as SystemSettingsResponse;
+  });
 }
 
 export function getFieldDictionarySettings(): Promise<FieldDictionarySettingsResponse> {
@@ -217,9 +207,10 @@ export function getFieldDictionarySettings(): Promise<FieldDictionarySettingsRes
 }
 
 export function getRuntimeSettings(): Promise<RuntimeSettingsResponse> {
-  return request<RuntimeSettingsResponse>("/api/settings/runtime", undefined, (payload) =>
-    validateRootObject<RuntimeSettingsResponse>(payload, "RuntimeSettings", "runtime_settings")
-  );
+  return request<RuntimeSettingsResponse>("/api/settings/runtime", undefined, (payload) => {
+    parse(runtimeSettingsResponseSchema, payload, "RuntimeSettings");
+    return payload as RuntimeSettingsResponse;
+  });
 }
 
 export function validateSettings(payload: SettingsValidationPayload = {}): Promise<SettingsValidationResponse> {
@@ -255,6 +246,10 @@ export function getCaseDocumentIr(caseId: string): Promise<DocumentIrResponse> {
   return request<DocumentIrResponse>(`/api/cases/${caseId}/document-ir`);
 }
 
+export function getCaseSourceOcr(caseId: string): Promise<SourceOcrResponse> {
+  return request<SourceOcrResponse>(`/api/cases/${caseId}/source-ocr`);
+}
+
 export function updateReview(
   caseId: string,
   payload: {
@@ -279,7 +274,33 @@ export function updateReview(
 }
 
 export function exportUrl(caseId: string): string {
-  return `${API_BASE}/api/cases/${caseId}/export`;
+  return `${API_BASE}/api/cases/${encodeURIComponent(caseId)}/export`;
+}
+
+export async function downloadCaseExport(caseId: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(exportUrl(caseId), { credentials: "include" });
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response);
+  }
+  return {
+    blob: await response.blob(),
+    filename: exportFilename(response.headers.get("Content-Disposition"), caseId)
+  };
+}
+
+export function sourcePageImageUrl(caseId: string, page: number, retryToken = 0): string {
+  const path = `${API_BASE}/api/cases/${encodeURIComponent(caseId)}/source-pages/${page}`;
+  return retryToken > 0 ? `${path}?retry=${encodeURIComponent(String(retryToken))}` : path;
+}
+
+function exportFilename(contentDisposition: string | null, caseId: string) {
+  const match = contentDisposition?.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+  if (!match) return `${caseId}.xlsx`;
+  try {
+    return decodeURIComponent(match[1].replace(/^"|"$/g, ""));
+  } catch {
+    return match[1].replace(/^"|"$/g, "");
+  }
 }
 
 function toCaseRecord(summary: CaseSummary): CaseRecord {
@@ -288,7 +309,7 @@ function toCaseRecord(summary: CaseSummary): CaseRecord {
     error_message: null,
     results: [],
     ocr_blocks: [],
-    audit_count: 0,
+    audit_count: summary.audit_count ?? 0,
     latest_run: null
   };
 }
