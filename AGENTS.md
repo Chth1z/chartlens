@@ -16,15 +16,15 @@ This file is the project constitution for personal Codex-assisted development. K
 
 ## Personal GitHub Management
 
-- Treat `main` as the stable upstream branch and `dev` as the personal integration branch for this full ChartLens upgrade.
-- Do not push directly to `main`. Merge `dev` into `main` only after the full default verification passes and the branch diff has been reviewed.
-- Use `codex/<goal>` branches off `dev` for future focused tasks. Merge them back into `dev` after their task-specific verification passes.
-- One task branch should represent one primary goal with a concrete verification story. If the work grows across unrelated areas, split it before merging.
+- Treat `main` as the stable upstream branch and `dev` as the personal integration branch where every change lands first.
+- Default integration target for any new commit is `dev`. Routine work commits directly to `dev` after passing local quality gates; do not open a `codex/<goal>` branch unless the work has a real reason to be isolated (uncertain blast radius, parallel exploration, large refactor with intermediate broken states).
+- `main` is updated only when `dev` has accumulated enough finished change and is stable. The promotion rule is: at least one full `dev` quality-gate pass with no flaky regressions, the branch diff reviewed, and a one-paragraph promotion note recorded with the merge. Never push directly to `main`.
+- When a `codex/<goal>` branch is genuinely needed, branch it from `dev`, finish the task, run the task-specific verification, and fast-forward merge it back into `dev` (delete the branch immediately after merge). One task branch represents one primary goal.
 - Keep PRs draft by default for high-risk changes; merge only after backend tests, frontend tests, frontend build, and the relevant residual scan pass.
 - Never stage `.env`, runtime state, model downloads, caches, generated test output, or frontend build artifacts. Runtime data belongs in ignored directories such as `var/`, `storage/`, `logs/`, `output/`, and `tmp/`.
-- Every pushed branch must have a completion note covering changed behavior, validation commands, intentionally skipped areas, and residual risks.
+- Every pushed branch (including `dev`) must have a completion or promotion note covering changed behavior, validation commands, intentionally skipped areas, and residual risks.
 - High-impact decisions for API contracts, OCR/LLM routing, evidence integrity, storage, security, or GitHub workflow must be recorded in `docs/DECISIONS.md` before or with the branch.
-- Long-running branches (`dev`, any `codex/<goal>`) that accumulate more than 60 dirty files must stop new feature work until the dirty set is merged, split, or discarded. Mixing in fresh refactors on top of that state is forbidden.
+- Long-running branches that accumulate more than 60 dirty files must stop new feature work until the dirty set is merged, split, or discarded. Mixing in fresh refactors on top of that state is forbidden.
 - Each `codex/<goal>` branch has a 2-week life cap. If it is still open after that, write the cause in `PLAN.md` and either close it or split it; do not silently let task branches age.
 
 ## Codex Task Template

@@ -25,15 +25,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo Triage the 97 in-progress dirty files on dev
-
-- Goal: Decide for each dirty hunk on `codex/synthetic-ocr-eval` whether it merges into `dev`, splits into a smaller `codex/<goal>` branch, or is discarded. End state: `git status --short` shows zero unrelated dirty files before any new task starts.
-- Out of scope: No new feature work or refactor in this triage. Only resolve existing change set.
-- Acceptance commands: `git status --short` returns empty (or only deliberately staged hunks for the active sub-task); `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`.
-- Risk: Without triage, every later refactor builds on a polluted base and rollback becomes impossible.
-- Trigger: Already triggered by AGENTS.md "long-running branches with > 60 dirty files" rule.
-- Done condition: dev is clean or its remaining changes are explicitly grouped under named task branches; this PLAN entry moves to Done with a one-line summary.
-
 ### todo Decide application/ vs services/ flat layout
 
 - Goal: Resolve the dev-vs-main divergence. Either restore the `backend/app/application/` layer that exists on `main`, or formalize `backend/app/services/` subpackages with hard size limits in AGENTS.md. The chosen direction is recorded in `docs/DECISIONS.md` before any code in `services/` or `application/` is reorganized.
@@ -134,6 +125,14 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
 
 ## Done
+
+### done Triage and merge the in-progress ChartLens upgrade into dev
+
+- Goal: Drive `git status --short` to empty by either committing or discarding the ~93 in-progress files that had been sitting on `dev` for the full ChartLens upgrade.
+- Acceptance commands: `git status --short` empty; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Risk: Cross-subsystem changes (backend services, OCR engine modules, frontend, config, scripts, tests) could not be split without each subset failing tests in isolation.
+- Trigger: AGENTS.md "long-running branches with > 60 dirty files" rule.
+- Done condition: Landed as one explicit integration commit on `dev` with `.gitignore` housekeeping and a follow-up perf_counter timing fix; documented in this entry.
 
 ### done Add dev branch workflow for personal Codex development
 

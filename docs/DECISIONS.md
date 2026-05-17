@@ -341,3 +341,10 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Why: The reverse-direction refactor on dev is now blocking other planned splits (provider three-tier, OCR/layout boundary, dead-field prune) because they all target the same module surface. PLAN.md and AGENTS.md cannot be coherent until the layer choice is recorded.
 - Rejected: Letting the dev branch implicit choice stand without a decision entry; mixing the layer choice into another task; keeping a hybrid where some orchestration sits in `application/` and some in `services/`.
 - Revisit when: The pending task `codex/architecture-decision` lands; this entry is then replaced with a dated decision recording the chosen layout and a one-line completion summary.
+
+## 2026-05-17 - dev is the default integration target; main is promoted in batches
+
+- Decision: Every routine change commits to `dev` directly after passing local quality gates. `codex/<goal>` branches are reserved for tasks that genuinely need isolation (uncertain blast radius, parallel exploration, or large refactors with intermediate broken states), and they fast-forward back into `dev` after task-specific verification. `main` is promoted only when `dev` has accumulated enough finished change and is stable, with at least one full quality-gate pass and a recorded promotion note. Direct pushes to `main` remain forbidden.
+- Why: This project is single-developer with Codex assistance. The previous "every change must go through a `codex/` branch" rule produced empty branch shells, frequent merge ceremony, and a backlog of branches that drifted from `dev`. Letting routine commits land on `dev` directly while still gating `main` keeps the audit trail and the promotion checkpoint without the branch-per-task overhead.
+- Rejected: Merging every change into `main` directly (no integration buffer), maintaining one long-running `codex/<goal>` branch per subsystem (drift), squashing `dev` history before promoting to `main` (loses task-level rollback granularity).
+- Revisit when: A second contributor joins, or a release/deployment cadence emerges that needs explicit release branches off `main`.
