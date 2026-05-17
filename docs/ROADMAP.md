@@ -167,6 +167,14 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Prerequisites: E1-007 (Docling eval) so the `.venv-ocr` runtime can host another optional NLP package; or independent if pycorrector is added to `.venv-ocr` directly.
 - Reference: pycorrector (shibing624) Apache-2.0; "OCR Error Post-Correction with LLMs in Historical Documents" arxiv 2025.resourceful-1.8 cautions on naively wiring SOTA correctors. See `docs/OCR_POST_PROCESSING.md`.
 
+### E1-011 — OpenAICompatibleChatProvider implements collect_evidence
+
+- Goal: implement `collect_evidence` (and the matching `adjudicate_fields` if non-trivial) in `services/llm_provider/adapters.py:OpenAICompatibleChatProvider` so that when the active model profile is DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom, the evidence-first multimodal extraction path actually calls the remote model. Today only `OpenAIResponsesProvider` implements it; every other adapter inherits the default `SemanticExtractionProvider.collect_evidence` shim that silently delegates to `collect_local_evidence` and reports zero input tokens.
+- Acceptance: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --baseline` against any OpenAI-compatible profile produces a `mock_general_llm.json` baseline with non-zero `input_tokens` and the warning emitted by the script (`WARN: --provider llm requested but the baseline recorded zero input tokens`) is gone. The new adapter respects DeepSeek prompt-cache prefix invariants (E1-002) and falls back to `ConservativeLocalProvider` evidence on any HTTP / decode error so accuracy never regresses below the rule-only baseline.
+- Prerequisites: E0-004 (router/protocols/credentials split) so the protocol code does not balloon `adapters.py`.
+- Reference: `OpenAIResponsesProvider.collect_evidence` is the working template; the JSON-schema-strict pattern in `_responses_evidence_first_payload` adapts cleanly to chat-completions JSON mode.
+- Surfaced by: 2026-05-18 LLM baseline bootstrap on DeepSeek showed `input_tokens=0` because the adapter does not override the default. Scripted warning will keep the gap visible until this task lands.
+
 ### E1-010 — mock_general fixture expansion (multi-phase)
 
 - Goal: expand the synthetic `mock_general` baseline from 8 fixtures (covering 9 of 22 schema fields) to coverage of every export-template column. Phased so that each phase is one PLAN task with its own baseline regeneration. Phase plan documented in `docs/FIELD_COVERAGE.md`.

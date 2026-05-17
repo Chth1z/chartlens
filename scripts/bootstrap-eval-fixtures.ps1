@@ -2,6 +2,8 @@
 param(
   [string]$ProfileId = "mock_general",
   [string]$PythonExe = "",
+  [ValidateSet("rule", "llm")]
+  [string]$Provider = "rule",
   [switch]$Baseline,
   [switch]$CleanOnly
 )
@@ -19,7 +21,7 @@ $resolvedPython = if ($PythonExe.Trim()) {
   "python"
 }
 
-$cliArgs = @("--profile-id", $ProfileId)
+$cliArgs = @("--profile-id", $ProfileId, "--provider", $Provider)
 if ($Baseline) {
   $cliArgs += "--baseline"
 }
