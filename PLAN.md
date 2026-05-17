@@ -180,6 +180,13 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Done
 
+### done E1-001 evidence-first prompt rewrite
+
+- Goal: Rewrite `_evidence_first_system_prompt` so it teaches the LLM to honor field-level `evidence_policy.implicit_negative_policy` and `allowed_codes` instead of falling back to a generic "missing means unknown" default. The medical schema declares `section_complete_only` for chronic-disease and lifestyle fields, but the previous prompt's generic safe-unknown rule overrode that policy and produced 4 known LLM failures on `eval-mock-007` (`既往史：无特殊` interpreted as unknown rather than 0).
+- Outcome: mock_general LLM baseline rises from 0.9259 to **1.0** (50/54 → 54/54) AND token cost drops from 72372/18757 to **37792/11170** (-47.8% input, -40.4% output). All 4 eval-mock-007 fields (`hypertension_history`, `diabetes_history`, `heart_disease_history`, `stroke_history`) now correctly return `0` based on `既往史：无特殊` matching the section-complete pattern. The cacheable prefix is byte-stable; `EVIDENCE_FIRST_PROMPT_VERSION` bumped from `eyex-evidence-first-v1` to `eyex-evidence-first-v2` so cached results from the old prompt are automatically invalidated.
+- Acceptance commands: `Remove-Item var\storage\llm_cache -Recurse -Force; python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --unsafe-eval-allow-remote-context --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: rewritten prompt promotes field-level policy above generic rules (`字段证据政策优先` block precedes `通用规则` block); explicit medical implicit-negative patterns enumerated (`既往史：无特殊`, `未见异常`, `无明显异常`, plus `个人史/系统回顾/病史` variants); `forbidden_inference_flags` / `family_context` rules preserved; clause-bounded negation rule preserved (matches the 2026-05-17 `_positive_span` fix); `allowed_codes` is the only valid code source. New `backend/tests/test_evidence_first_prompt.py` (8 tests) pins the prompt version, the structural ordering of policy-vs-generic blocks, the implicit-negative pattern coverage, family-context warnings, clause-boundary rules, allowed_codes locking, no per-case data leak (cache stability), and byte-stability across calls. Backend tests 318 → 326. Rule-only baseline (1.0/54) unchanged.
+
 ### done PLAN-llm-provider-phase-2
 
 - Goal: ROADMAP E1-011 Phase 2. Implement `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom actually call `/chat/completions` with `response_format: json_object` and the evidence-first JSON schema.

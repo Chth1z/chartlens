@@ -247,15 +247,61 @@ def _gemini_payload(
 def _evidence_first_system_prompt(document_context: DocumentContext) -> str:
     document_profile = _document_profile_for_context(document_context)
     base_prompt = extraction_system_prompt(document_profile)
+    # Cacheable prefix invariants (E1-001):
+    # - Byte-stable across cases: no document_id, no per-case content interpolated below.
+    # - Field-level evidence_policy is the authoritative contract; this prompt
+    #   describes how to read that contract uniformly across fields.
+    # - The previous prompt told the model "missing means unknown", which
+    #   conflicted with `implicit_negative_policy: section_complete_only` on
+    #   chronic-disease and lifestyle fields. The conflict made the LLM choose
+    #   safe-unknown for cases like `既往史：无特殊`. The new prompt promotes
+    #   the per-field policy above the generic rule, so the same line
+    #   produces a `0` candidate when (and only when) the schema field
+    #   policy allows section-complete implicit negation.
     return "\n".join(
         [
             base_prompt,
+            "",
             "你是医疗文档字段证据提取器，不是诊断助手。",
             "只收集候选证据，不要输出最终字段答案。",
-            "每条候选证据必须绑定 block_id、page、原文 evidence_text、候选值和归一编码。",
-            "禁止根据姓名、诊断、科室、药品、手术、常识推断患者身份、性别、年龄或病史。",
-            "如果证据属于家属、联系人、医生、病史描述中的非患者对象，必须在 forbidden_inference_flags 标记。",
-            "如果 OCR 文本和图像/版面不一致，保留候选但标记冲突或视觉不确定，不要强行修复。",
+            "",
+            "证据绑定要求（每条候选必须满足）：",
+            "- block_id 必须来自 document_context.pages[].blocks[].block_id。",
+            "- evidence_text 必须从被引用 block 的 text 中逐字摘取，不可改写或拼接。",
+            "- 每条候选必须包含 page、候选值、归一编码（normalized_code）。",
+            "",
+            "字段证据政策优先（这是 field.evidence_policy 的权威解读）：",
+            "- 对每个字段，先读 fields[].evidence_policy.allowed_evidence_sources。",
+            "  仅当某来源出现在该列表中时，才允许从该来源生成候选。",
+            "- 对每个字段，先读 fields[].evidence_policy.implicit_negative_policy。",
+            "  当且仅当其值为 section_complete_only 且 allowed_evidence_sources 包含",
+            "  implicit_negative 时，下列模式构成有效的 normalized_code='0' 候选：",
+            "    既往史：无特殊 / 既往史无特殊 / 既往史：未见异常 / 既往史无明显异常",
+            "    个人史：无特殊 / 个人史无特殊",
+            "    系统回顾：无特殊 / 病史：无特殊",
+            "  这些模式覆盖该 section 内所有声明 section_complete_only 的字段；",
+            "  source_type 标为 implicit_negative，evidence_text 摘取整段否定原文。",
+            "  当 implicit_negative_policy 为 none 时，不得用 section-complete 模式生成候选。",
+            "- 对每个字段，先读 fields[].evidence_policy.forbidden_document_regions",
+            "  和 fields[].evidence_policy.forbidden_inference_sources。",
+            "  来自这些区域或推理类型的证据必须在 forbidden_inference_flags 标记，",
+            "  且不得作为 confirmed 候选。",
+            "",
+            "通用规则（在字段级政策不覆盖时适用）：",
+            "- 缺少明确证据时不要猜测；返回空候选列表。",
+            "- 禁止根据姓名、诊断名、科室名、药品、手术、常识推断患者身份、性别、年龄或病史。",
+            "- 家属、配偶、父母、子女、孕产期、妊娠期描述属于 family_context；",
+            "  其中提到的疾病、习惯不可作为患者本人的字段证据。",
+            "  若错误纳入，必须在 forbidden_inference_flags 标记 family_context。",
+            "- 否定句的范围只到本子句末尾（。；;\\n）。否认A、否认B 的下一句若叙述 C 阳性，",
+            "  C 不受前句否定影响。",
+            "- 当 OCR 文本与图像/版面不一致时，保留候选并将 visual_confirmed 设为 false；",
+            "  不要尝试自行修复 OCR 错误。",
+            "",
+            "数值与编码要求：",
+            "- normalized_code 必须出现在 fields[].allowed_codes 列表中；不允许新值。",
+            "- 当字段类型为 enum 且 allowed_codes 含 '0' 与 '1' 时，否定证据用 '0'，肯定证据用 '1'。",
+            "- 当无法在 allowed_codes 中匹配时，返回空候选（让本字段保持 unknown）。",
         ]
     )
 
