@@ -1,16 +1,23 @@
 schema_id: medical_inpatient_zh
-version: "1.0.0"
+version: "1.1.0"
 label: 中文住院病例抽取 schema
+extraction_strategy: evidence_first_multimodal
+remote_exposure_policy:
+  allow_full_document_context: false
+  allow_page_images: false
+  allow_raw_block_text: false
+  allow_safe_evidence_candidates: true
+  max_evidence_chars_per_field: 1200
 field_groups:
   - key: demographics_group
     label: 基本信息
-    source_sections: [基本信息, 入院记录, 病案首页]
+    source_sections: [基本信息, 入院记录, 病案首页, 病程记录, 手术记录, 出院记录]
     prompt_profile: demographics
     semantic_strategy: rule_shortcut
     max_context_chars: 1600
   - key: history_group
     label: 病史与生活习惯
-    source_sections: [既往史, 个人史, 生活史, 病史, 入院记录, 出院诊断]
+    source_sections: [既往史, 个人史, 生活史, 病史, 入院记录, 首次病程记录, 病程记录, 出院诊断]
     prompt_profile: clinical_history
     semantic_strategy: llm_semantic
     max_context_chars: 3600
@@ -22,7 +29,7 @@ field_groups:
     max_context_chars: 4200
   - key: surgery_group
     label: 手术与治疗事件
-    source_sections: [手术记录, 手术经过, 出院记录, 出院诊断, 医嘱]
+    source_sections: [手术记录, 手术日期, 术前诊断, 术中诊断, 手术名称, 手术经过, 出院记录, 出院诊断, 医嘱]
     prompt_profile: surgery_events
     semantic_strategy: llm_facts_then_compute
     max_context_chars: 3600
@@ -38,6 +45,12 @@ field_groups:
     prompt_profile: score_facts
     semantic_strategy: llm_facts_then_compute
     max_context_chars: 3600
+  - key: timeline_group
+    label: 入院与手术时间
+    source_sections: [现病史, 入院记录, 急诊记录, 首次病程记录, 病程记录, 手术记录, 手术经过, 出院记录]
+    prompt_profile: timeline
+    semantic_strategy: rule_shortcut
+    max_context_chars: 2400
 fields:
   - key: gender
     field_group_key: demographics_group
@@ -46,18 +59,28 @@ fields:
     type: enum
     allowed_codes: ["1", "2", unknown]
     extract_mode: rule_first
-    source_sections: [基本信息, 入院记录, 病案首页]
+    source_sections: [基本信息, 入院记录, 病案首页, 病程记录, 手术记录, 出院记录]
     synonyms: [性别, 男, 女]
     evidence_priority: [基本信息, 入院记录, 病案首页]
     rule_patterns:
-      - pattern: '(?:性别\s*[:：]?\s*)?(男|女)(?=$|[，,；;\s])'
+      - pattern: '(?:性别|性\s*别)\s*[:：]?\s*(男|女)'
         code_map: {男: "1", 女: "2"}
         confidence: 0.96
-        summary: 人口学配置模式命中
-      - pattern: '患者[，,]\s*(男|女)[，,]\s*\d{1,3}\s*岁'
+        summary: 明确性别标签证据命中
+      - pattern: '(?:患者|病人)[，,]?\s*(男|女)[，,]\s*\d{1,3}\s*岁'
         code_map: {男: "1", 女: "2"}
-        confidence: 0.96
-        summary: 人口学配置模式命中
+        confidence: 0.94
+        summary: 患者人口学行证据命中
+    evidence_policy:
+      allowed_evidence_sources: [layout_key_value, ocr_text, layout_cell, form_field, image]
+      forbidden_document_regions: [signature, document_footer]
+      forbidden_inference_sources: [name_inference, diagnosis_inference, department_inference, medication_inference, family_context]
+      source_priority: [layout_key_value, layout_cell, form_field, patient_header, institution_header, clinical_body, 病案首页, 基本信息, 入院记录, 页眉, 病程记录, 手术记录, 出院记录, ocr_text, image]
+      conflict_policy: review_conflict
+      implicit_negative_policy: none
+      require_visual_confirmation: false
+      pass_criteria: [explicit_gender_label, patient_demographics_region, no_conflict, no_forbidden_inference]
+      high_risk: true
     llm:
       enabled: false
       evidence_budget: 300
@@ -69,16 +92,26 @@ fields:
     type: number
     allowed_codes: [integer, unknown]
     extract_mode: rule_first
-    source_sections: [基本信息, 入院记录, 病案首页]
+    source_sections: [基本信息, 入院记录, 病案首页, 病程记录, 手术记录, 出院记录]
     synonyms: [年龄, 岁]
     evidence_priority: [基本信息, 入院记录, 病案首页]
     rule_patterns:
-      - pattern: '年龄\s*[:：]?\s*(\d{1,3})\s*岁'
+      - pattern: '年龄\s*[:：]?\s*(\d{1,3})\s*(?:岁)?'
         confidence: 0.96
         summary: 年龄配置模式命中
       - pattern: '患者[，,]\s*(?:男|女)[，,]\s*(\d{1,3})\s*岁'
         confidence: 0.96
         summary: 年龄配置模式命中
+    evidence_policy:
+      allowed_evidence_sources: [layout_key_value, ocr_text, layout_cell, form_field, image]
+      forbidden_document_regions: [signature, document_footer]
+      forbidden_inference_sources: [name_inference, diagnosis_inference, department_inference, family_context]
+      source_priority: [layout_key_value, layout_cell, form_field, patient_header, institution_header, clinical_body, 病案首页, 基本信息, 入院记录, 页眉, 病程记录, 手术记录, 出院记录, ocr_text, image]
+      conflict_policy: review_conflict
+      implicit_negative_policy: none
+      require_visual_confirmation: false
+      pass_criteria: [explicit_age_label, patient_demographics_region, no_conflict]
+      high_risk: true
     llm:
       enabled: true
       evidence_budget: 450
@@ -90,16 +123,73 @@ fields:
     type: string
     allowed_codes: [text, unknown]
     extract_mode: rule_first
-    source_sections: [基本信息, 入院记录, 病案首页]
+    source_sections: [基本信息, 入院记录, 病案首页, 病程记录, 手术记录, 出院记录]
     synonyms: [医院, 医学院, 附属医院]
     evidence_priority: [病案首页, 入院记录]
     rule_patterns:
-      - pattern: '([\u4e00-\u9fffA-Za-z0-9（）()·\-]{2,50}医院)'
+      - pattern: '(?:医院|医疗机构|就诊医院)\s*[:：]\s*([\u4e00-\u9fffA-Za-z0-9（）()·\-]{2,50}医院)'
         confidence: 0.88
-        summary: 医院名称配置模式命中
+        summary: 明确医院标签证据命中
+      - pattern: '^([\u4e00-\u9fffA-Za-z0-9（）()·\-]{4,50}医院)\s*$'
+        confidence: 0.84
+        summary: 页眉医院名称证据命中
+    evidence_policy:
+      allowed_evidence_sources: [layout_key_value, ocr_text, layout_cell, form_field, image]
+      forbidden_document_regions: [signature, document_footer]
+      forbidden_inference_sources: [generic_hospital_word, visit_phrase_inference]
+      source_priority: [layout_key_value, institution_header, patient_header, 病案首页, 页眉, 基本信息, 入院记录, ocr_text, image]
+      conflict_policy: review_conflict
+      implicit_negative_policy: none
+      require_visual_confirmation: false
+      pass_criteria: [explicit_hospital_label_or_header, no_generic_phrase, no_conflict]
+      high_risk: true
     llm:
       enabled: true
       evidence_budget: 550
+      prompt_profile: demographics
+  - key: urban_residence
+    field_group_key: demographics_group
+    label: 是否城市
+    export_header: 是否城市（1非城市2城市）
+    type: enum
+    allowed_codes: ["1", "2", unknown]
+    extract_mode: rule_first
+    source_sections: [基本信息, 入院记录, 病案首页, 一般资料]
+    synonyms: [是否城市, 城市, 非城市, 城镇, 农村, 户籍, 居住地, 现住址, 家庭住址]
+    evidence_priority: [病案首页, 基本信息, 一般资料, 入院记录]
+    rule_patterns:
+      - pattern: '是否城市\s*[（(]?\s*1\s*非城市\s*2\s*城市\s*[）)]?\s*[:：]?\s*([12])'
+        confidence: 0.96
+        summary: 显式是否城市编码命中
+      - pattern: '(?:是否城市|城乡|户籍类型|居住地类型)\s*[:：]?\s*(城市|城镇|非城市|农村)'
+        code_map: {城市: "2", 城镇: "2", 非城市: "1", 农村: "1"}
+        confidence: 0.94
+        summary: 显式城乡类型命中
+      - pattern: '是否城市判定[:：](非城市|城市)'
+        code_map: {非城市: "1", 城市: "2"}
+        confidence: 0.93
+        summary: 脱敏前本地地址派生命中
+    pre_redaction_derivations:
+      - normalized_code: "1"
+        source_patterns:
+          - '(?:现住|住址|家庭住址|户籍|居住地|地址|家住|居住在|住在)[^，,；;\s。]{0,60}(?:农村|乡|村)'
+        source_terms: [农村户籍, 农村居民, 农村]
+        safe_text: 是否城市判定：非城市
+        safe_evidence_span: 是否城市判定：非城市
+        confidence: 0.93
+        summary: 本地地址线索指向非城市
+      - normalized_code: "2"
+        source_patterns:
+          - '(?:现住|住址|家庭住址|户籍|居住地|地址|家住|居住在|住在)[^，,；;\s。]{0,60}(?:市区|街道|社区|小区|大道|路|科技园|工业园|城镇|城市)'
+          - '(?:现住|住址|家庭住址|户籍|居住地|地址|家住|居住在|住在)[^，,；;\s。]{0,60}市[^，,；;\s。]{0,30}(?:区|街道|社区|小区|大道|路|园)'
+        source_terms: [城市户籍, 城镇户籍, 城镇居民]
+        safe_text: 是否城市判定：城市
+        safe_evidence_span: 是否城市判定：城市
+        confidence: 0.93
+        summary: 本地地址线索指向城市
+    llm:
+      enabled: false
+      evidence_budget: 300
       prompt_profile: demographics
   - key: hypertension_history
     field_group_key: history_group
@@ -109,10 +199,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [高血压, 高血压病, 血压升高]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [既往史, 病史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_history_context, no_conflict]
+      high_risk: true
   - key: diabetes_history
     field_group_key: history_group
     label: 糖尿病史
@@ -121,10 +220,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [糖尿病, 2型糖尿病, 血糖升高]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [既往史, 病史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_history_context, no_conflict]
+      high_risk: true
   - key: hyperlipidemia_history
     field_group_key: history_group
     label: 高血脂病史
@@ -133,10 +241,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [高脂血症, 高血脂, 血脂异常]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [既往史, 病史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_history_context, no_conflict]
+      high_risk: true
   - key: heart_disease_history
     field_group_key: history_group
     label: 既往心脏疾病分组
@@ -145,10 +262,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [冠心病, 心肌梗死, 房颤, 心脏病, 心力衰竭]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [既往史, 病史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_history_context, no_conflict]
+      high_risk: true
   - key: stroke_history
     field_group_key: history_group
     label: 卒中分组
@@ -157,10 +283,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [脑卒中, 卒中, 脑梗死, 脑出血]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [既往史, 病史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_history_context, no_conflict]
+      high_risk: true
   - key: tumor_history
     field_group_key: history_group
     label: 既往肿瘤
@@ -169,10 +304,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [肿瘤, 癌, 癌症, 恶性肿瘤]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [既往史, 病史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_history_context, no_conflict]
+      high_risk: true
   - key: smoking_history
     field_group_key: history_group
     label: 是否吸烟
@@ -181,10 +325,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [个人史, 生活史, 入院记录]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [吸烟, 烟龄, 戒烟, 烟酒, 嗜烟酒]
     negation_terms: [否认, 无, 不吸烟, 未吸烟, 无烟酒不良嗜好]
     evidence_priority: [个人史, 生活史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [个人史, 生活史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_lifestyle_context, no_conflict]
+      high_risk: false
   - key: drinking_history
     field_group_key: history_group
     label: 是否饮酒
@@ -193,10 +346,19 @@ fields:
     allowed_codes: ["1", "0", unknown]
     extract_mode: llm_semantic
     source_sections: [个人史, 生活史, 入院记录]
-    excluded_sections: [家族史]
+    excluded_sections: [家族史, 婚育史]
     synonyms: [饮酒, 饮酒史, 酒精, 烟酒, 嗜烟酒]
     negation_terms: [否认, 无, 不饮酒, 未饮酒, 无烟酒不良嗜好]
     evidence_priority: [个人史, 生活史, 入院记录]
+    evidence_policy:
+      allowed_evidence_sources: [ocr_text, layout_cell, form_field, implicit_negative, image]
+      forbidden_inference_sources: [family_context, uncertain_diagnosis]
+      source_priority: [个人史, 生活史, 入院记录, layout_cell, form_field, ocr_text, implicit_negative]
+      conflict_policy: review_conflict
+      implicit_negative_policy: section_complete_only
+      require_visual_confirmation: false
+      pass_criteria: [explicit_positive_or_negative, patient_lifestyle_context, no_conflict]
+      high_risk: false
   - key: single_multiple
     field_group_key: aneurysm_group
     label: 单发多发
@@ -240,6 +402,91 @@ fields:
       支架辅助栓塞术: [支架辅助栓塞, 支架辅助弹簧圈]
       开颅夹闭术: [开颅夹闭, 夹闭术, 动脉瘤夹闭术]
       保守治疗: [保守治疗, 未行手术, 拒绝手术]
+  - key: onset_to_admission_time
+    field_group_key: timeline_group
+    label: 出现症状到入院前时间
+    export_header: 出现症状到入院前时间
+    type: duration
+    allowed_codes: [duration, unknown]
+    extract_mode: rule_first
+    source_sections: [现病史, 入院记录, 急诊记录, 首次病程记录, 病程记录]
+    synonyms: [发病, 起病, 突发, 出现症状, 主因, 服药, 服毒, 误服, 口服, 查体发现, 头痛, 头晕, 入院, 就诊]
+    evidence_priority: [现病史, 入院记录, 急诊记录, 首次病程记录, 病程记录]
+    rule_patterns:
+      - pattern: '((?:主因|因|以|患者因|患者主因)[^。；;\n]{0,40}?(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,50}?(?:入院|收入院|收住院|就诊|来院))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.93
+        summary: 主因到入院明确间隔命中
+      - pattern: '((?:服药|服毒|误服|口服|服用)[^。；;\n]{0,30}?(?:后|约)?(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,50}?(?:入院|收入院|收住院|就诊|来院))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.93
+        summary: 服药或服毒到入院明确间隔命中
+      - pattern: '((?:查体发现|发现|查出)[^。；;\n]{0,30}?(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,50}?(?:入院|收入院|收住院|就诊|来院))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.91
+        summary: 查体发现到入院明确间隔命中
+      - pattern: '((?:发病|起病|突发[^，,；;\s。]{0,12}|出现[^，,；;\s。]{0,12})(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))后(?:入院|就诊|来院))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.94
+        summary: 发病到入院明确间隔命中
+      - pattern: '((?:入院|就诊|来院)前(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))(?:发病|起病|突发|出现症状))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.9
+        summary: 入院前发病间隔命中
+      - pattern: '([^，,；;\s。]{0,16}(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,40}(?:入院|就诊|来院))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.88
+        summary: 症状持续到入院间隔命中
+      - pattern: '([^，,；;\s。]{0,12}后(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))(?:入院|就诊|来院))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.88
+        summary: 事件后入院间隔命中
+    llm:
+      enabled: false
+      evidence_budget: 600
+      prompt_profile: timeline
+  - key: admission_to_surgery_time
+    field_group_key: timeline_group
+    label: 手术距离入院时间
+    export_header: 手术距离入院时间
+    type: duration
+    allowed_codes: [duration, unknown]
+    extract_mode: rule_first
+    source_sections: [手术记录, 手术经过, 入院记录, 出院记录]
+    synonyms: [入院, 手术, 介入, 栓塞, 夹闭, 手术时间]
+    evidence_priority: [手术记录, 手术经过, 出院记录]
+    rule_patterns:
+      - pattern: '((?:入院|住院)第\s*(\d+(?:\.\d+)?\s*(?:天|日|周))[^，,；;\s。]{0,24}(?:手术|行[^，,；;\s。]{0,8}术|拟行[^，,；;\s。]{0,8}术))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.92
+        summary: 入院第几天手术明确间隔命中
+      - pattern: '((?:入院|住院)后(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周))[^，,；;\s。]{0,24}(?:夹闭术|栓塞术|手术|介入|栓塞|夹闭))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.94
+        summary: 入院到手术明确间隔命中
+      - pattern: '((?:夹闭术|栓塞术|手术|介入|栓塞|夹闭)[^，,；;\s。]{0,12}(?:距|距离)入院(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周)))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.9
+        summary: 手术距离入院明确间隔命中
+      - pattern: '((?:入院|住院)第\s*(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周))[^，,；;\s。]{0,24}(?:夹闭术|栓塞术|手术|手术治疗|介入|栓塞|夹闭))'
+        raw_group: 2
+        evidence_group: 1
+        confidence: 0.9
+        summary: 入院第几天手术命中
+    llm:
+      enabled: false
+      evidence_budget: 600
+      prompt_profile: timeline
   - key: in_hospital_death
     field_group_key: discharge_group
     label: 在院死亡

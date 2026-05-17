@@ -1,0 +1,74 @@
+template_id: medical_inpatient_zh
+version: "1.0.0"
+label: 中文住院病例导出模板（不详=unknown）
+empty_value: ""
+unknown_value: "unknown"
+export_gate:
+  require_pass_or_reviewed: true
+  pass_decision_status: PASS
+  reviewed_states: [reviewed]
+  manual_acceptance_reasons: [manual_review]
+columns:
+  - field_key: gender
+    header: 性别(男1，女2)
+  - field_key: age
+    header: 年龄
+  - field_key: hospital
+    header: 医院
+  - field_key: urban_residence
+    header: 是否城市（1非城市2城市）
+  - field_key: hypertension_history
+    header: 高血压病史（有1，无0，不详unknown）
+    unknown_value: "unknown"
+  - field_key: diabetes_history
+    header: 糖尿病史（有1，无0，不详unknown）
+    unknown_value: "unknown"
+  - field_key: hyperlipidemia_history
+    header: 高血脂病史（有1，无0，不详unknown）
+    unknown_value: "unknown"
+  - field_key: heart_disease_history
+    header: 既往心脏疾病分组
+    unknown_value: "unknown"
+  - field_key: stroke_history
+    header: 卒中分组（有1，无0，不详unknown）
+    unknown_value: "unknown"
+  - field_key: tumor_history
+    header: 既往肿瘤
+    unknown_value: "unknown"
+  - field_key: smoking_history
+    header: 是否吸烟
+    unknown_value: "unknown"
+  - field_key: drinking_history
+    header: 是否饮酒
+    unknown_value: "unknown"
+  - field_key: single_multiple
+    header: 单发多发
+    unknown_value: "unknown"
+  - field_key: aneurysm_location
+    header: 动脉瘤位置（1颈内，2中，3前，4后循环，unknown不详）
+    unknown_value: "unknown"
+  - field_key: hh_grade
+    header: HH分组
+    unknown_value: "unknown"
+  - field_key: wfns_grade
+    header: WFNS分组
+    unknown_value: "unknown"
+  - field_key: fisher_grade
+    header: Fisher分级
+    unknown_value: "unknown"
+  - field_key: surgery_method
+    header: 最终手术方式
+    unknown_value: "unknown"
+  - field_key: onset_to_admission_time
+    header: 出现症状到入院前时间
+  - field_key: admission_to_surgery_time
+    header: 手术距离入院时间
+  - field_key: mrs_score
+    header: mRS评分
+    unknown_value: "unknown"
+  - field_key: in_hospital_death
+    header: 在院死亡
+    unknown_value: "unknown"
+  - field_key: transfer
+    header: 是否转诊
+    unknown_value: "unknown"

@@ -21,6 +21,26 @@ class ConfigResponse(BaseModel):
     config_errors: list[str]
 
 
+class ConfigCatalogResponse(BaseModel):
+    config_root: str
+    active: dict[str, str]
+    document_profiles: list[str]
+    extraction_schemas: list[str]
+    export_templates: list[str]
+    model_profiles: list[str]
+    ocr_profiles: list[str]
+    evaluation_profiles: list[str]
+    validation_rules: list[str]
+
+
+class ConfigArtifactResponse(BaseModel):
+    kind: str
+    config_id: str
+    path: str
+    yaml: str
+    parsed: dict[str, Any]
+
+
 class UserIdentity(BaseModel):
     sub: str
     email: str | None = None
@@ -108,12 +128,18 @@ class DocumentIrResponse(ExtensiblePayload):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class SourceOcrResponse(ExtensiblePayload):
+    blocks: list[dict[str, Any]] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class CaseDiagnosticsResponse(BaseModel):
     case_id: str
     quality: dict[str, Any]
     latest_run: dict[str, Any] | None = None
     run_count: int
     runs: list[dict[str, Any]]
+    events: list[dict[str, Any]] = Field(default_factory=list)
     fragments: list[dict[str, Any]]
     model_calls: list[dict[str, Any]]
     vision_requests: list[dict[str, Any]]
@@ -123,11 +149,13 @@ class CaseDiagnosticsResponse(BaseModel):
 class VisionFallbackRecordResponse(BaseModel):
     request_id: str
     case_id: str
+    field_key: str | None = None
     page: int
     bbox: list[float]
     status: str
     reason: str
     reviewer: str
+    manual_redaction_confirmed: bool = False
     created_at: str
     approved_at: str | None = None
 

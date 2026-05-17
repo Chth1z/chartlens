@@ -1,13 +1,12 @@
 from pathlib import Path
+import time
 
 from app.core.settings import settings
 from app.domain.models import DocumentIRBlock
 from app.services import ocr
-from app.services.intelligent_ocr import (
-    HttpDocumentIntelligenceEngine,
-    IntelligentOcrBlock,
-    IntelligentOcrResult,
-    extract_with_intelligent_ocr,
+from app.services.ocr_engine import IntelligentOcrBlock, IntelligentOcrResult, extract_with_intelligent_ocr
+from app.services.ocr_engine.engines import HttpDocumentIntelligenceEngine
+from app.services.ocr_engine.payload_parse import (
     _result_from_payload,
 )
 
@@ -61,6 +60,20 @@ class StrongEngine:
         )
 
 
+class SlowEngine:
+    name = "slow"
+
+    def available(self) -> bool:
+        return True
+
+    def extract(self, file_path: Path) -> IntelligentOcrResult:
+        time.sleep(0.05)
+        return IntelligentOcrResult(
+            engine=self.name,
+            blocks=[IntelligentOcrBlock(page=1, text="超时前的结果", bbox=[0, 0, 10, 10], confidence=0.8)],
+        )
+
+
 def test_intelligent_ocr_uses_first_sufficient_available_engine():
     blocks, metadata = extract_with_intelligent_ocr(
         Path("case.pdf"),
@@ -83,6 +96,9 @@ def test_intelligent_ocr_uses_first_sufficient_available_engine():
     assert blocks[1].table_id == "t1"
     assert blocks[1].row == 1
     assert blocks[1].col == 1
+    assert metadata["ocr_trace"]["selected_engine"] == "strong"
+    assert metadata["ocr_trace"]["result_block_count"] == 2
+    assert any(stage["engine"] == "strong" and stage["status"] == "completed" for stage in metadata["ocr_trace"]["stages"])
 
 
 def test_intelligent_ocr_returns_empty_result_when_no_engine_is_sufficient():
@@ -94,6 +110,25 @@ def test_intelligent_ocr_returns_empty_result_when_no_engine_is_sufficient():
     assert metadata["ocr_attempted_engines"] == ["weak"]
     assert metadata["ocr_unavailable_engines"] == ["unavailable"]
     assert metadata["ocr_unavailable_reasons"] == {"unavailable": "missing fixture dependency"}
+    assert metadata["ocr_trace"]["selected_engine"] == ""
+    assert any(stage["engine"] == "unavailable" and stage["status"] == "skipped" for stage in metadata["ocr_trace"]["stages"])
+
+
+def test_intelligent_ocr_times_out_slow_engine_and_falls_back(monkeypatch):
+    monkeypatch.setattr(settings, "ocr_engine_timeout_seconds", 0.01)
+
+    blocks, metadata = extract_with_intelligent_ocr(
+        Path("case.pdf"),
+        {"未知": []},
+        engines=[SlowEngine(), StrongEngine()],
+    )
+
+    assert [block.text for block in blocks] == ["姓名：张三", "手术名称"]
+    assert metadata["ocr_intelligent_status"] == "completed"
+    assert metadata["ocr_engine_errors"]["slow"].startswith("[PAGE_TIMEOUT]")
+    assert metadata["ocr_trace"]["selected_engine"] == "strong"
+    assert any(stage["engine"] == "slow" and stage["status"] == "timeout" for stage in metadata["ocr_trace"]["stages"])
+    assert any(stage["engine"] == "strong" and stage["status"] == "completed" for stage in metadata["ocr_trace"]["stages"])
 
 
 class FakeHttpResponse:
@@ -112,6 +147,13 @@ class FakeHttpResponse:
                     "block_type": "form_field",
                 }
             ],
+            "metadata": {
+                "ocr_trace": {
+                    "trace_id": "trace-sidecar-1",
+                    "selected_engine": "sidecar_doc_ai",
+                    "stages": [{"stage": "engine", "engine": "sidecar_doc_ai", "status": "completed"}],
+                }
+            },
         }
 
 
@@ -146,6 +188,33 @@ class SidecarErrorOnlyResponse:
         }
 
 
+class StaleSidecarHealthResponse:
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {
+            "ok": True,
+            "engines": [],
+        }
+
+
+class SidecarKnownPrefixFailureResponse:
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {
+            "engine": "none",
+            "blocks": [],
+            "attempted_engines": ["pp_ocr_v5_onnx_directml"],
+            "engine_errors": {
+                "pp_ocr_v5_onnx_directml": "Unable to avoid copy while creating an array as requested. "
+                "If using np.array(obj, copy=False) replace it with np.asarray(obj).",
+            },
+        }
+
+
 class FakeHttpClient:
     def __init__(self):
         self.request = None
@@ -164,6 +233,43 @@ class FakeHttpClient:
             "profile_id": data["profile_id"],
         }
         return FakeHttpResponse()
+
+
+class FakePaddleLayoutResponse:
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {"text": "姓名：张三"},
+                        "markdown": {"text": "## 入院记录\n姓名：张三\n| 项目 | 结果 |\n| 白细胞 | 8.6 |"},
+                    }
+                ]
+            }
+        }
+
+
+class FakePaddleLayoutClient:
+    def __init__(self):
+        self.request = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return None
+
+    def post(self, endpoint, *, headers, json):
+        self.request = {
+            "endpoint": endpoint,
+            "headers": headers,
+            "fileType": json["fileType"],
+            "has_file": bool(json["file"]),
+        }
+        return FakePaddleLayoutResponse()
 
 
 def test_http_document_intelligence_engine_posts_file_and_parses_blocks(tmp_path):
@@ -189,6 +295,31 @@ def test_http_document_intelligence_engine_posts_file_and_parses_blocks(tmp_path
     assert result.blocks[0].page == 5
     assert result.blocks[0].text == "姓名：张三"
     assert result.blocks[0].block_type == "form_field"
+    assert result.metadata["ocr_trace"]["selected_engine"] == "sidecar_doc_ai"
+
+
+def test_remote_paddleocr_vl_engine_supports_official_layout_parsing_api(tmp_path):
+    file_path = tmp_path / "case.pdf"
+    file_path.write_bytes(b"%PDF fixture")
+    fake_client = FakePaddleLayoutClient()
+    engine = HttpDocumentIntelligenceEngine(
+        endpoint="http://127.0.0.1:8080/layout-parsing",
+        api_key="secret",
+        client_factory=lambda: fake_client,
+    )
+
+    result = engine.extract(file_path)
+
+    assert fake_client.request == {
+        "endpoint": "http://127.0.0.1:8080/layout-parsing",
+        "headers": {"Authorization": "Bearer secret"},
+        "fileType": 0,
+        "has_file": True,
+    }
+    assert result.engine == "paddleocr_vl_remote:paddlex_layout"
+    assert result.metadata["ocr_http_protocol"] == "paddlex_layout_parsing"
+    assert result.metadata["raw_markdown"].startswith("## 入院记录")
+    assert [block.text for block in result.blocks] == ["入院记录", "姓名：张三", "| 项目 | 结果 |", "| 白细胞 | 8.6 |"]
 
 
 def test_http_document_intelligence_engine_exposes_sidecar_errors(tmp_path):
@@ -221,6 +352,50 @@ def test_http_document_intelligence_engine_does_not_treat_sidecar_errors_as_ocr_
     assert result.metadata["ocr_http_engine_errors"] == {
         "paddle_structure_v3": "Error loading torch shm.dll",
     }
+
+
+def test_http_document_intelligence_engine_rejects_stale_sidecar_health(tmp_path):
+    file_path = tmp_path / "case.pdf"
+    file_path.write_bytes(b"%PDF fixture")
+    engine = HttpDocumentIntelligenceEngine(
+        endpoint="http://127.0.0.1:8765/extract",
+        client_factory=lambda: FakeHttpClientWithGetAndPost(
+            StaleSidecarHealthResponse(),
+            FakeHttpResponse(),
+        ),
+    )
+
+    result = engine.extract(file_path)
+
+    assert result.blocks == []
+    assert result.metadata["ocr_http_engine_errors"] == {
+        "sidecar_contract": "OCR sidecar is stale or incompatible; restart it with .\\stop.cmd, then .\\start.cmd so /health exposes api_contract_version=eyex-ocr-sidecar-v2."
+    }
+    assert result.metadata["ocr_http_restart_required"] is True
+
+
+def test_http_document_intelligence_engine_flags_known_prefix_numpy_failure(tmp_path):
+    file_path = tmp_path / "case.pdf"
+    file_path.write_bytes(b"%PDF fixture")
+    engine = HttpDocumentIntelligenceEngine(
+        endpoint="http://127.0.0.1:8765/extract",
+        client_factory=lambda: FakeHttpClientWithGetAndPost(
+            {
+                "ok": True,
+                "api_contract_version": "eyex-ocr-sidecar-v2",
+                "sidecar_build_id": "fixture-current",
+            },
+            SidecarKnownPrefixFailureResponse(),
+        ),
+    )
+
+    result = engine.extract(file_path)
+
+    assert result.blocks == []
+    assert result.metadata["ocr_http_restart_required"] is True
+    assert result.metadata["ocr_http_engine_errors"]["sidecar_stale_response"].startswith(
+        "OCR sidecar returned a known pre-fix NumPy parsing failure"
+    )
 
 
 def test_paddle_structure_payload_uses_rec_texts_without_coordinate_noise():
@@ -265,6 +440,15 @@ class FakeHttpClientWithResponse:
 
     def post(self, endpoint, *, headers, files, data):
         return self.response
+
+
+class FakeHttpClientWithGetAndPost(FakeHttpClientWithResponse):
+    def __init__(self, health_response, extract_response):
+        super().__init__(extract_response)
+        self.health_response = health_response
+
+    def get(self, endpoint, *, headers):
+        return self.health_response
 
 
 def test_build_document_ir_routes_images_through_intelligent_ocr(monkeypatch, tmp_path):

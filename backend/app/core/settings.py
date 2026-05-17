@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     document_profile: str = "medical_inpatient_zh"
     ocr_profile: str = "windows_radeon_balanced"
     extraction_schema: str = "medical_inpatient_zh"
-    export_template: str = "medical_inpatient_zh_code9"
+    export_template: str = "medical_inpatient_zh"
     model_profile: str = "openai_structured"
     llm_mode: Literal["auto", "online", "local", "disabled"] = "auto"
     openai_api_key: str | None = None
@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     ocr_document_ai_url: str | None = None
     ocr_document_ai_api_key: str | None = None
     ocr_document_ai_timeout_seconds: float = 900.0
+    ocr_engine_timeout_seconds: float = 120.0
+    ocr_paddleocr_vl_url: str | None = None
+    ocr_paddleocr_vl_api_key: str | None = None
     ocr_openai_model: str | None = None
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"

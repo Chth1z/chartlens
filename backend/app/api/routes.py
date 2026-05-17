@@ -4,12 +4,14 @@ import json
 import os
 import shutil
 import hashlib
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import Response
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,8 @@ from app.api.contracts import (
     AuthStatusResponse,
     BatchEvaluationResponse,
     CaseDiagnosticsResponse,
+    ConfigArtifactResponse,
+    ConfigCatalogResponse,
     ConfigResponse,
     DocumentIrResponse,
     EvaluationProfileRunResponse,
@@ -33,18 +37,37 @@ from app.api.contracts import (
     ProjectConfigResponse,
     RuntimeSettingsResponse,
     SettingsValidationResponse,
+    SourceOcrResponse,
     SystemSettingsResponse,
     VisionFallbackRecordResponse,
 )
 from app.core.config_loader import (
+    list_document_profile_ids,
+    list_evaluation_profiles,
+    list_export_template_ids,
+    list_extraction_schema_ids,
+    list_model_profiles,
     list_ocr_profiles,
     load_evaluation_profile,
+    load_document_profile,
     load_export_template,
     load_extraction_schema,
     load_ocr_profile,
+    read_config_artifact,
     validate_project_config,
 )
-from app.core.database import CaseRecord, FieldResultRecord, ReviewAuditRecord, get_case_or_none, get_db, json_loads
+from app.core.database import (
+    CaseRecord,
+    FieldResultRecord,
+    ModelCallRecord,
+    ProcessingEventRecord,
+    ProcessingRunRecord,
+    ReviewAuditRecord,
+    VisionFallbackRequestRecord,
+    get_case_or_none,
+    get_db,
+    json_loads,
+)
 from app.core.settings import settings
 from app.domain.models import CaseSummary, EvaluationRequest, EvaluationResult, ReviewDecision, ValidatedFieldResult
 from app.services.diagnostics import build_case_diagnostics, frontend_evidence_config
@@ -60,6 +83,18 @@ from app.services.model_providers import (
 )
 from app.services.pipeline import create_case_record_from_saved_file, enqueue_case, prepare_case_file, process_case
 from app.services.review import apply_review
+from app.services.runtime_status import build_runtime_services
+from app.services.secret_store import unprotect_text
+from app.services.source_ocr import build_source_ocr_payload
+from app.services.source_pages import (
+    SourcePageError,
+    case_document_metadata as _source_case_document_metadata,
+    case_document_payload as _source_case_document_payload,
+    case_page_render_dpi as _source_case_page_render_dpi,
+    pdf_source_render_scale,
+    positive_float as _source_positive_float,
+    resolve_case_source_page,
+)
 
 router = APIRouter()
 UPLOAD_CHUNK_SIZE = 1024 * 1024
@@ -83,6 +118,15 @@ class BatchEvaluationPayload(BaseModel):
     cases: list[BatchEvaluationCasePayload]
 
 
+class VisionFallbackRequestPayload(BaseModel):
+    field_key: str | None = None
+    page: int = Field(default=1, ge=1)
+    bbox: list[float] = Field(default_factory=list)
+    reason: str = ""
+    reviewer: str = "local-reviewer"
+    manual_redaction_confirmed: bool = False
+
+
 @router.get("/health", response_model=HealthResponse)
 def health() -> dict:
     return {"ok": True, "app": settings.app_name, "config_errors": validate_project_config()}
@@ -97,6 +141,37 @@ def config() -> dict:
         "export_template": template.model_dump(),
         "config_errors": validate_project_config(),
     }
+
+
+@router.get("/config/catalog", response_model=ConfigCatalogResponse)
+def config_catalog() -> dict:
+    return {
+        "config_root": str(settings.config_dir),
+        "active": {
+            "document_profile": settings.document_profile,
+            "extraction_schema": settings.extraction_schema,
+            "export_template": settings.export_template,
+            "model_profile": settings.model_profile,
+            "ocr_profile": settings.ocr_profile,
+        },
+        "document_profiles": list_document_profile_ids(),
+        "extraction_schemas": list_extraction_schema_ids(),
+        "export_templates": list_export_template_ids(),
+        "model_profiles": [profile.profile_id for profile in list_model_profiles()],
+        "ocr_profiles": [profile.profile_id for profile in list_ocr_profiles()],
+        "evaluation_profiles": [profile.profile_id for profile in list_evaluation_profiles()],
+        "validation_rules": _config_rule_ids(),
+    }
+
+
+@router.get("/config/{kind}/{config_id}", response_model=ConfigArtifactResponse)
+def config_artifact(kind: str, config_id: str) -> dict:
+    try:
+        return read_config_artifact(kind, config_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Config artifact not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/auth/me", response_model=AuthStatusResponse)
@@ -197,7 +272,7 @@ async def upload_case(file: Annotated[UploadFile, File()], db: Annotated[Session
 
 @router.get("/cases", response_model=list[CaseSummary])
 def list_cases(db: Annotated[Session, Depends(get_db)]) -> list[CaseSummary]:
-    cases = db.execute(select(CaseRecord).order_by(CaseRecord.created_at.desc())).scalars().all()
+    cases = db.execute(select(CaseRecord).where(CaseRecord.status != "archived").order_by(CaseRecord.created_at.desc())).scalars().all()
     return [_case_summary(case) for case in cases]
 
 
@@ -218,6 +293,32 @@ def reprocess_case(case_id: str, db: Annotated[Session, Depends(get_db)]) -> Cas
 def get_document_ir(case_id: str, db: Annotated[Session, Depends(get_db)]) -> dict:
     case = _require_case(db, case_id)
     return json.loads(case.document_ir_json) if case.document_ir_json else {"blocks": [], "sections": []}
+
+
+@router.get("/cases/{case_id}/source-ocr", response_model=SourceOcrResponse)
+def get_source_ocr(case_id: str, db: Annotated[Session, Depends(get_db)]) -> dict:
+    case = _require_case(db, case_id)
+    return build_source_ocr_payload(_case_raw_document_payload(case), _case_document_payload(case))
+
+
+@router.get("/cases/{case_id}/source-pages/{page}")
+def get_case_source_page(case_id: str, page: int, db: Annotated[Session, Depends(get_db)]) -> Response:
+    case = _require_case(db, case_id)
+    try:
+        source_page = resolve_case_source_page(case, page)
+    except SourcePageError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    headers = {
+        "Cache-Control": "private, max-age=3600",
+        "X-EYEX-Source-Page-Cache": source_page.cache_status,
+    }
+    if source_page.dpi is not None:
+        headers["X-EYEX-Source-Page-DPI"] = str(source_page.dpi)
+    if source_page.width is not None:
+        headers["X-EYEX-Source-Page-Width"] = str(source_page.width)
+    if source_page.height is not None:
+        headers["X-EYEX-Source-Page-Height"] = str(source_page.height)
+    return FileResponse(source_page.path, media_type=source_page.media_type, headers=headers)
 
 
 @router.get("/cases/{case_id}/results", response_model=list[ValidatedFieldResult])
@@ -263,32 +364,33 @@ def export_case(case_id: str, db: Annotated[Session, Depends(get_db)]) -> Respon
 @router.delete("/cases/{case_id}", response_model=MaintenanceResponse)
 def delete_case(case_id: str, db: Annotated[Session, Depends(get_db)]) -> dict:
     case = _require_case(db, case_id)
-    file_parent = None
-    try:
-        file_parent = Path(case.file_path).parent
-    except Exception:
-        file_parent = None
-    db.delete(case)
+    case.status = "archived"
+    case.updated_at = datetime.now(timezone.utc)
     db.commit()
-    if file_parent and file_parent.exists() and settings.storage_dir in file_parent.parents:
-        shutil.rmtree(file_parent, ignore_errors=True)
-    return {"ok": True, "affected_count": 1, "message": "病例已删除。"}
+    return {"ok": True, "affected_count": 1, "message": "病例已从列表移除，原始文件和审计日志已保留。"}
 
 
 @router.post("/cases/{case_id}/vision-fallback-requests", response_model=VisionFallbackRecordResponse)
-def vision_fallback_request(case_id: str, db: Annotated[Session, Depends(get_db)]) -> dict:
+def vision_fallback_request(case_id: str, payload: VisionFallbackRequestPayload, db: Annotated[Session, Depends(get_db)]) -> dict:
     _require_case(db, case_id)
-    return {
-        "request_id": f"vision-{case_id}",
-        "case_id": case_id,
-        "page": 1,
-        "bbox": [],
-        "status": "recorded",
-        "reason": "manual redaction confirmed",
-        "reviewer": "local-reviewer",
-        "created_at": "",
-        "approved_at": None,
-    }
+    now = datetime.now(timezone.utc)
+    record = VisionFallbackRequestRecord(
+        request_id=f"vision-{case_id}-{uuid.uuid4().hex[:12]}",
+        case_id=case_id,
+        field_key=payload.field_key,
+        page=payload.page,
+        bbox_json=json.dumps(payload.bbox, ensure_ascii=False),
+        status="recorded",
+        reason=payload.reason,
+        reviewer=payload.reviewer,
+        manual_redaction_confirmed=1 if payload.manual_redaction_confirmed else 0,
+        created_at=now,
+        approved_at=now if payload.manual_redaction_confirmed else None,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return _vision_fallback_record_payload(record)
 
 
 @router.get("/field-dictionary", response_model=FieldDictionaryResponse)
@@ -301,6 +403,7 @@ def field_dictionary() -> dict:
 def project_config() -> dict:
     schema = load_extraction_schema()
     template = load_export_template()
+    document_profile = load_document_profile()
     return {
         "app_profile": {
             "profile_id": "eyex",
@@ -312,16 +415,16 @@ def project_config() -> dict:
                 "upload": "上传病例 PDF / 图片 / 文本",
                 "field_results": "字段结果",
             },
-            "default_document_profile_id": "medical_inpatient_zh",
+            "default_document_profile_id": document_profile.profile_id,
             "default_extraction_schema_id": schema.schema_id,
             "default_export_template_id": template.template_id,
             "ocr_engine_policy": "intelligent_only",
         },
         "document_profile": {
-            "profile_id": "medical_inpatient_zh",
+            "profile_id": document_profile.profile_id,
             "version": "1.0.0",
-            "label": "中文住院病例",
-            "section_aliases": {},
+            "label": document_profile.label,
+            "section_aliases": document_profile.section_aliases,
             "frontend": frontend_evidence_config(),
         },
         "extraction_schema": schema.model_dump(),
@@ -358,10 +461,10 @@ def system_settings() -> dict:
             "ocr_document_ai_configured": bool(settings.ocr_document_ai_url),
             "ocr_openai_model": settings.ocr_openai_model or settings.openai_model,
             "ocr_openai_configured": bool(settings.openai_api_key or os.environ.get("OPENAI_API_KEY")),
-            "layout_default_profile": "medical_inpatient_zh",
+            "layout_default_profile": settings.document_profile,
             "llm_default_profile": model_profiles_payload()["active_profile_id"],
             "ocr_profiles": [profile.profile_id for profile in list_ocr_profiles()],
-            "layout_profiles": ["medical_inpatient_zh"],
+            "layout_profiles": list_document_profile_ids(),
             "llm_profiles": [profile["profile_id"] for profile in profiles],
             "vision_fallback_enabled": True,
         }
@@ -387,6 +490,7 @@ def runtime_settings() -> dict:
     active = model_profiles_payload()["active_profile_id"]
     ocr_profile = _active_ocr_profile_payload()
     device = resolve_ocr_device_status()
+    services = build_runtime_services()
     return {
         "runtime_settings": {
             "database_url": settings.database_url,
@@ -404,12 +508,13 @@ def runtime_settings() -> dict:
             "ocr_document_ai_configured": bool(settings.ocr_document_ai_url),
             "ocr_openai_model": settings.ocr_openai_model or settings.openai_model,
             "ocr_openai_configured": bool(settings.openai_api_key or os.environ.get("OPENAI_API_KEY")),
-            "layout_profile": "medical_inpatient_zh",
+            "layout_profile": settings.document_profile,
             "model_mode": active,
             "openai_auth_mode": settings.llm_mode,
             "oauth_enabled": False,
             "oauth_provider": "local",
             "chatgpt_token_cache_path": "",
+            "services": services,
         },
         "restart_required_hints": [],
     }
@@ -436,6 +541,13 @@ def _runtime_ocr_engine_names(ocr_profile: dict) -> list[str]:
     return []
 
 
+def _config_rule_ids() -> list[str]:
+    path = settings.config_dir / "validation_rules"
+    if not path.exists():
+        return []
+    return [item.stem for item in sorted(path.glob("*.yaml"))]
+
+
 @router.post("/settings/validate", response_model=SettingsValidationResponse)
 def validate_settings() -> dict:
     errors = validate_project_config()
@@ -450,6 +562,10 @@ def clear_cache() -> dict:
 @router.post("/maintenance/clear-all-cases", response_model=MaintenanceResponse)
 def clear_all_cases(db: Annotated[Session, Depends(get_db)]) -> dict:
     count = len(db.execute(select(CaseRecord)).scalars().all())
+    db.execute(delete(VisionFallbackRequestRecord))
+    db.execute(delete(ModelCallRecord))
+    db.execute(delete(ProcessingEventRecord))
+    db.execute(delete(ProcessingRunRecord))
     db.execute(delete(ReviewAuditRecord))
     db.execute(delete(FieldResultRecord))
     db.execute(delete(CaseRecord))
@@ -520,6 +636,42 @@ def _require_case(db: Session, case_id: str) -> CaseRecord:
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
     return case
+
+
+def _pdf_source_render_scale(case: CaseRecord, page: int) -> float:
+    return pdf_source_render_scale(case, page)
+
+
+def _case_document_payload(case: CaseRecord) -> dict:
+    return _source_case_document_payload(case)
+
+
+def _case_raw_document_payload(case: CaseRecord) -> dict:
+    if not case.raw_document_ir_json:
+        return {}
+    protected = json_loads(case.raw_document_ir_json, {})
+    if not isinstance(protected, dict):
+        return {}
+    raw = unprotect_text(protected)
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _case_document_metadata(case: CaseRecord) -> dict:
+    return _source_case_document_metadata(case)
+
+
+def _case_page_render_dpi(case: CaseRecord, page: int) -> float | None:
+    return _source_case_page_render_dpi(case, page)
+
+
+def _positive_float(value: object) -> float | None:
+    return _source_positive_float(value)
 
 
 def _eval_case(case_id: str, gold: dict[str, str], db: Session, *, tags: list[str] | None = None) -> dict:
@@ -751,7 +903,24 @@ def _case_summary(case: CaseRecord) -> CaseSummary:
         updated_at=case.updated_at,
         result_count=result_count,
         review_required_count=review_required_count,
+        audit_count=len(case.audits),
     )
+
+
+def _vision_fallback_record_payload(record: VisionFallbackRequestRecord) -> dict:
+    return {
+        "request_id": record.request_id,
+        "case_id": record.case_id,
+        "field_key": record.field_key,
+        "page": record.page,
+        "bbox": json_loads(record.bbox_json, []),
+        "status": record.status,
+        "reason": record.reason,
+        "reviewer": record.reviewer,
+        "manual_redaction_confirmed": bool(record.manual_redaction_confirmed),
+        "created_at": record.created_at.isoformat(),
+        "approved_at": record.approved_at.isoformat() if record.approved_at else None,
+    }
 
 
 def _online_model_available() -> bool:

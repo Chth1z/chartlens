@@ -30,6 +30,7 @@ import type {
   SettingsValidationResponse,
   SystemSettingsResponse
 } from "../../shared/types/api";
+import { ocrRuntimeSummary, ocrRuntimeTone } from "../diagnostics/ocrReadiness";
 import { ProviderSettingsPanel } from "./ProviderSettingsPanel";
 
 interface SettingsPanelProps {
@@ -141,7 +142,12 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
   const activeModelRef = modelProfiles?.active_model_ref ?? activeModel?.model_ref ?? activeModel?.model ?? "-";
   const resolvedModelChain = modelProfiles?.resolved_chain?.join(" -> ") ?? activeModel?.fallbacks?.join(" -> ") ?? "无";
   const onlineModelState = auth.model_auth.online_model_available ? "在线可用" : "本地回退或未配置凭据";
-  const documentEngine = systemConfig?.ocr_document_ai_configured
+  const ocrService = runtimeSettings?.services?.ocr;
+  const ocrTone = ocrRuntimeTone(ocrService);
+  const ocrSummary = ocrRuntimeSummary(ocrService);
+  const documentEngine = ocrService
+    ? ocrStatusLabel(ocrService.status, ocrService.ready)
+    : systemConfig?.ocr_document_ai_configured
     ? "HTTP sidecar"
     : systemConfig?.ocr_openai_configured
       ? systemConfig.ocr_openai_model ?? "OpenAI vision"
@@ -174,11 +180,11 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
           <strong>{activeModelRef}</strong>
           <small>{onlineModelState} / {modelAvailabilityText(activeModel, modelProfiles)}</small>
         </article>
-        <article className={`settings-overview-card ${documentEngine === "未配置" ? "tone-warning" : "tone-ok"}`}>
+        <article className={`settings-overview-card tone-${ocrTone}`}>
           <FileCog size={18} />
           <span>智能文档</span>
           <strong>{documentEngine}</strong>
-          <small>{systemConfig?.ocr_profile_engines?.join(" -> ") ?? "读取中"}</small>
+          <small>{ocrSummary}</small>
         </article>
         <article className={`settings-overview-card ${validation ? (validation.ok ? "tone-ok" : "tone-danger") : ""}`}>
           <CheckCircle2 size={18} />
@@ -295,9 +301,36 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
             <dd>{runtimeSettings?.ocr_profile_engines?.join(" -> ") ?? "-"}</dd>
             <dt>文档服务</dt>
             <dd>{runtimeSettings?.ocr_document_ai_configured ? "HTTP sidecar" : runtimeSettings?.ocr_openai_configured ? runtimeSettings?.ocr_openai_model ?? "OpenAI vision" : "未配置"}</dd>
+            <dt>OCR 状态</dt>
+            <dd className={ocrTone === "ok" ? "text-ok" : ocrTone === "danger" ? "text-error" : "text-warning"}>{ocrSummary}</dd>
+            <dt>OCR health</dt>
+            <dd><code>{ocrService?.health_url ?? "-"}</code></dd>
+            <dt>OCR profile</dt>
+            <dd>{ocrService?.profile_id ?? runtimeSettings?.ocr_profile ?? "-"}</dd>
             <dt>重启项</dt>
             <dd>{runtime?.restart_required_hints.join(", ") ?? "-"}</dd>
           </dl>
+          {!!ocrService?.checks?.length && (
+            <ul className="runtime-check-list" aria-label="OCR 就绪检查">
+              {ocrService.checks.map((check) => (
+                <li key={check.key} className={check.ready ? "text-ok" : "text-error"}>
+                  <span>{check.label}</span>
+                  <strong>{check.ready ? "就绪" : "未就绪"}</strong>
+                  {!check.ready && check.reason && <small>{check.reason}</small>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!!ocrService?.actions?.length && (
+            <div className="settings-command-list" aria-label="OCR 修复命令">
+              {ocrService.actions.map((item) => (
+                <div key={`${item.label}-${item.command}`}>
+                  <span>{item.label}</span>
+                  <code>{item.command}</code>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
 
         <article className="settings-card">
@@ -424,6 +457,14 @@ function providerLabel(provider: string | null | undefined, providerId?: string 
   if (provider === "openai_compatible") return "OpenAI-compatible Chat";
   if (provider === "disabled") return "本地保守 fallback";
   return provider ?? "-";
+}
+
+function ocrStatusLabel(status: string, ready: boolean | null) {
+  if (ready === true || status === "ready") return "强链路已就绪";
+  if (status === "not_running") return "Sidecar 未运行";
+  if (status === "not_configured") return "未配置";
+  if (status === "external") return "外部状态";
+  return "强链路未就绪";
 }
 
 function modelAvailabilityText(profile: ModelProfilesResponse["profiles"][number] | null | undefined, payload: ModelProfilesResponse | null) {

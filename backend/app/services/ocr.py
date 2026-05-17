@@ -6,16 +6,33 @@ import json
 import re
 from pathlib import Path
 
-from app.core.config_loader import load_document_profile
+from app.core.config_loader import load_document_profile, load_ocr_profile
 from app.core.settings import settings
 from app.domain.models import DocumentIR, DocumentIRBlock, DocumentIRSection, DocumentProfile
 from app.services.domain_profile import document_kind_for_section
-from app.services.intelligent_ocr import extract_with_intelligent_ocr
+from app.services.ocr_engine import extract_with_intelligent_ocr
 
 
 SECTION_SPLIT = re.compile(r"(?P<label>[\u4e00-\u9fffA-Za-z0-9 -]{2,18})\s*[:：]")
 PDF_TEXT_MIN_CHARS = 20
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+OCR_DEBUG_METADATA_KEYS = (
+    "ocr_candidate_metrics",
+    "render_dpi_candidates",
+    "render_dpi",
+    "tile_max_side_len",
+    "tile_overlap",
+    "rapidocr_max_side_len",
+    "image_preprocess",
+    "image_preprocess_modes",
+    "directml_safe_mode",
+    "preprocess_profile",
+    "merge_policy_version",
+    "pipeline_stages",
+    "stage_models",
+    "stage_metrics",
+)
+OCR_DEBUG_LIST_METADATA_KEYS = {"ocr_candidate_metrics", "pipeline_stages", "stage_metrics"}
 
 
 def file_sha256(payload: bytes) -> str:
@@ -84,7 +101,7 @@ def _extract_blocks(file_path: Path, payload: bytes, profile: DocumentProfile) -
 
 
 def _read_ocr_cache(payload: bytes, *, page: int, page_kind: str = "image_pdf_ocr") -> tuple[list[DocumentIRBlock], dict] | None:
-    path = _ocr_cache_path(payload, page=page, engine_id=_route_cache_engine_id(page_kind))
+    path = _ocr_cache_path(payload, page=page, engine_id=_route_cache_engine_id(page_kind), **_active_ocr_cache_dimensions())
     if not path.exists():
         return None
     try:
@@ -99,7 +116,7 @@ def _read_ocr_cache(payload: bytes, *, page: int, page_kind: str = "image_pdf_oc
 
 
 def _write_ocr_cache(payload: bytes, blocks: list[DocumentIRBlock], metadata: dict, *, page: int, page_kind: str = "image_pdf_ocr") -> None:
-    path = _ocr_cache_path(payload, page=page, engine_id=_route_cache_engine_id(page_kind))
+    path = _ocr_cache_path(payload, page=page, engine_id=_route_cache_engine_id(page_kind), **_active_ocr_cache_dimensions())
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -117,17 +134,27 @@ def _ocr_cache_path(
     page: int,
     page_image_hash: str | None = None,
     ocr_profile_id: str | None = None,
+    ocr_profile_version: str | None = None,
     engine_id: str | None = None,
     engine_version: str | None = None,
     model_name: str | None = None,
+    model_version: str | None = None,
     accelerator: str | None = None,
+    render_dpi: int | None = None,
+    preprocess_profile: str | None = None,
+    stage: str | None = None,
+    merge_policy_version: str | None = None,
+    ocr_options_fingerprint: str | None = None,
     layout_profile: str = "intelligent_document",
 ) -> Path:
     cache_key = hashlib.sha256(
         (
             f"{file_sha256(payload)}:{page}:{page_image_hash or file_sha256(payload)}:"
-            f"{ocr_profile_id or settings.ocr_profile}:{engine_id or 'profile_route'}:"
-            f"{engine_version or 'default'}:{model_name or 'default'}:{accelerator or settings.ocr_accelerator}:"
+            f"{ocr_profile_id or settings.ocr_profile}:{ocr_profile_version or 'default'}:{engine_id or 'profile_route'}:"
+            f"{engine_version or 'default'}:{model_name or 'default'}:{model_version or 'default'}:"
+            f"{accelerator or settings.ocr_accelerator}:{render_dpi or 'default'}:"
+            f"{preprocess_profile or 'default'}:{stage or 'default'}:{merge_policy_version or 'default'}:"
+            f"{ocr_options_fingerprint or 'default'}:"
             f"{layout_profile}:{settings.ocr_route_version}:{settings.ocr_strategy}:"
             f"{_ocr_extractor_cache_fingerprint()}"
         ).encode("utf-8")
@@ -137,7 +164,7 @@ def _ocr_cache_path(
 
 def _route_cache_engine_id(page_kind: str) -> str:
     try:
-        from app.services.intelligent_ocr import _engine_names_for_page_kind
+        from app.services.ocr_engine.engine_base import _engine_names_for_page_kind
 
         names = _engine_names_for_page_kind(page_kind)
     except Exception:
@@ -145,10 +172,36 @@ def _route_cache_engine_id(page_kind: str) -> str:
     return f"route:{page_kind}:{','.join(names)}" if names else f"route:{page_kind}"
 
 
+def _active_ocr_cache_dimensions() -> dict:
+    try:
+        profile = load_ocr_profile(settings.ocr_profile)
+    except Exception:
+        return {}
+    return {
+        "ocr_profile_version": profile.version,
+        "render_dpi": profile.render_dpi,
+        "preprocess_profile": profile.preprocess_profile,
+        "merge_policy_version": profile.merge_policy_version,
+        "ocr_options_fingerprint": _ocr_profile_options_fingerprint(profile),
+    }
+
+
+def _ocr_profile_options_fingerprint(profile) -> str:
+    relevant = {
+        "pipeline_stages": profile.pipeline_stages,
+        "stage_models": profile.stage_models,
+        "cache_policy": profile.cache_policy,
+    }
+    encoded = json.dumps(relevant, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+
+
 def _ocr_extractor_cache_fingerprint() -> str:
+    from app.services.ocr_engine.canonicalize import CANONICAL_LAYOUT_VERSION
+
     module = getattr(extract_with_intelligent_ocr, "__module__", "unknown")
     qualname = getattr(extract_with_intelligent_ocr, "__qualname__", "unknown")
-    return f"{module}.{qualname}"
+    return f"{module}.{qualname}:{CANONICAL_LAYOUT_VERSION}"
 
 
 def _annotate_ocr_blocks(blocks: list[DocumentIRBlock], metadata: dict, source_page_kind: str) -> list[DocumentIRBlock]:
@@ -296,6 +349,7 @@ def _extract_pdf_ocr_pages(
         "ocr_engine_errors": errors,
         "ocr_page_quality": page_quality,
         "ocr_cache_status": _combined_cache_status(metadata_by_page.values()),
+        **_merge_ocr_debug_metadata(metadata_by_page.values()),
     }
 
 
@@ -381,6 +435,32 @@ def _combined_cache_status(metadata_items) -> str:
     if statuses and all(status == "miss" for status in statuses):
         return "miss"
     return "not_applicable"
+
+
+def _merge_ocr_debug_metadata(metadata_items) -> dict:
+    merged: dict = {}
+    seen_by_key: dict[str, set[str]] = {}
+    for metadata in metadata_items:
+        if not isinstance(metadata, dict):
+            continue
+        for key in OCR_DEBUG_METADATA_KEYS:
+            value = metadata.get(key)
+            if value in (None, "", [], {}):
+                continue
+            if key in OCR_DEBUG_LIST_METADATA_KEYS:
+                values = value if isinstance(value, list) else [value]
+                target = merged.setdefault(key, [])
+                seen = seen_by_key.setdefault(key, set())
+                for item in values:
+                    signature = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str)
+                    if signature in seen:
+                        continue
+                    seen.add(signature)
+                    target.append(item)
+                continue
+            if key not in merged:
+                merged[key] = value
+    return merged
 
 
 def _ocr_unavailable_message(metadata: dict) -> str:

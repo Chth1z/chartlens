@@ -1,0 +1,15 @@
+profile_id: mock_general
+label: OCR mock regression profile
+default_ocr_profile: cpu_stable
+default_document_profile: medical_inpatient_zh
+thresholds:
+  max_cer: 0.0
+  max_wer: 0.0
+cases:
+  - case_id: mock-general-clean-note
+    document_path: fixtures/mock_general_clean_note.txt
+    truth_pages:
+      1: |
+        基本信息：患者，男，66岁。
+        既往史：否认高血压、糖尿病。
+    tags: [mock, text_input]

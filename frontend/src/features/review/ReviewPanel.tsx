@@ -32,6 +32,11 @@ export const ReviewPanel = memo(function ReviewPanel({
     : [];
   const codeInputId = activeResult ? `review-code-${activeResult.field_key}` : "review-code";
   const reasonInputId = activeResult ? `review-reason-${activeResult.field_key}` : "review-reason";
+  const activeDecisionStatus = activeResult ? decisionStatusLabel(activeResult) : "未生成";
+  const activeReviewReasons = activeResult ? decisionReasons(activeResult) : [];
+  const activeQualityStatus = activeResult ? qualityStatusLabel(activeResult) : "unknown";
+  const activeAcceptanceReason = activeResult ? acceptanceReasonLabel(activeResult.acceptance_reason) : "未标注";
+  const candidateEvidence = activeResult?.evidence_candidates ?? [];
 
   return (
     <aside className="audit-panel">
@@ -52,14 +57,18 @@ export const ReviewPanel = memo(function ReviewPanel({
               <dd>{activeResult.evidence_span ?? activeResult.evidence_text ?? "未找到证据"}</dd>
               <dt>证据类型</dt>
               <dd>{activeResult.evidence_type ?? "未标注"}</dd>
+              <dt>字段决策</dt>
+              <dd>{activeDecisionStatus}</dd>
+              <dt>决策原因</dt>
+              <dd>{activeReviewReasons.length > 0 ? activeReviewReasons.join("；") : activeResult.acceptance_reason ?? "未标注"}</dd>
               <dt>证据包</dt>
               <dd>{activeResult.evidence_packs?.[0]?.pack_hash ?? activeResult.evidence_candidates?.[0]?.pack_hash ?? "未生成"}</dd>
               <dt>Token</dt>
               <dd>{activeResult.evidence_packs?.[0]?.token_estimate ?? activeResult.evidence_candidates?.[0]?.token_estimate ?? 0}</dd>
               <dt>质量状态</dt>
-              <dd>{activeResult.validation_state ?? "unknown"} / {activeResult.risk_level ?? "medium"}</dd>
+              <dd>{activeQualityStatus} / {activeResult.risk_level ?? "medium"}</dd>
               <dt>接受原因</dt>
-              <dd>{activeResult.acceptance_reason ?? "未标注"}</dd>
+              <dd>{activeAcceptanceReason}</dd>
               <dt>模型说明</dt>
               <dd>{activeResult.reasoning_summary ?? "无"}</dd>
               {activeResult.validator_messages && activeResult.validator_messages.length > 0 && (
@@ -69,6 +78,20 @@ export const ReviewPanel = memo(function ReviewPanel({
                 </>
               )}
             </dl>
+            {candidateEvidence.length > 0 && (
+              <div className="candidate-evidence-list" aria-label="候选证据">
+                <strong>候选证据</strong>
+                {candidateEvidence.slice(0, 4).map((candidate, index) => (
+                  <div className="candidate-evidence-item" key={`${candidate.block_id}-${index}`}>
+                    <span>{candidate.normalized_code ?? "unknown"} · {candidate.source_type ?? "ocr_text"} · 第 {candidate.page} 页</span>
+                    <p>{candidate.evidence_text ?? candidate.text}</p>
+                    {candidate.forbidden_inference_flags && candidate.forbidden_inference_flags.length > 0 && (
+                      <em>已拦截：{candidate.forbidden_inference_flags.join("、")}</em>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="review-actions">
             <div className="review-control">
@@ -114,4 +137,29 @@ export const ReviewPanel = memo(function ReviewPanel({
 function formatCodeLabel(code: string) {
   if (code === "unknown") return "不详";
   return code;
+}
+
+function decisionStatusLabel(result: FieldResult) {
+  if (result.validation_state === "reviewed" || result.acceptance_reason === "manual_review") return "人工复核 / 已确认";
+  const status = typeof result.provenance?.decision_status === "string" ? result.provenance.decision_status : null;
+  if (status === "PASS") return "PASS / 证据明确";
+  if (status === "REVIEW") return "REVIEW / 需复核";
+  if (status === "CONFLICT") return "CONFLICT / 冲突";
+  if (status === "MISSING") return "MISSING / 未找到";
+  return result.validation_state ?? "未生成";
+}
+
+function qualityStatusLabel(result: FieldResult) {
+  if (result.validation_state === "reviewed" || result.acceptance_reason === "manual_review") return "人工复核";
+  return result.validation_state ?? "unknown";
+}
+
+function acceptanceReasonLabel(reason: string | null | undefined) {
+  if (reason === "manual_review") return "人工复核确认";
+  return reason ?? "未标注";
+}
+
+function decisionReasons(result: FieldResult) {
+  const value = result.provenance?.review_reasons;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }

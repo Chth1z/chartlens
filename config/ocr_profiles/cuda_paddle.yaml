@@ -1,46 +1,71 @@
 profile_id: cuda_paddle
-label: NVIDIA CUDA Paddle OCR
-version: 1.0.0
+label: NVIDIA CUDA Paddle canonical OCR
+version: 2.1.0
+pipeline_stages: [preprocess, pp_structure_v3, pp_ocr_v5, merge]
+render_dpi: 300
+preprocess_profile: document_multi_dpi
+merge_policy_version: ocr-canonical-layout-v3
 page_router:
   - page_kinds: [native_pdf_text, text]
     engines: [pdf_text]
     description: Use embedded text when the PDF page already has enough text.
-  - page_kinds: [image, image_ocr, image_pdf_ocr, scan, screenshot]
-    engines: [pp_ocr_v5_paddle, paddle_structure_v3, docling, paddleocr_vl]
-    description: Use Paddle CUDA OCR engines first on NVIDIA workstations.
-  - page_kinds: [table, complex_layout, low_quality, difficult_scan]
-    engines: [paddle_structure_v3, paddleocr_vl, pp_ocr_v5_paddle, docling]
-    description: Prefer layout-aware Paddle engines for complex pages.
+  - page_kinds: [image, image_ocr, image_pdf_ocr, scan, screenshot, table, complex_layout, low_quality, difficult_scan]
+    engines: [paddleocr_hybrid]
+    description: Layout-led OCR pipeline using CUDA PP-StructureV3 layout/table parsing and PP-OCRv5 text candidates.
 engines:
-  - engine_id: pp_ocr_v5_paddle
-    label: PP-OCRv5 Paddle CUDA
+  - engine_id: paddleocr_hybrid
+    label: PaddleOCR PP-StructureV3 + PP-OCRv5 CUDA pipeline
+    model_name: PP-StructureV3 + PP-OCRv5
+    model_version: canonical-layout-v3
+    accelerator: cuda
+    priority: 10
+    experimental: false
+    options:
+      pipeline: canonical_layout_v3
+      timeout_seconds: 150
+stage_models:
+  preprocess:
+    profile: document_multi_dpi
+    enabled_steps: [orientation_correction, deskew, document_crop_unwarp]
+    experimental_steps: [render_dpi_400_candidate, grayscale_autocontrast_sharpen_candidate]
+    disabled_by_default: [grayscale, binarize, sharpen, strong_contrast]
+  pp_structure_v3:
+    engine_id: paddle_structure_v3
+    model_name: PP-StructureV3
+    model_version: "3"
+    accelerator: cuda
+    role: layout_table_reading_order_parser
+    enabled: true
+    required: true
+    run_policy: local_paddle_page_stream
+    timeout_seconds: 45
+  pp_ocr_v5:
+    engine_id: pp_ocr_v5_paddle
+    fallback_engine_ids: []
     model_name: PP-OCRv5
     model_version: v5
     accelerator: cuda
-    priority: 10
-  - engine_id: paddle_structure_v3
-    label: PP-StructureV3 CUDA
-    model_name: PP-StructureV3
-    accelerator: cuda
-    priority: 20
-  - engine_id: paddleocr_vl
-    label: PaddleOCR-VL-1.5 CUDA
-    model_name: PaddleOCR-VL-1.5
-    model_version: "1.5"
-    accelerator: cuda
-    priority: 30
-  - engine_id: docling
-    label: Docling fallback
-    model_name: Docling
-    accelerator: cpu
-    priority: 40
+    role: line_and_cell_recognizer
+    timeout_seconds: 90
+    options:
+      ocr_version: PP-OCRv5
+      lang: ch
 cache_policy:
-  include_engine_id: true
-  include_engine_version: true
+  include_file_sha256: true
+  include_page: true
+  include_render_dpi: true
+  include_preprocess_profile: true
+  include_stage: true
+  include_model_name: true
+  include_model_version: true
   include_accelerator: true
+  include_merge_policy_version: true
 gpu_policy:
   target: nvidia_cuda
   default_accelerator: cuda
+  pp_ocr_v5_default: cuda
+  paddleocr_vl_default: disabled
+  strong_pipeline_requires: [pp_structure_v3, pp_ocr_v5]
   rocm_default_enabled: false
   unofficial_gpu_overrides: false
 quality_thresholds:

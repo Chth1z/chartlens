@@ -14,7 +14,6 @@ param(
   [switch]$SkipWarmup,
   [switch]$StartSidecar,
   [switch]$NoStartSidecar,
-  [switch]$UseGpu,
   [switch]$ForceGpu,
   [switch]$UseDirectML,
   [ValidateSet("Auto", "Require", "Off")]
@@ -121,6 +120,19 @@ function Set-EnvValue {
   Set-Content -LiteralPath $Path -Value $lines -Encoding UTF8
 }
 
+function Remove-EnvValue {
+  param(
+    [string]$Path,
+    [string]$Name
+  )
+  if (!(Test-Path $Path)) {
+    return
+  }
+  $pattern = "^$([regex]::Escape($Name))="
+  $lines = @(Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch $pattern })
+  Set-Content -LiteralPath $Path -Value $lines -Encoding UTF8
+}
+
 function Set-OcrProjectWriteRoots {
   param([string]$Root)
   $modelRoot = Join-Path $Root "var\models"
@@ -162,16 +174,23 @@ function Ensure-EyexDirectMLModels {
     [string]$CacheRoot,
     [switch]$DisableAutoInstall
   )
-  if (Test-EyexDirectMLModelDir -Path $ModelDir) {
-    Write-Host "DirectML PP-OCRv5 ONNX models already exist: $ModelDir"
-    return
+  $hasServerModels = Test-EyexDirectMLModelDir -Path $ModelDir
+  if ($hasServerModels) {
+    $hasPreparedAliases = (Test-Path -LiteralPath (Join-Path $ModelDir "det.onnx")) -and
+      (Test-Path -LiteralPath (Join-Path $ModelDir "rec.onnx")) -and
+      (Test-Path -LiteralPath (Join-Path $ModelDir "manifest.json"))
+    if ($hasPreparedAliases) {
+      Write-Host "DirectML PP-OCRv5 server ONNX models already exist: $ModelDir"
+      return
+    }
+    Write-Host "DirectML PP-OCRv5 server ONNX models exist; refreshing aliases and manifest: $ModelDir"
   }
-  if ($DisableAutoInstall) {
+  if (!$hasServerModels -and $DisableAutoInstall) {
     throw "DirectML PP-OCRv5 ONNX models are missing and automatic model installation is disabled: $ModelDir"
   }
 
   New-Item -ItemType Directory -Force -Path $ModelDir | Out-Null
-  Write-Host "Preparing PP-OCRv5 DirectML ONNX models under project directory: $ModelDir"
+  Write-Host "Preparing accuracy-first PP-OCRv5 server DirectML ONNX models under project directory: $ModelDir"
   Invoke-CheckedNative -FilePath $Python -Arguments @("-m", "pip", "install", "rapidocr>=3.0.0", "onnxruntime-directml")
 
   $env:EYEX_OCR_DIRECTML_MODEL_DIR = $ModelDir
@@ -182,16 +201,20 @@ import json
 import os
 import shutil
 
-from rapidocr import OCRVersion, RapidOCR
+from rapidocr import ModelType, OCRVersion, RapidOCR
 
 model_dir = Path(os.environ["EYEX_OCR_DIRECTML_MODEL_DIR"]).resolve()
 model_dir.mkdir(parents=True, exist_ok=True)
 
 params = {
     "Global.model_root_dir": str(model_dir),
+    "Global.max_side_len": 1536,
+    "Global.log_level": "warning",
     "EngineConfig.onnxruntime.use_dml": True,
     "Det.ocr_version": OCRVersion.PPOCRV5,
     "Rec.ocr_version": OCRVersion.PPOCRV5,
+    "Det.model_type": ModelType.SERVER,
+    "Rec.model_type": ModelType.SERVER,
 }
 engine = RapidOCR(params=params)
 
@@ -210,8 +233,8 @@ for name, component_name in {
         raise SystemExit(f"{name} did not activate DmlExecutionProvider; active providers={providers}")
 
 aliases = {
-    "det.onnx": model_dir / "ch_PP-OCRv5_det_mobile.onnx",
-    "rec.onnx": model_dir / "ch_PP-OCRv5_rec_mobile.onnx",
+    "det.onnx": model_dir / "ch_PP-OCRv5_det_server.onnx",
+    "rec.onnx": model_dir / "ch_PP-OCRv5_rec_server.onnx",
     "cls.onnx": model_dir / "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
 }
 for alias, source in aliases.items():
@@ -221,10 +244,15 @@ for alias, source in aliases.items():
 manifest = {
     "source": "RapidAI/RapidOCR ModelScope ONNX artifacts",
     "ocr_version": "PP-OCRv5",
+    "model_type": "server",
     "accelerator": "directml",
+    "rapidocr_max_side_len": 1536,
+    "directml_safe_mode": True,
+    "tile_max_side_len": 1536,
+    "tile_overlap": 96,
     "providers": provider_map,
-    "det_model": str(model_dir / "ch_PP-OCRv5_det_mobile.onnx"),
-    "rec_model": str(model_dir / "ch_PP-OCRv5_rec_mobile.onnx"),
+    "det_model": str(model_dir / "ch_PP-OCRv5_det_server.onnx"),
+    "rec_model": str(model_dir / "ch_PP-OCRv5_rec_server.onnx"),
     "cls_model": str(model_dir / "ch_ppocr_mobile_v2.0_cls_mobile.onnx"),
     "aliases": {alias: str(path) for alias, path in aliases.items() if path.exists()},
 }
@@ -236,10 +264,11 @@ print("Prepared DirectML PP-OCRv5 ONNX models:", model_dir)
 
 Write-Host "Installing EYEX intelligent OCR sidecar under $venv"
 $writeRoots = Set-OcrProjectWriteRoots -Root $root
-$gpuRoute = Resolve-EyexOcrGpuRoute -ProjectRoot $root -GpuPolicy $GpuPolicy -DirectMLModelDir $DirectMLModelDir -RemoteRocmSidecarUrl $RemoteRocmSidecarUrl -DisableAutoDirectMLModelInstall:$DisableAutoDirectMLModelInstall
-if ($UseGpu -and $gpuRoute.route -ne "nvidia_cuda") {
-  throw "-UseGpu requests the NVIDIA/CUDA Paddle route, but detected route is '$($gpuRoute.route)'."
+if ($RemoteRocmSidecarUrl.Trim()) {
+  Write-Warning "PaddleOCR-VL is temporarily disabled in EYEX; ignoring -RemoteRocmSidecarUrl."
 }
+$resolvedRemoteRocmSidecarUrl = ""
+$gpuRoute = Resolve-EyexOcrGpuRoute -ProjectRoot $root -GpuPolicy $GpuPolicy -DirectMLModelDir $DirectMLModelDir -RemoteRocmSidecarUrl "" -DisableAutoDirectMLModelInstall:$DisableAutoDirectMLModelInstall
 if ($UseDirectML -and $gpuRoute.route -notin @("amd_directml", "windows_directml")) {
   throw "-UseDirectML requests the ONNX Runtime DirectML route, but detected route is '$($gpuRoute.route)'."
 }
@@ -251,7 +280,7 @@ if ($GpuPolicy -eq "Auto" -and !$gpuRoute.can_guarantee_gpu) {
 Write-Host "Detected OCR GPU route: $($gpuRoute.route)"
 Write-Host "OCR GPU route reason: $($gpuRoute.reason)"
 
-$shouldStartSidecar = !$NoStartSidecar
+$shouldStartServices = !$NoStartSidecar
 $routeUseGpu = [bool]$gpuRoute.use_gpu
 $routeUseDirectML = [bool]$gpuRoute.use_directml
 $env:PADDLE_PDX_MODEL_SOURCE = $PaddleModelSource
@@ -262,7 +291,7 @@ $parts = $version.Split(".")
 $major = [int]$parts[0]
 $minor = [int]$parts[1]
 if ($major -ne 3 -or $minor -lt 9 -or $minor -gt 13) {
-  throw "PaddleOCR-VL sidecar requires Python 3.9-3.13. Current interpreter is Python $version. Pass -PythonExe/-PythonArgs for Python 3.11."
+  throw "OCR sidecar requires Python 3.9-3.13. Current interpreter is Python $version. Pass -PythonExe/-PythonArgs for Python 3.11."
 }
 
 Stop-EyexOcrSidecarOnPort -Port $Port -VenvPython $venvPython
@@ -277,7 +306,7 @@ if (!$SkipPaddleFramework) {
   if ($routeUseGpu) {
     $hasNvidiaSmi = [bool](Get-Command "nvidia-smi" -ErrorAction SilentlyContinue)
     if (!$hasNvidiaSmi -and !$ForceGpu) {
-      throw "PaddleOCR CUDA install requires NVIDIA nvidia-smi. For AMD Radeon, use -DirectMLModelDir with PP-OCRv5 ONNX files or -RemoteRocmSidecarUrl."
+      throw "PaddleOCR CUDA install requires NVIDIA nvidia-smi. For AMD Radeon, use DirectML PP-OCRv5 ONNX files."
     }
   }
   $selectedPaddlePackage = if ($routeUseGpu) { $PaddleGpuPackage } else { $PaddleCpuPackage }
@@ -300,15 +329,19 @@ if ($routeUseDirectML) {
   $directMlProbe = @'
 from pathlib import Path
 import os
-from rapidocr import OCRVersion, RapidOCR
+from rapidocr import ModelType, OCRVersion, RapidOCR
 
 model_dir = Path(os.environ["EYEX_OCR_DIRECTML_MODEL_DIR"])
 engine = RapidOCR(
     params={
         "Global.model_root_dir": str(model_dir),
+        "Global.max_side_len": 1536,
+        "Global.log_level": "warning",
         "EngineConfig.onnxruntime.use_dml": True,
         "Det.ocr_version": OCRVersion.PPOCRV5,
         "Rec.ocr_version": OCRVersion.PPOCRV5,
+        "Det.model_type": ModelType.SERVER,
+        "Rec.model_type": ModelType.SERVER,
     }
 )
 for name, component_name in {"det": "text_det", "cls": "text_cls", "rec": "text_rec"}.items():
@@ -326,27 +359,28 @@ print("DirectML RapidOCR sessions ready:", model_dir)
 if (!$SkipWarmup) {
   Write-Host "Warming up OCR models. This can take several minutes on the first run while model weights download."
   if ($routeUseDirectML) {
-    Write-Host "DirectML PP-OCRv5 models were warmed during provider validation; skipping local PaddleOCR-VL CPU warmup on Radeon."
+    Write-Host "DirectML PP-OCRv5 models were warmed during provider validation; skipping heavyweight local layout/Docling CPU warmup on Radeon."
   } else {
     $paddleWarmup = if ($routeUseGpu) {
-      "from paddleocr import PPStructureV3, PaddleOCRVL, PaddleOCR; PaddleOCR(ocr_version='PP-OCRv5', lang='ch'); PPStructureV3(); PaddleOCRVL(); print('PaddleOCR models are ready')"
+      "from paddleocr import PPStructureV3, PaddleOCR; PaddleOCR(ocr_version='PP-OCRv5', lang='ch'); PPStructureV3(); print('PaddleOCR models are ready')"
     } else {
       "from paddleocr import PPStructureV3, PaddleOCR; PaddleOCR(ocr_version='PP-OCRv5', lang='ch'); PPStructureV3(); print('PaddleOCR models are ready')"
     }
     Invoke-CheckedNative -FilePath $venvPython -Arguments @("-c", $paddleWarmup)
+    Invoke-CheckedNative -FilePath $venvPython -Arguments @("-c", "from docling.document_converter import DocumentConverter; DocumentConverter(); print('Docling converter is ready')")
   }
-  Invoke-CheckedNative -FilePath $venvPython -Arguments @("-c", "from docling.document_converter import DocumentConverter; DocumentConverter(); print('Docling converter is ready')")
 }
 
-$ocrDevice = if ($routeUseGpu) { "gpu" } else { "cpu" }
 $ocrAccelerator = $gpuRoute.accelerator
-$documentAiUrl = if ($gpuRoute.remote_rocm_sidecar_url) { $gpuRoute.remote_rocm_sidecar_url } else { "http://127.0.0.1:$Port/extract" }
+$remoteVlUrl = ""
+$documentAiUrl = "http://127.0.0.1:$Port/extract"
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_PROFILE" -Value $gpuRoute.ocr_profile -Overwrite
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_DOCUMENT_AI_URL" -Value $documentAiUrl -Overwrite
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_DOCUMENT_AI_TIMEOUT_SECONDS" -Value "900" -Overwrite
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_DOCUMENT_AI_API_KEY" -Value "" 
-Set-EnvValue -Path $envPath -Name "EYEX_OCR_SIDECAR_ENGINES" -Value "" -Overwrite
-Set-EnvValue -Path $envPath -Name "EYEX_OCR_DEVICE" -Value $ocrDevice -Overwrite
+Set-EnvValue -Path $envPath -Name "EYEX_OCR_PADDLEOCR_VL_URL" -Value $remoteVlUrl -Overwrite
+Set-EnvValue -Path $envPath -Name "EYEX_OCR_PADDLEOCR_VL_API_KEY" -Value "" -Overwrite
+Remove-EnvValue -Path $envPath -Name "EYEX_OCR_SIDECAR_ENGINES"
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_ACCELERATOR" -Value $ocrAccelerator -Overwrite
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_DIRECTML_MODEL_DIR" -Value $gpuRoute.directml_model_dir -Overwrite
 Set-EnvValue -Path $envPath -Name "EYEX_OCR_GPU_ROUTE" -Value $gpuRoute.route -Overwrite
@@ -376,15 +410,26 @@ if ($UseDeepSeek) {
 Write-Host "OCR sidecar environment installed."
 Write-Host "Configured .env: EYEX_OCR_PROFILE=$($gpuRoute.ocr_profile)"
 Write-Host "Configured .env: EYEX_OCR_DOCUMENT_AI_URL=$documentAiUrl"
-Write-Host "Configured .env: EYEX_OCR_DEVICE=$ocrDevice"
+if ($remoteVlUrl) {
+  Write-Host "Configured .env: EYEX_OCR_PADDLEOCR_VL_URL=$remoteVlUrl"
+}
 Write-Host "Configured .env: EYEX_OCR_ACCELERATOR=$ocrAccelerator"
 Write-Host "Configured .env: EYEX_OCR_GPU_ROUTE=$($gpuRoute.route)"
 if ($UseDeepSeek) {
   Write-Host "Configured .env: EYEX_MODEL_PROFILE=deepseek_v4_flash"
 }
 
-if ($shouldStartSidecar -and $gpuRoute.route -ne "amd_rocm_remote") {
-  & (Join-Path $scriptDir "start-ocr-sidecar.ps1") -VenvPath $VenvPath -Port $Port -OcrDevice $ocrDevice -OcrAccelerator $ocrAccelerator
-} elseif ($shouldStartSidecar) {
-  Write-Host "Skipping local sidecar start because OCR is configured for remote ROCm sidecar: $documentAiUrl"
+if ($shouldStartServices) {
+  Write-Host "Starting EYEX services through unified startup script."
+  $previousNoPause = $env:EYEX_NO_PAUSE
+  $env:EYEX_NO_PAUSE = "1"
+  try {
+    & (Join-Path $root "start.cmd")
+  } finally {
+    if ($null -eq $previousNoPause) {
+      Remove-Item Env:\EYEX_NO_PAUSE -ErrorAction SilentlyContinue
+    } else {
+      $env:EYEX_NO_PAUSE = $previousNoPause
+    }
+  }
 }

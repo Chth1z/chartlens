@@ -18,13 +18,15 @@ from app.domain.models import (
     ValidatedFieldResult,
 )
 from app.main import app
-from app.services import ocr, pipeline, provider
+from app.services import ocr, pipeline
 from app.services.evidence import build_evidence_packs
 from app.services.pipeline import extract_document
-from app.services.provider import _responses_payload
+from app.services.llm_provider.cache import _llm_cache_key, _read_llm_result_cache, _write_llm_result_cache
+from app.services.llm_provider.payloads import _responses_payload
+from app.services.llm_provider.types import SemanticExtractionProvider
 
 
-class CountingProvider(provider.SemanticExtractionProvider):
+class CountingProvider(SemanticExtractionProvider):
     name = "counting-provider"
     route = "online_llm"
 
@@ -167,7 +169,7 @@ def test_llm_result_cache_round_trips_by_evidence_hash(monkeypatch, tmp_path):
     )
     block = DocumentIRBlock(block_id="b1", page=1, reading_order=1, text="既往史：高血压。", section_label="既往史", confidence=0.98)
     document_ir = DocumentIR(document_id="case-cache", profile_id="medical_inpatient_zh", source_filename="case.txt", blocks=[block])
-    cache_key = provider._llm_cache_key(_profile(), document_ir, group, [field], [block])
+    cache_key = _llm_cache_key(_profile(), document_ir, group, [field], [block])
     candidate = ExtractionCandidate(
         field_key=field.key,
         field_group_key=field.field_group_key,
@@ -179,8 +181,8 @@ def test_llm_result_cache_round_trips_by_evidence_hash(monkeypatch, tmp_path):
         review_required=False,
     )
 
-    provider._write_llm_result_cache(cache_key, [candidate])
-    cached = provider._read_llm_result_cache(cache_key)
+    _write_llm_result_cache(cache_key, [candidate])
+    cached = _read_llm_result_cache(cache_key)
 
     assert cached is not None
     assert cached[0].field_key == field.key
@@ -363,6 +365,38 @@ def test_ocr_cache_is_content_based_across_paths(monkeypatch, tmp_path):
     assert calls["count"] == 1
     assert second_ir.metadata["ocr_cache_status"] == "hit"
     assert second_ir.metadata["ocr_page_quality"][0]["cache_status"] == "hit"
+
+
+def test_pdf_ocr_metadata_preserves_candidate_debug_metrics(monkeypatch, tmp_path):
+    pdf = tmp_path / "case.pdf"
+    pdf.write_bytes(b"%PDF fixture")
+
+    def fake_intelligent_extract(file_path, aliases, **kwargs):
+        return [
+            DocumentIRBlock(block_id="b1", page=1, reading_order=1, text="现病史：腹痛", confidence=0.95),
+        ], {
+            "ocr_engine": "paddleocr_hybrid",
+            "ocr_intelligent_status": "completed",
+            "render_dpi_candidates": [300, 400],
+            "render_dpi": 300,
+            "tile_max_side_len": 1536,
+            "tile_overlap": 192,
+            "image_preprocess_modes": ["none"],
+            "ocr_candidate_metrics": [
+                {"render_dpi": 300, "char_count": 20, "avg_confidence": 0.95, "selected": True},
+                {"render_dpi": 400, "char_count": 16, "avg_confidence": 0.91, "selected": False},
+            ],
+        }
+
+    monkeypatch.setattr(ocr, "_extract_pdf_text_pages", lambda file_path: [(1, "")])
+    monkeypatch.setattr(ocr, "extract_with_intelligent_ocr", fake_intelligent_extract)
+    monkeypatch.setattr(settings, "storage_dir", tmp_path / "storage")
+
+    document_ir = ocr.build_document_ir(pdf, pdf.read_bytes(), document_id="case-pdf-ocr")
+
+    assert document_ir.metadata["ocr_candidate_metrics"][0]["render_dpi"] == 300
+    assert document_ir.metadata["render_dpi_candidates"] == [300, 400]
+    assert document_ir.metadata["tile_overlap"] == 192
 
 
 def test_native_pdf_metadata_reports_page_quality(monkeypatch, tmp_path):

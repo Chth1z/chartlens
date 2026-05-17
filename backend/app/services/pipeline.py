@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -14,9 +15,14 @@ from app.core.database import CaseRecord, FieldResultRecord, json_dumps, touch_c
 from app.core.settings import settings
 from app.domain.models import DocumentIR, ExtractionCandidate, ValidatedFieldResult
 from app.services.deidentify import deidentify_document_ir
+from app.services.document_context import build_document_context
+from app.services.evidence_first import decisions_to_extraction_candidates
 from app.services.evidence import blocks_for_group, build_evidence_packs, evidence_for_field
+from app.services.layout_normalizer import normalize_document_layout
 from app.services.ocr import build_document_ir, file_sha256
-from app.services.provider import SemanticExtractionProvider, build_semantic_provider
+from app.services.observability import ProcessingTrace
+from app.services.llm_provider.fallback import ConservativeLocalProvider, build_semantic_provider
+from app.services.llm_provider.types import SemanticExtractionProvider
 from app.services.rules import rule_shortcut_extract
 from app.services.secret_store import protect_text
 from app.services.validation import unknown_result, validate_candidate
@@ -94,18 +100,38 @@ def process_case(
     *,
     semantic_provider: SemanticExtractionProvider | None = None,
 ) -> list[ValidatedFieldResult]:
-    diagnostics: dict = {"steps": [], "llm_usage": [], "config_errors": validate_project_config()}
+    trace = ProcessingTrace.start(db, case)
+    diagnostics: dict = {
+        "run_id": trace.run.run_id,
+        "steps": [],
+        "llm_usage": [],
+        "config_errors": validate_project_config(),
+    }
     try:
-        payload = Path(case.file_path).read_bytes()
         case.status = "ocr"
         touch_case(case)
         db.commit()
 
-        raw_document_ir = build_document_ir(Path(case.file_path), payload, document_id=case.case_id)
-        case.raw_document_ir_json = _protect_document_ir(raw_document_ir)
+        with trace.step(
+            "load_upload",
+            {"filename": case.filename, "file_hash": case.file_hash, "suffix": Path(case.file_path).suffix.lower()},
+        ):
+            payload = Path(case.file_path).read_bytes()
+
+        with trace.step("ocr_document_ir", {"filename": case.filename, "bytes": len(payload)}):
+            raw_document_ir = build_document_ir(Path(case.file_path), payload, document_id=case.case_id)
+            case.raw_document_ir_json = _protect_document_ir(raw_document_ir)
+
         profile = load_document_profile(raw_document_ir.profile_id)
-        document_ir = deidentify_document_ir(raw_document_ir, profile)
-        diagnostics["steps"].append({"name": "ocr_document_ir", "blocks": len(document_ir.blocks)})
+        with trace.step("normalize_document_layout", {"blocks": len(raw_document_ir.blocks)}):
+            normalized_document_ir = normalize_document_layout(raw_document_ir, profile)
+
+        with trace.step("deidentify_document_ir", {"blocks": len(normalized_document_ir.blocks)}):
+            document_ir = deidentify_document_ir(normalized_document_ir, profile)
+        diagnostics["steps"].append({"name": "ocr_document_ir", "blocks": len(raw_document_ir.blocks)})
+        diagnostics["steps"].append(
+            {"name": "layout_normalization", **normalized_document_ir.metadata.get("layout_normalization", {})}
+        )
 
         case.document_ir_json = document_ir.model_dump_json()
         case.status = "extracting"
@@ -113,25 +139,28 @@ def process_case(
         db.commit()
 
         provider = semantic_provider or build_semantic_provider()
-        results = extract_document(document_ir, provider=provider)
+        with trace.step("extract_document", {"provider": provider.name, "route": provider.route}):
+            results = extract_document(document_ir, provider=provider, trace=trace)
         diagnostics["llm_usage"].append({"provider": provider.name, "route": provider.route, "usage": provider.last_usage})
 
-        db.execute(delete(FieldResultRecord).where(FieldResultRecord.case_id == case.case_id))
-        for result in results:
-            db.add(
-                FieldResultRecord(
-                    case_id=case.case_id,
-                    field_key=result.field_key,
-                    payload_json=result.model_dump_json(),
-                    reviewed=0,
+        with trace.step("persist_results", {"result_count": len(results)}):
+            db.execute(delete(FieldResultRecord).where(FieldResultRecord.case_id == case.case_id))
+            for result in results:
+                db.add(
+                    FieldResultRecord(
+                        case_id=case.case_id,
+                        field_key=result.field_key,
+                        payload_json=result.model_dump_json(),
+                        reviewed=0,
+                    )
                 )
-            )
-        case.status = "completed"
-        diagnostics["steps"].append({"name": "validated_results", "results": len(results)})
-        diagnostics["quality"] = _quality_summary(results, document_ir)
-        case.diagnostics_json = json_dumps(diagnostics)
-        touch_case(case)
-        db.commit()
+            case.status = "completed"
+            diagnostics["steps"].append({"name": "validated_results", "results": len(results)})
+            diagnostics["quality"] = _quality_summary(results, document_ir)
+            case.diagnostics_json = json_dumps(diagnostics)
+            touch_case(case)
+            db.commit()
+        trace.finish_completed(results=results, document_ir=document_ir, diagnostics=diagnostics)
         db.refresh(case)
         return results
     except Exception as exc:
@@ -143,11 +172,19 @@ def process_case(
         case.diagnostics_json = json_dumps(diagnostics)
         touch_case(case)
         db.commit()
+        trace.finish_failed(diagnostics=diagnostics)
         raise
 
 
-def extract_document(document_ir: DocumentIR, *, provider: SemanticExtractionProvider) -> list[ValidatedFieldResult]:
+def extract_document(
+    document_ir: DocumentIR,
+    *,
+    provider: SemanticExtractionProvider,
+    trace: ProcessingTrace | None = None,
+) -> list[ValidatedFieldResult]:
     schema = load_extraction_schema()
+    if schema.extraction_strategy == "evidence_first_multimodal":
+        return _extract_document_evidence_first(document_ir, provider=provider, schema=schema, trace=trace)
     results_by_key: dict[str, ValidatedFieldResult] = {}
     online_allowed = document_ir.metadata.get("deidentification", {}).get("online_llm_allowed", True)
     for group in schema.field_groups:
@@ -189,12 +226,24 @@ def extract_document(document_ir: DocumentIR, *, provider: SemanticExtractionPro
                 }
                 callable_fields = [field for field in fields if field.key not in skipped_candidates]
             try:
+                model_started = time.perf_counter()
                 candidates = (
                     provider.extract_group(document_ir=document_ir, group=group, fields=callable_fields, blocks=group_blocks)
                     if callable_fields
                     else []
                 )
             except Exception as exc:
+                if trace is not None and callable_fields:
+                    trace.record_model_call(
+                        stage=f"group:{group.key}",
+                        provider=provider,
+                        fields=callable_fields,
+                        usage=getattr(provider, "last_usage", {}),
+                        started_perf=model_started,
+                        status="failed",
+                        error_code="LLM_PROVIDER_FAILED",
+                        error_message=str(exc),
+                    )
                 candidates = [
                     ExtractionCandidate(
                         field_key=field.key,
@@ -208,6 +257,15 @@ def extract_document(document_ir: DocumentIR, *, provider: SemanticExtractionPro
                     )
                     for field in callable_fields
                 ]
+            else:
+                if trace is not None and callable_fields:
+                    trace.record_model_call(
+                        stage=f"group:{group.key}",
+                        provider=provider,
+                        fields=callable_fields,
+                        usage=getattr(provider, "last_usage", {}),
+                        started_perf=model_started,
+                    )
             candidates_by_key = {candidate.field_key: candidate for candidate in [*candidates, *skipped_candidates.values()]}
             candidates = [candidates_by_key.get(field.key) or _missing_provider_result(field) for field in fields]
 
@@ -232,6 +290,121 @@ def extract_document(document_ir: DocumentIR, *, provider: SemanticExtractionPro
                 }
             )
             results_by_key[field.key] = validate_candidate(candidate, field, document_ir)
+    return [results_by_key[field.key] for field in schema.fields if field.key in results_by_key]
+
+
+def _extract_document_evidence_first(
+    document_ir: DocumentIR,
+    *,
+    provider: SemanticExtractionProvider,
+    schema,
+    trace: ProcessingTrace | None = None,
+) -> list[ValidatedFieldResult]:
+    fields = [field for field in schema.fields if field.phase == 1]
+    if trace is not None:
+        with trace.step("build_document_context", {"field_count": len(fields), "block_count": len(document_ir.blocks)}):
+            context = build_document_context(document_ir)
+    else:
+        context = build_document_context(document_ir)
+    online_allowed = document_ir.metadata.get("deidentification", {}).get("online_llm_allowed", True)
+    evidence_provider = provider if online_allowed else ConservativeLocalProvider()
+    results_by_key: dict[str, ValidatedFieldResult] = {}
+
+    try:
+        if trace is not None:
+            with trace.step("collect_evidence", {"field_count": len(fields)}):
+                model_started = time.perf_counter()
+                try:
+                    evidence_by_field = evidence_provider.collect_evidence(document_context=context, fields=fields)
+                except Exception as exc:
+                    trace.record_model_call(
+                        stage="collect_evidence",
+                        provider=evidence_provider,
+                        fields=fields,
+                        usage=getattr(evidence_provider, "last_usage", {}),
+                        started_perf=model_started,
+                        status="failed",
+                        error_code="EVIDENCE_COLLECTION_FAILED",
+                        error_message=str(exc),
+                    )
+                    raise
+                trace.record_model_call(
+                    stage="collect_evidence",
+                    provider=evidence_provider,
+                    fields=fields,
+                    usage=getattr(evidence_provider, "last_usage", {}),
+                    started_perf=model_started,
+                )
+            with trace.step("adjudicate_fields", {"field_count": len(fields)}):
+                decisions_by_field = evidence_provider.adjudicate_fields(
+                    document_context=context,
+                    fields=fields,
+                    evidence_by_field=evidence_by_field,
+                )
+            with trace.step("verify_against_document", {"field_count": len(fields)}):
+                decisions_by_field = evidence_provider.verify_against_document(
+                    document_context=context,
+                    fields=fields,
+                    decisions_by_field=decisions_by_field,
+                )
+            with trace.step("candidate_conversion", {"field_count": len(fields)}):
+                candidates = decisions_to_extraction_candidates(fields, decisions_by_field)
+        else:
+            evidence_by_field = evidence_provider.collect_evidence(document_context=context, fields=fields)
+            decisions_by_field = evidence_provider.adjudicate_fields(
+                document_context=context,
+                fields=fields,
+                evidence_by_field=evidence_by_field,
+            )
+            decisions_by_field = evidence_provider.verify_against_document(
+                document_context=context,
+                fields=fields,
+                decisions_by_field=decisions_by_field,
+            )
+            candidates = decisions_to_extraction_candidates(fields, decisions_by_field)
+    except Exception as exc:
+        logger.exception("Evidence-first extraction failed for %s", document_ir.document_id)
+        candidates = [
+            ExtractionCandidate(
+                field_key=field.key,
+                field_group_key=field.field_group_key,
+                normalized_code="unknown",
+                status="error",
+                evidence_type="no_evidence",
+                reasoning_summary="证据优先抽取链路失败，字段降级进入人工复核。",
+                review_required=True,
+                error_code=f"EVIDENCE_FIRST_FAILED: {exc}",
+                risk_level="high",
+                provenance={"source": "evidence_first", "route": "failed"},
+            )
+            for field in fields
+        ]
+
+    candidates_by_key = {candidate.field_key: candidate for candidate in candidates}
+    all_blocks = document_ir.blocks
+    for field in fields:
+        group = schema.group_by_key(field.field_group_key)
+        candidate = candidates_by_key.get(field.key) or _missing_provider_result(field)
+        candidate = candidate.model_copy(
+            update={
+                "evidence_candidates": candidate.evidence_candidates or evidence_for_field(document_ir, field, blocks=all_blocks),
+                "evidence_packs": build_evidence_packs(document_ir, field, blocks=all_blocks),
+                "model_profile_id": getattr(getattr(evidence_provider, "profile", None), "profile_id", None),
+                "ocr_engine": document_ir.metadata.get("ocr_engine"),
+                "provenance": {
+                    **candidate.provenance,
+                    "provider": evidence_provider.name,
+                    "route": candidate.provenance.get("route", evidence_provider.route),
+                    "group": group.key,
+                    "extraction_strategy": "evidence_first_multimodal",
+                    "document_context_version": context.metadata.get("context_version"),
+                    "llm_cache_status": _provider_usage_value(evidence_provider, candidate, "llm_cache_status"),
+                    "llm_cache_key": _provider_usage_value(evidence_provider, candidate, "llm_cache_key"),
+                    "ocr_page_quality": _page_quality_for_result(document_ir, candidate),
+                },
+            }
+        )
+        results_by_key[field.key] = validate_candidate(candidate, field, document_ir)
     return [results_by_key[field.key] for field in schema.fields if field.key in results_by_key]
 
 
@@ -291,15 +464,35 @@ def _public_error_message(exc: Exception) -> str:
 def _quality_summary(results: list[ValidatedFieldResult], document_ir: DocumentIR) -> dict:
     non_unknown = [result for result in results if result.normalized_code not in (None, "unknown")]
     evidence_covered = [result for result in non_unknown if result.evidence_span and result.evidence_block_id]
+    avg_confidence = (
+        sum(float(block.confidence or 0) for block in document_ir.blocks) / len(document_ir.blocks)
+        if document_ir.blocks
+        else 0
+    )
+    metadata = document_ir.metadata or {}
     return {
         "field_count": len(results),
+        "page_count": len({block.page for block in document_ir.blocks}) if document_ir.blocks else 0,
+        "ocr_block_count": len(document_ir.blocks),
+        "avg_ocr_confidence": avg_confidence,
+        "low_confidence_block_count": len([block for block in document_ir.blocks if float(block.confidence or 0) < 0.75]),
+        "quality_band": "good" if avg_confidence >= 0.9 else "fair" if avg_confidence >= 0.75 else "poor",
         "auto_accept_count": len([result for result in results if result.auto_accepted]),
         "review_required_count": len([result for result in results if result.review_required]),
         "unknown_count": len([result for result in results if result.normalized_code in (None, "unknown")]),
         "evidence_coverage": len(evidence_covered) / len(non_unknown) if non_unknown else 1.0,
-        "ocr_engine": document_ir.metadata.get("ocr_engine"),
-        "ocr_cache_status": document_ir.metadata.get("ocr_cache_status"),
-        "deidentification": document_ir.metadata.get("deidentification", {}),
+        "input_kind": metadata.get("input_kind"),
+        "ocr_adapter": metadata.get("ocr_adapter", "intelligent_document"),
+        "ocr_engine": metadata.get("ocr_engine"),
+        "ocr_intelligent_status": metadata.get("ocr_intelligent_status"),
+        "ocr_attempted_engines": metadata.get("ocr_attempted_engines", []),
+        "ocr_unavailable_engines": metadata.get("ocr_unavailable_engines", []),
+        "ocr_unavailable_reasons": metadata.get("ocr_unavailable_reasons", {}),
+        "ocr_engine_errors": metadata.get("ocr_engine_errors", {}),
+        "ocr_trace": metadata.get("ocr_trace", {}),
+        "ocr_page_quality": metadata.get("ocr_page_quality", []),
+        "ocr_cache_status": metadata.get("ocr_cache_status"),
+        "deidentification": metadata.get("deidentification", {}),
     }
 
 

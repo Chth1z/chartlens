@@ -1,4 +1,5 @@
-from app.services.intelligent_ocr import _blocks_from_markdown, _result_from_payload
+from app.services.ocr_engine.payload_parse import blocks_from_markdown as _blocks_from_markdown
+from app.services.ocr_engine.payload_parse import result_from_payload as _result_from_payload
 
 
 def test_markdown_export_becomes_document_blocks():
@@ -23,6 +24,8 @@ def test_paddle_payload_preserves_structured_cells():
                     "table_id": "table-1",
                     "row": 1,
                     "col": 1,
+                    "rowSpan": 2,
+                    "colSpan": 3,
                 }
             ],
         },
@@ -35,3 +38,5 @@ def test_paddle_payload_preserves_structured_cells():
     assert result.blocks[0].table_id == "table-1"
     assert result.blocks[0].row == 1
     assert result.blocks[0].col == 1
+    assert result.blocks[0].row_span == 2
+    assert result.blocks[0].col_span == 3

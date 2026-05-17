@@ -43,9 +43,21 @@ export interface FieldResult {
   risk_level?: "low" | "medium" | "high" | "critical";
   evidence_candidates?: Array<{
     block_id: string;
+    field_key?: string | null;
+    candidate_value?: string | null;
+    normalized_code?: string | null;
+    evidence_text?: string | null;
+    field_label_seen?: string | null;
+    source_type?: string;
+    document_region?: string | null;
+    visual_confirmed?: boolean;
+    block_ids?: string[];
+    forbidden_inference_flags?: string[];
+    conflicts?: Array<Record<string, unknown>>;
     text: string;
     page: number;
     bbox: number[];
+    confidence?: number;
     section_label: string;
     document_kind: string;
     ocr_confidence: number;
@@ -76,6 +88,8 @@ export interface OcrBlock {
   block_type?: DocumentFragment["block_type"];
   section_label?: string;
   document_kind?: string;
+  render_dpi?: number | null;
+  preprocess_profile?: string | null;
 }
 
 export interface OcrQuality {
@@ -151,16 +165,25 @@ export interface DocumentFragment {
   source_kind: "pdf_text" | "ocr" | "pp_structure" | "manual" | "intelligent_document";
   document_kind?: string;
   layout_region_id?: string | null;
+  line_group_id?: string | null;
+  coordinate_system?: string | null;
+  merge_confidence?: number | null;
+  merge_flags?: string[];
+  canonical_source_ids?: string[];
   layout_type?: string | null;
   section_confidence?: number;
   parser_version?: string;
+  render_dpi?: number | null;
+  preprocess_profile?: string | null;
 }
 
 export interface ModelCallLog {
   call_id: string;
+  run_id?: string;
   provider: string;
   model: string;
   mode: string;
+  stage?: string;
   field_keys: string[];
   input_tokens: number;
   cached_input_tokens: number;
@@ -169,6 +192,7 @@ export interface ModelCallLog {
   latency_ms: number;
   status: string;
   error_code: string | null;
+  error_message?: string | null;
   fallback_attempts?: number;
   fallback_failures?: number;
   fallback_errors?: string[];
@@ -180,11 +204,13 @@ export interface ModelCallLog {
 export interface VisionFallbackRecord {
   request_id: string;
   case_id: string;
+  field_key?: string | null;
   page: number;
   bbox: number[];
   status: string;
   reason: string;
   reviewer: string;
+  manual_redaction_confirmed?: boolean;
   created_at: string;
   approved_at: string | null;
 }
@@ -195,6 +221,17 @@ export interface CaseDiagnostics {
   latest_run: ProcessingRun | null;
   run_count: number;
   runs: ProcessingRun[];
+  events?: Array<{
+    run_id: string;
+    step_name: string;
+    status: string;
+    payload: Record<string, unknown>;
+    error_code: string | null;
+    error_message: string | null;
+    duration_ms: number;
+    started_at: string;
+    completed_at: string | null;
+  }>;
   fragments: DocumentFragment[];
   model_calls: ModelCallLog[];
   vision_requests: VisionFallbackRecord[];
@@ -211,7 +248,7 @@ export interface CaseDiagnostics {
 export interface CaseRecord {
   case_id: string;
   filename: string;
-  status: "queued" | "processing" | "ocr" | "extracting" | "completed" | "degraded" | "failed";
+  status: "queued" | "processing" | "ocr" | "extracting" | "completed" | "degraded" | "failed" | "archived";
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -232,11 +269,17 @@ export interface CaseSummary {
   updated_at: string;
   result_count: number;
   review_required_count: number;
+  audit_count: number;
 }
 
 export interface DocumentIrResponse {
   blocks: OcrBlock[];
   sections?: Array<Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SourceOcrResponse {
+  blocks: OcrBlock[];
   metadata?: Record<string, unknown>;
 }
 
@@ -261,6 +304,16 @@ export interface FieldDefinition {
     max_evidence_items: number;
     prompt_profile: string;
     skip_when_no_evidence?: boolean;
+  };
+  evidence_policy?: {
+    allowed_evidence_sources: string[];
+    forbidden_inference_sources: string[];
+    source_priority: string[];
+    conflict_policy: string;
+    implicit_negative_policy: string;
+    require_visual_confirmation: boolean;
+    pass_criteria: string[];
+    high_risk: boolean;
   };
   phase: number;
 }
@@ -310,6 +363,7 @@ export interface ProjectConfig {
     schema_id: string;
     version: string;
     label: string;
+    extraction_strategy?: string;
     field_groups: FieldGroupDefinition[];
     fields: FieldDefinition[];
   };
@@ -420,6 +474,12 @@ export interface ProviderModel {
   runnable?: boolean | null;
 }
 
+export interface ModelProviderSelection {
+  provider_id?: string | null;
+  model_ref?: string | null;
+  model?: string | null;
+}
+
 export interface ModelProvider {
   provider_id: string;
   label: string;
@@ -463,11 +523,7 @@ export interface ModelProvider {
 }
 
 export interface ModelProvidersResponse {
-  active: {
-    provider_id?: string | null;
-    model_ref?: string | null;
-    model?: string | null;
-  };
+  active: ModelProviderSelection;
   providers: ModelProvider[];
 }
 
@@ -483,6 +539,20 @@ export interface ModelProviderUpdatePayload {
     temperature?: number;
     max_output_tokens?: number;
   };
+}
+
+export interface ModelProviderUpdateResponse {
+  ok: boolean;
+  provider: ModelProvider;
+}
+
+export interface ModelProviderFetchResponse extends ModelProvider {
+  ok: boolean;
+}
+
+export interface ModelProviderActivationResponse extends ModelProvidersResponse {
+  ok: boolean;
+  active_model: ModelProfile;
 }
 
 export interface SystemSettingsResponse {
@@ -540,8 +610,47 @@ export interface RuntimeSettingsResponse {
     oauth_enabled: boolean;
     oauth_provider: string;
     chatgpt_token_cache_path: string;
+    services?: RuntimeServices;
   };
   restart_required_hints: string[];
+}
+
+export interface RuntimeServices {
+  backend?: RuntimeServiceStatus;
+  ocr?: RuntimeServiceStatus;
+  frontend?: RuntimeServiceStatus;
+}
+
+export interface RuntimeServiceStatus {
+  key: string;
+  label: string;
+  ready: boolean | null;
+  status: "ready" | "not_ready" | "not_running" | "not_configured" | "external" | string;
+  summary: string;
+  details?: string[];
+  endpoint?: string;
+  health_url?: string;
+  profile_id?: string;
+  pipeline_stages?: string[];
+  stage_models?: Record<string, unknown>;
+  checks?: RuntimeServiceCheck[];
+  actions?: RuntimeServiceAction[];
+  sidecar?: Record<string, unknown>;
+}
+
+export interface RuntimeServiceCheck {
+  key: string;
+  label: string;
+  ready: boolean;
+  status: string;
+  engine_id?: string;
+  reason?: string;
+}
+
+export interface RuntimeServiceAction {
+  label: string;
+  command: string;
+  description?: string;
 }
 
 export interface SettingsValidationPayload {

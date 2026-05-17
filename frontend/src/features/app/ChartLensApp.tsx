@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Download,
@@ -12,28 +12,32 @@ import {
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   deleteCase,
-  exportUrl,
+  downloadCaseExport,
   getAuthStatus,
   getCaseDocumentIr,
   getCaseDiagnostics,
+  getCaseSourceOcr,
   getCaseResults,
   getFieldDictionary,
   getProjectConfig,
+  getRuntimeSettings,
   listCases,
   reprocessCase,
   requestVisionFallback,
   updateReview,
   uploadCase
 } from "../../shared/api/client";
-import type { AuthStatus, CaseDiagnostics, CaseRecord, DocumentFragment, FieldDefinition, ProjectConfig } from "../../shared/types/api";
+import type { AuthStatus, CaseDiagnostics, CaseRecord, DocumentFragment, FieldDefinition, ProjectConfig, RuntimeSettingsResponse } from "../../shared/types/api";
 import { AuthLoading, LoginRequired } from "../auth/AuthGate";
 import { EvidencePanel } from "../cases/EvidencePanel";
 import { isWorkingStatus, modelAuthLabel, resultMatchesFilter, statusIcon, statusLabel, type FilterMode } from "../cases/status";
 import { useCasePolling } from "../cases/useCasePolling";
 import { DiagnosticsPage } from "../diagnostics/DiagnosticsPage";
 import { DiagnosticsStrip } from "../diagnostics/DiagnosticsStrip";
+import { ocrRuntimeSummary, ocrRuntimeTone } from "../diagnostics/ocrReadiness";
 import { FieldResultsPanel } from "../review/FieldResultsPanel";
 import { ReviewPanel } from "../review/ReviewPanel";
+import { caseNeedsDetailHydration, diagnosticsForCase } from "./caseSwitching.js";
 
 const SettingsPanel = lazy(() =>
   import("../settings/SettingsPanel").then((module) => ({ default: module.SettingsPanel }))
@@ -67,8 +71,10 @@ export function ChartLensApp() {
   const [startupError, setStartupError] = useState<string | null>(null);
   const [fieldDictionaryError, setFieldDictionaryError] = useState<string | null>(null);
   const [auth, setAuth] = useState<AuthStatus | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeSettingsResponse | null>(null);
   const [diagnostics, setDiagnostics] = useState<CaseDiagnostics | null>(null);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const diagnosticsRequestSeq = useRef(0);
 
   useEffect(() => {
     void bootstrap();
@@ -119,16 +125,17 @@ export function ChartLensApp() {
     () => selectedCase?.results.find((item) => item.field_key === selectedField) ?? filteredResults[0],
     [filteredResults, selectedCase?.results, selectedField]
   );
-  const activeQuality = diagnostics?.quality ?? selectedCase?.quality;
-  const activeRun = diagnostics?.latest_run ?? selectedCase?.latest_run ?? null;
+  const activeDiagnostics = diagnosticsForCase(diagnostics, selectedCase?.case_id);
+  const activeQuality = activeDiagnostics?.quality ?? selectedCase?.quality;
+  const activeRun = activeDiagnostics?.latest_run ?? selectedCase?.latest_run ?? null;
   const cacheHit = Number(activeRun?.step_timings?.cache_hit ?? 0) > 0;
-  const cachedInputTokens = activeRun?.cached_input_tokens ?? diagnostics?.model_calls[0]?.cached_input_tokens ?? 0;
-  const latestModelProvider = diagnostics?.model_calls[0]?.provider;
+  const cachedInputTokens = activeRun?.cached_input_tokens ?? activeDiagnostics?.model_calls[0]?.cached_input_tokens ?? 0;
+  const latestModelProvider = activeDiagnostics?.model_calls[0]?.provider;
   const latestModelLabel = modelAuthLabel(auth, latestModelProvider);
-  const latestModelName = diagnostics?.model_calls[0]?.model ?? activeRun?.llm_profile ?? "未记录";
+  const latestModelName = activeDiagnostics?.model_calls[0]?.model ?? activeRun?.llm_profile ?? "未记录";
   const modelRuntimeState = auth?.model_auth.online_model_available ? "API Key 已配置" : "本地回退或未配置凭据";
   const sidebarModelUsage = activeRun
-    ? `调用 ${diagnostics?.model_calls.length ?? 0} / tokens ${activeRun.input_tokens}:${cachedInputTokens}:${activeRun.output_tokens}`
+    ? `调用 ${activeDiagnostics?.model_calls.length ?? 0} / tokens ${activeRun.input_tokens}:${cachedInputTokens}:${activeRun.output_tokens}`
     : "等待处理记录";
   const currentStatusLabel = selectedCase ? statusLabel(selectedCase.status) : "未选择";
   const terms = projectConfig?.app_profile.terms ?? {};
@@ -147,13 +154,30 @@ export function ChartLensApp() {
     [selectedCase?.ocr_blocks]
   );
   const retrievalEvidenceItems = useMemo(
-    () => (diagnostics?.fragments ?? []).filter((fragment) => fragment.block_type !== "line"),
-    [diagnostics?.fragments]
+    () => (activeDiagnostics?.fragments ?? []).filter((fragment) => fragment.block_type !== "line"),
+    [activeDiagnostics?.fragments]
+  );
+  const sourceEvidenceItems = useMemo<DocumentFragment[]>(
+    () => {
+      const diagnosticFragments = activeDiagnostics?.fragments ?? [];
+      const diagnosticBoxes = diagnosticFragments.filter((fragment) => Array.isArray(fragment.bbox) && fragment.bbox.length >= 4);
+      if (diagnosticBoxes.length > 0) return diagnosticBoxes;
+      return rawOcrItems;
+    },
+    [activeDiagnostics?.fragments, rawOcrItems]
   );
   const evidenceItems = useMemo<DocumentFragment[]>(
     () => retrievalEvidenceItems.length ? retrievalEvidenceItems : rawOcrItems,
     [rawOcrItems, retrievalEvidenceItems]
   );
+  const reviewDetailPending = Boolean(
+    activeView === "review" &&
+    selectedCase &&
+    caseNeedsDetailHydration(selectedCase)
+  );
+  const ocrRuntimeService = runtime?.runtime_settings.services?.ocr;
+  const ocrRuntimeNotReady = Boolean(ocrRuntimeService && ocrRuntimeService.ready === false);
+  const ocrRuntimeBannerTone = ocrRuntimeTone(ocrRuntimeService);
 
   useEffect(() => {
     if (selectedCase?.results.some((result) => result.field_key === selectedField)) return;
@@ -187,8 +211,17 @@ export function ChartLensApp() {
       return;
     }
     if (!status.enabled || status.authenticated) {
+      void loadRuntimeSettings();
       void refresh(status);
       void loadProjectConfig();
+    }
+  }
+
+  async function loadRuntimeSettings() {
+    try {
+      setRuntime(await getRuntimeSettings());
+    } catch {
+      setRuntime(null);
     }
   }
 
@@ -236,14 +269,18 @@ export function ChartLensApp() {
   }
 
   async function loadDiagnostics(caseId: string, quiet = false) {
+    const requestSeq = diagnosticsRequestSeq.current + 1;
+    diagnosticsRequestSeq.current = requestSeq;
     if (!quiet) setDiagnosticsLoading(true);
     try {
-      const [results, documentIr, payload] = await Promise.all([
+      const [results, documentIr, sourceOcr, payload] = await Promise.all([
         getCaseResults(caseId),
         getCaseDocumentIr(caseId),
+        getCaseSourceOcr(caseId),
         getCaseDiagnostics(caseId)
       ]);
-      const ocrBlocks = documentIr.blocks.map((block, index) => ({
+      if (requestSeq !== diagnosticsRequestSeq.current) return;
+      const ocrBlocks = sourceOcr.blocks.map((block, index) => ({
         ...block,
         reading_order: block.reading_order ?? index + 1
       }));
@@ -265,12 +302,13 @@ export function ChartLensApp() {
         )
       );
     } catch (err) {
+      if (requestSeq !== diagnosticsRequestSeq.current) return;
       setDiagnostics(null);
-      if (!quiet && auth?.enabled) {
+      if (!quiet) {
         setError(err instanceof Error ? err.message : "获取诊断信息失败");
       }
     } finally {
-      if (!quiet) setDiagnosticsLoading(false);
+      if (!quiet && requestSeq === diagnosticsRequestSeq.current) setDiagnosticsLoading(false);
     }
   }
 
@@ -312,15 +350,37 @@ export function ChartLensApp() {
     setError(null);
     try {
       await requestVisionFallback(selectedCase.case_id, {
+        field_key: activeResult?.field_key ?? null,
         page: activeResult?.page ?? 1,
         bbox: activeResult?.bbox ?? [],
-        reason: "人工确认低质量页或裁剪区域已脱敏，可进入视觉兜底队列。",
+        reason: "人工确认当前字段页或裁剪区域已脱敏，记录为图像兜底请求。",
         reviewer: "local-reviewer",
         manual_redaction_confirmed: true
       });
       await loadDiagnostics(selectedCase.case_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "视觉兜底批准失败");
+      setError(err instanceof Error ? err.message : "图像兜底请求记录失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitExport() {
+    if (!selectedCase) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { blob, filename } = await downloadCaseExport(selectedCase.case_id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Excel 导出失败");
     } finally {
       setLoading(false);
     }
@@ -362,7 +422,7 @@ export function ChartLensApp() {
   async function removeCase(caseId: string) {
     const target = cases.find((record) => record.case_id === caseId);
     if (!target) return;
-    if (!window.confirm(`删除${documentTerm} ${target.case_id}？相关抽取结果、复核记录和运行日志会一起删除。`)) return;
+    if (!window.confirm(`从列表移除${documentTerm} ${target.case_id}？原始文件、抽取结果、人工复核和处理日志会保留，用于追溯。`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -493,11 +553,11 @@ export function ChartLensApp() {
                 </span>
               </button>
               <button
-                aria-label={`删除${documentTerm} ${record.case_id}`}
+                aria-label={`从列表移除${documentTerm} ${record.case_id}`}
                 className="case-delete"
                 onClick={() => void removeCase(record.case_id)}
                 disabled={loading}
-                title="删除病例"
+                title="从列表移除并保留追溯数据"
                 type="button"
               >
                 <Trash2 size={15} />
@@ -532,19 +592,30 @@ export function ChartLensApp() {
               </button>
             )}
             {activeView === "review" && selectedCase && (
-              <button className="icon-button" onClick={() => void approveVisionFallback()} disabled={loading} title="记录人工确认后的视觉复核请求" type="button">
-                <Eye size={16} /> 视觉复核
+              <button className="icon-button" onClick={() => void approveVisionFallback()} disabled={loading} title="记录当前字段的图像兜底请求；只入库留痕，不会立即调用视觉模型" type="button">
+                <Eye size={16} /> 记录图像兜底
               </button>
             )}
             {activeView === "review" && selectedCase && (
-              <a className="icon-button primary" href={exportUrl(selectedCase.case_id)}>
+              <button className="icon-button primary" onClick={() => void submitExport()} disabled={loading} type="button">
                 <Download size={16} /> 导出 Excel
-              </a>
+              </button>
             )}
           </div>
         </header>
 
         {error && <div className="error-banner"><AlertTriangle size={16} /> {error}</div>}
+        {ocrRuntimeNotReady && activeView !== "settings" && (
+          <div className={`runtime-alert ${ocrRuntimeBannerTone === "danger" ? "danger" : "warning"}`}>
+            <AlertTriangle size={16} />
+            <div>
+              <strong>{ocrRuntimeSummary(ocrRuntimeService)}</strong>
+              {(ocrRuntimeService?.actions ?? []).slice(0, 2).map((action) => (
+                <small key={`${action.label}-${action.command}`}>{action.label}：<code>{action.command}</code></small>
+              ))}
+            </div>
+          </div>
+        )}
         {fieldDictionaryError && activeView === "review" && (
           <div className="error-banner"><AlertTriangle size={16} /> 字段字典加载失败：{fieldDictionaryError}</div>
         )}
@@ -577,16 +648,20 @@ export function ChartLensApp() {
               selectedCase={selectedCase}
               activeQuality={activeQuality}
               activeRun={activeRun}
-              diagnostics={diagnostics}
+              diagnostics={activeDiagnostics}
               diagnosticsLoading={diagnosticsLoading}
               cacheHit={cacheHit}
               cachedInputTokens={cachedInputTokens}
               latestModelLabel={latestModelLabel}
+              ocrRuntimeService={ocrRuntimeService}
             />
 
-            <div className="review-grid">
+            <div className={`review-grid ${reviewDetailPending ? "is-loading-detail" : ""}`}>
+              {reviewDetailPending && <CaseDetailLoading caseId={selectedCase.case_id} />}
               <EvidencePanel
+                caseId={selectedCase.case_id}
                 evidenceItems={evidenceItems}
+                sourceEvidenceItems={sourceEvidenceItems}
                 activeResult={activeResult}
                 activeFieldLabel={activeResult ? fieldMap.get(activeResult.field_key)?.label ?? activeResult.field_key : undefined}
                 displayConfig={projectConfig?.document_profile.frontend}
@@ -636,6 +711,16 @@ function SettingsPanelFallback() {
         <span>设置加载中...</span>
       </div>
     </section>
+  );
+}
+
+function CaseDetailLoading({ caseId }: { caseId: string }) {
+  return (
+    <div className="case-detail-loading" role="status" aria-live="polite">
+      <RefreshCw size={18} className="spin" />
+      <strong>正在载入病例详情</strong>
+      <span>{caseId}</span>
+    </div>
   );
 }
 

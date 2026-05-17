@@ -1,9 +1,10 @@
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import type { AuthStatus, CaseRecord, FieldResult } from "../../shared/types/api";
 
-export type FilterMode = "all" | "model_failed" | "ocr_low" | "no_evidence" | "review" | "accepted" | "unknown";
+export type FilterMode = "all" | "model_failed" | "ocr_low" | "no_evidence" | "review" | "manual_review" | "accepted" | "unknown";
 
 export function confidenceBand(result: FieldResult): FilterMode {
+  if (result.validation_state === "reviewed" || result.acceptance_reason === "manual_review") return "manual_review";
   if (result.review_required) return "review";
   if (result.normalized_code === "unknown" || result.error_code) return "unknown";
   return "accepted";
@@ -28,12 +29,14 @@ export function statusLabel(status: CaseRecord["status"]) {
   if (status === "extracting") return "抽取中";
   if (status === "completed") return "已完成";
   if (status === "degraded") return "已降级";
+  if (status === "archived") return "已归档";
   return "失败";
 }
 
 export function statusIcon(status: CaseRecord["status"]) {
   if (status === "completed") return <CheckCircle2 size={16} />;
   if (status === "degraded") return <AlertTriangle size={16} />;
+  if (status === "archived") return <Archive size={16} />;
   if (status === "failed") return <XCircle size={16} />;
   return <Loader2 size={16} className="spin" />;
 }

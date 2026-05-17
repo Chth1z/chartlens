@@ -1,0 +1,53 @@
+profile_id: real_hardware_case_template
+label: Real hardware OCR case template
+default_ocr_profile: windows_radeon_balanced
+default_document_profile: medical_inpatient_zh
+thresholds:
+  template: true
+  max_cer: 0.05
+  max_wer: 0.1
+  requires_real_hardware: true
+  requires_deidentified_corpus: true
+  min_cases: 1
+  target_accelerators: [directml, cuda, rocm_remote]
+cases:
+  - case_id: TEMPLATE-REPLACE-WITH-DEID-CASE-ID
+    document_path: fixtures/TEMPLATE-REPLACE-WITH-DEID-CASE.pdf
+    tags: [directml, cuda, rocm_remote, table, paragraph]
+    ocr_profile: windows_radeon_balanced
+    document_profile: medical_inpatient_zh
+    truth_pages:
+      1: |
+        基本信息：患者，男，66岁。
+        检验项目 白细胞 8.6
+    truth_blocks:
+      - page: 1
+        reading_order: 1
+        text: 基本信息：患者，男，66岁。
+        bbox: [120, 90, 860, 128]
+      - page: 1
+        reading_order: 2
+        text: 白细胞
+        bbox: [120, 180, 220, 210]
+    truth_tables:
+      - table_id: t1
+        page: 1
+        cells:
+          - row: 1
+            col: 1
+            row_span: 1
+            col_span: 1
+            text: 检验项目
+            bbox: [120, 150, 220, 178]
+          - row: 2
+            col: 1
+            row_span: 1
+            col_span: 1
+            text: 白细胞
+            bbox: [120, 180, 220, 210]
+          - row: 2
+            col: 2
+            row_span: 1
+            col_span: 1
+            text: "8.6"
+            bbox: [240, 180, 300, 210]

@@ -2,18 +2,28 @@ profile_id: medical_inpatient_zh
 label: 中文住院病例通用 profile
 default_document_kind: admission_note
 section_aliases:
-  基本信息: [基本信息, 病案首页, 住院病案首页, 首页, 入院记录, 入院信息]
+  基本信息: [基本信息, 基本资料, 一般信息, 病案首页, 住院病案首页, 首页, 首页信息, 入院记录, 入院信息, 患者信息, 人口学信息]
+  一般资料: [一般资料, 一般情况, 一般项目, 患者一般资料]
   主诉: [主诉]
   现病史: [现病史, 入院情况, 入院经过, 病例摘要]
+  急诊记录: [急诊记录, 急诊病历, 急诊入院记录, 急诊病程]
   既往史: [既往史, 既往病史]
   个人史: [个人史, 生活史]
-  家族史: [家族史]
+  婚育史: [婚育史, 月经婚育史, 生育史]
+  家族史: [家族史, 遗传病史, 家族遗传病史]
   体格检查: [体格检查, 查体, 专科检查]
-  辅助检查: [辅助检查, 实验室检查, 影像学检查, 检验检查, 影像报告, CTA, DSA, CT]
+  辅助检查: [辅助检查, 实验室检查, 影像学检查, 检验检查, 影像报告, 毒物分析, 血液毒物分析, 药物浓度, 腹部增强CT, 增强CT, 彩超, B超, CTA, DSA, CT, MRI]
   入院诊断: [入院诊断, 初步诊断]
+  诊断依据: [诊断依据, 诊断根据, 诊断分析, 分析根据]
+  鉴别诊断: [鉴别诊断, 鉴别分析]
+  病情评估: [病情评估, 病情评价, 会诊意见, 药剂科会诊意见]
+  诊疗计划: [诊疗计划, 治疗计划, 诊疗经过, 治疗经过, 诊疗意见, 医嘱]
   出院诊断: [出院诊断, 主要诊断, 其他诊断]
-  手术记录: [手术记录, 手术经过, 手术方式, 手术名称, 操作记录]
+  病程记录: [病程记录, 首次病程记录, 首次病程记录（经治审签）, 首次病程记录（主治审签）, 日常病程记录, 常病程记录, 上级医师首次查房病程记录, 上级医师查房记录, 查房记录, 主任审签, 主治审签, 经治审签]
+  手术记录: [手术记录, 手术日期, 术前诊断, 术中诊断, 手术名称, 手术方式, 手术经过, 术中情况, 麻醉方法, 麻醉医师, 输液量, 出血量, 输血量, 引流材料名称及数量, 引流放置部位, 植入物或特殊物品, 输血反应, 操作记录]
   出院情况: [出院情况, 出院记录, 诊疗经过, 出院小结, 出院转归, 出院医嘱]
+  评分: [评分, 量表评分, 神经功能评分, Hunt-Hess, HH, WFNS, Fisher, mRS, MRS]
+  随访: [随访, 门诊随访, 电话随访, 预后随访]
 excluded_phi_labels:
   - 姓名
   - 身份证
@@ -23,10 +33,24 @@ excluded_phi_labels:
   - 住院号
   - 门诊号
   - 病案号
+  - 床号
+  - 床位
+  - 病床号
   - 住址
+  - 现住址
+  - 居住地
+  - 户籍
+  - 户籍地址
+  - 地址
+  - 详细地址
   - 家庭住址
   - 联系人
+  - 联系人姓名
+  - 联系人电话
   - 工作单位
+  - 单位
+  - 单位名称
+  - 邮编
 phi_inline_labels:
   - 姓名
   - 身份证
@@ -36,10 +60,24 @@ phi_inline_labels:
   - 住院号
   - 门诊号
   - 病案号
+  - 床号
+  - 床位
+  - 病床号
   - 住址
+  - 现住址
+  - 居住地
+  - 户籍
+  - 户籍地址
+  - 地址
+  - 详细地址
   - 家庭住址
   - 联系人
+  - 联系人姓名
+  - 联系人电话
   - 工作单位
+  - 单位
+  - 单位名称
+  - 邮编
 phi_patterns:
   - key: id_card
     pattern: '\b\d{17}[\dXx]\b'
@@ -55,19 +93,98 @@ document_kind_rules:
   - kind: discharge_note
     sections: [出院情况, 出院诊断]
   - kind: operation_note
-    sections: [手术记录]
+    sections: [手术记录, 手术日期, 术前诊断, 术中诊断, 手术名称, 手术经过]
+  - kind: progress_note
+    sections: [病程记录, 首次病程记录, 日常病程记录, 上级医师首次查房病程记录, 查房记录, 病情评估, 诊疗计划]
   - kind: imaging_or_exam
-    sections: [辅助检查]
-extraction_system_prompt: You extract structured clinical research fields from Chinese medical records. Return evidence-grounded candidates only. Missing means unknown, never negative.
+    sections: [辅助检查, 毒物分析, 血液毒物分析, 腹部增强CT, 增强CT, B超, 彩超]
+layout_normalization:
+  enabled: true
+  remove_screen_chrome: true
+  merge_same_line_fragments: true
+  default_body_region: clinical_body
+  unknown_region: unknown
+  patient_header_region: patient_header
+  section_heading_region: section_heading
+  derive_key_value_blocks: true
+  derive_neighbor_key_value_blocks: true
+  key_value_max_value_chars: 48
+  key_value_neighbor_max_gap: 260
+  key_value_source_regions: [patient_header, operation_metadata]
+  key_value_labels:
+    - 科室
+    - 病区
+    - 姓名
+    - 性别
+    - 年龄
+    - 床号
+    - 床位
+    - 病案号
+    - 住院号
+    - 门诊号
+    - 入院时间
+    - 出院时间
+    - 手术日期
+    - 术前诊断
+    - 术中诊断
+    - 手术名称
+    - 术者
+    - 麻醉方法
+    - 输液量
+    - 出血量
+    - 输血量
+    - HH
+    - Hunt-Hess
+    - WFNS
+    - Fisher
+    - mRS
+    - MRS
+    - 改良Rankin
+  same_line_y_tolerance: 14
+  merge_horizontal_gap: 48
+  patient_header_min_labels: 3
+  patient_header_labels: [科室, 姓名, 性别, 年龄, 床号, 病案号, 住院号, 病区, 患者]
+  region_rules:
+    - region: institution_header
+      patterns:
+        - '^[\u4e00-\u9fffA-Za-z0-9（）()·\-]{4,50}(?:医院|医学院|医疗中心)$'
+      quality_flag: layout_institution_header
+    - region: signature
+      patterns:
+        - '记录者|记录日期|签名|医师签名|主任审签|主治审签|经治审签'
+      quality_flag: layout_signature_region
+    - region: document_footer
+      patterns:
+        - '^\s*第\s*\d+\s*页\s*$'
+      quality_flag: layout_footer_region
+    - region: operation_metadata
+      section_labels: [手术记录]
+      patterns:
+        - '^(?:手术日期|术前诊断|术中诊断|手术名称|术者|麻醉方法|输液量|出血量|输血量)\s*[:：]'
+      quality_flag: layout_operation_metadata_region
+  screen_chrome_patterns:
+    - '保存\(S\)|签名\(F6\)|打印\(P\)|刷新诊断|引入病史|助手\(D\)'
+    - '^\s*\d{2}-\d{2}.*(?:病程记录|入院记录|查房病程记录|手术记录).*审签'
+    - 'Word标尺|窗口标签|任务栏|显示器边缘|鼠标光标'
+    - '^\s*(?:返回|更多|非病页)\s*$'
+    - '^\s*第\s*\d+\s*页\s*$'
+extraction_system_prompt: You extract structured clinical research fields from Chinese medical records, including case-homepage tables, admission notes, operative notes, discharge summaries, and follow-up notes. Return evidence-grounded candidates only. Missing means unknown, never negative.
 extraction_rules:
-  - Only use the supplied de-identified evidence_packs.
+  - Only use the supplied de-identified DocumentIR/DocumentContext evidence, evidence candidates, and evidence_packs.
   - Do not infer absent information. If a fact is not explicitly mentioned, return normalized_code='unknown'.
   - A non-unknown result must include evidence_span and evidence_block_id.
   - evidence_span must be copied verbatim from the referenced block text.
+  - Table, cell, form, checkbox, and key-value evidence is valid only when the exact text or a configured safe pre-redaction derivation is present in DocumentIR.
+  - For table extraction, preserve 表头, 单元格, column header, row_header, row, col, table_id, and adjacent cell relationships; values may be used only when the table header or row header is explicitly linked to the value cell.
+  - For 跨行段落 or multi-line paragraphs, follow page and reading_order to join only visually continuous clinical text; evidence_span must remain a verbatim substring of the normalized paragraph text.
+  - Address-derived fields may only use safe local derivation blocks; never output original address text.
+  - Ignore Word rulers, window tabs, toolbars, taskbars, stickers, monitor edges, and hospital-system chrome unless a configured provider explicitly marks them as trusted clinical metadata.
+  - Repeated clinical headers on admission, progress, operation, ward-round, and discharge notes may be evidence for demographics only when the label and value are adjacent in the page header or patient information row.
   - If there is contradiction, return normalized_code='unknown', status='conflict', evidence_type='conflict', review_required=true.
-  - For family history or non-patient experiencer, do not mark the patient as positive.
+  - For family history, maternal pregnancy history, spouse/children descriptions, or any non-patient experiencer, do not mark the patient as positive or negative.
   - For suspected or possible conditions, return unknown and review_required=true.
   - For scores, only auto-fill explicitly recorded scores; computed scores must be derived_candidate and review_required=true.
-  - For aneurysm/procedure fields, include intermediate facts in facts before choosing normalized_code.
+  - For aneurysm/procedure fields, include intermediate facts in facts before choosing normalized_code, and do not map unrelated general-surgery procedures into aneurysm intervention codes.
+  - For timeline fields, extract only explicit elapsed durations such as 发病后3小时入院 or 入院后2天手术; do not calculate intervals from separate timestamps.
 document_ai_prompt: >-
-  你是智能文档解析引擎。请从输入文件中提取可见文本、表格单元格、表单字段和勾选项。只输出严格 JSON，不要 Markdown，不要解释。JSON schema: {"blocks":[{"page":1,"reading_order":1,"text":"...","bbox":[x1,y1,x2,y2],"confidence":0.0,"block_type":"text|paragraph|title|table|cell|form_field|key_value|checkbox|selection_mark","table_id":null,"row":null,"col":null}]}。如果页码或 bbox 无法确定，page 使用 1，bbox 使用空数组。不要根据常识补全文档中看不见的内容。
+  你是智能文档解析引擎。请从中文病例、病案首页、入院记录、急诊记录、病程记录、上级医师查房记录、手术记录、出院小结和随访材料中提取所有可见文本、表格表头、表格单元格、表单字段、键值对和勾选项。遇到研究表头、性别/年龄/医院/城乡、病史、评分、手术方式、发病到入院时间、入院到手术时间等字段时，必须保留原始可见文字和相邻表头/单元格关系；对表格必须保留 table_id、row、col，并在可判断时用 column_header、row_header 描述表头关系。拍屏或翻拍材料中，Word标尺、窗口标签、工具栏、任务栏、贴纸、显示器边缘、鼠标光标和其他非病历界面不要输出为病历 blocks；只有纸面/电子病历正文、页眉、页脚、表格和签名区域可以作为 blocks。跨页连续内容要按页面和 reading_order 保留，连续换行段落要保持 paragraph_id 或稳定顺序，重复页眉也要保留为独立 blocks。只输出严格 JSON，不要 Markdown，不要解释。JSON schema: {"blocks":[{"page":1,"reading_order":1,"text":"...","bbox":[x1,y1,x2,y2],"confidence":0.0,"block_type":"text|paragraph|title|table|cell|form_field|key_value|checkbox|selection_mark","table_id":null,"row":null,"col":null}]}。如果页码或 bbox 无法确定，page 使用 1，bbox 使用空数组。不要根据常识补全文档中看不见的内容。

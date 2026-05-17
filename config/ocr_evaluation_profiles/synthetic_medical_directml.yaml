@@ -1,0 +1,197 @@
+profile_id: synthetic_medical_directml
+label: Synthetic deidentified medical OCR DirectML smoke profile
+default_ocr_profile: windows_radeon_balanced
+default_document_profile: medical_inpatient_zh
+thresholds:
+  max_cer: 0.12
+  max_wer: 0.2
+  synthetic_fixture: true
+  requires_real_hardware: false
+  requires_deidentified_corpus: false
+  min_cases: 1
+  target_accelerators: [directml]
+cases:
+  - case_id: synthetic-medical-directml-001
+    document_path: fixtures/synthetic_medical_directml.png
+    tags: [synthetic, deidentified, directml, image, table, paragraph]
+    ocr_profile: windows_radeon_balanced
+    document_profile: medical_inpatient_zh
+    truth_pages:
+      1: |
+        EYEX SYNTHETIC OCR EVAL
+        Document type: deidentified inpatient note
+        Patient code: SYN-0001  Age: 66  Sex: M
+        Assessment: no hypertension or diabetes documented.
+        Test Result Unit Flag
+        WBC 8.6 10^9/L normal
+        CRP 3.2 mg/L normal
+        Synthetic only. Contains no PHI and no real patient data.
+    truth_blocks:
+      - page: 1
+        reading_order: 1
+        text: EYEX SYNTHETIC OCR EVAL
+        bbox: [120, 78, 598, 103]
+      - page: 1
+        reading_order: 2
+        text: "Document type: deidentified inpatient note"
+        bbox: [120, 146, 653, 172]
+      - page: 1
+        reading_order: 3
+        text: "Patient code: SYN-0001  Age: 66  Sex: M"
+        bbox: [120, 188, 645, 214]
+      - page: 1
+        reading_order: 4
+        text: "Assessment: no hypertension or diabetes documented."
+        bbox: [119, 246, 815, 272]
+      - page: 1
+        reading_order: 5
+        text: Test
+        bbox: [120, 313, 280, 353]
+        row: 1
+        col: 1
+      - page: 1
+        reading_order: 6
+        text: Result
+        bbox: [280, 313, 430, 353]
+        row: 1
+        col: 2
+      - page: 1
+        reading_order: 7
+        text: Unit
+        bbox: [430, 313, 590, 353]
+        row: 1
+        col: 3
+      - page: 1
+        reading_order: 8
+        text: Flag
+        bbox: [590, 313, 740, 353]
+        row: 1
+        col: 4
+      - page: 1
+        reading_order: 9
+        text: WBC
+        bbox: [120, 353, 280, 393]
+        row: 2
+        col: 1
+      - page: 1
+        reading_order: 10
+        text: "8.6"
+        bbox: [280, 353, 430, 393]
+        row: 2
+        col: 2
+      - page: 1
+        reading_order: 11
+        text: 10^9/L
+        bbox: [430, 353, 590, 393]
+        row: 2
+        col: 3
+      - page: 1
+        reading_order: 12
+        text: normal
+        bbox: [590, 353, 740, 393]
+        row: 2
+        col: 4
+      - page: 1
+        reading_order: 13
+        text: CRP
+        bbox: [120, 393, 280, 433]
+        row: 3
+        col: 1
+      - page: 1
+        reading_order: 14
+        text: "3.2"
+        bbox: [280, 393, 430, 433]
+        row: 3
+        col: 2
+      - page: 1
+        reading_order: 15
+        text: mg/L
+        bbox: [430, 393, 590, 433]
+        row: 3
+        col: 3
+      - page: 1
+        reading_order: 16
+        text: normal
+        bbox: [590, 393, 740, 433]
+        row: 3
+        col: 4
+      - page: 1
+        reading_order: 17
+        text: Synthetic only. Contains no PHI and no real patient data.
+        bbox: [120, 494, 624, 513]
+    truth_tables:
+      - table_id: synthetic_labs
+        page: 1
+        cells:
+          - row: 1
+            col: 1
+            row_span: 1
+            col_span: 1
+            text: Test
+            bbox: [120, 313, 280, 353]
+          - row: 1
+            col: 2
+            row_span: 1
+            col_span: 1
+            text: Result
+            bbox: [280, 313, 430, 353]
+          - row: 1
+            col: 3
+            row_span: 1
+            col_span: 1
+            text: Unit
+            bbox: [430, 313, 590, 353]
+          - row: 1
+            col: 4
+            row_span: 1
+            col_span: 1
+            text: Flag
+            bbox: [590, 313, 740, 353]
+          - row: 2
+            col: 1
+            row_span: 1
+            col_span: 1
+            text: WBC
+            bbox: [120, 353, 280, 393]
+          - row: 2
+            col: 2
+            row_span: 1
+            col_span: 1
+            text: "8.6"
+            bbox: [280, 353, 430, 393]
+          - row: 2
+            col: 3
+            row_span: 1
+            col_span: 1
+            text: 10^9/L
+            bbox: [430, 353, 590, 393]
+          - row: 2
+            col: 4
+            row_span: 1
+            col_span: 1
+            text: normal
+            bbox: [590, 353, 740, 393]
+          - row: 3
+            col: 1
+            row_span: 1
+            col_span: 1
+            text: CRP
+            bbox: [120, 393, 280, 433]
+          - row: 3
+            col: 2
+            row_span: 1
+            col_span: 1
+            text: "3.2"
+            bbox: [280, 393, 430, 433]
+          - row: 3
+            col: 3
+            row_span: 1
+            col_span: 1
+            text: mg/L
+            bbox: [430, 393, 590, 433]
+          - row: 3
+            col: 4
+            row_span: 1
+            col_span: 1
+            text: normal
+            bbox: [590, 393, 740, 433]

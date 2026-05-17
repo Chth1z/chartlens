@@ -1,62 +1,79 @@
 profile_id: windows_radeon_balanced
-label: Windows Radeon balanced OCR
-version: 1.0.0
+label: Windows Radeon PP-OCRv5 DirectML accuracy OCR
+version: 3.1.0
+pipeline_stages: [preprocess, pp_structure_v3, pp_ocr_v5, merge]
+render_dpi: 300
+preprocess_profile: document_multi_dpi
+merge_policy_version: ocr-canonical-layout-v3
 page_router:
   - page_kinds: [native_pdf_text, text]
     engines: [pdf_text]
     description: Use embedded text when the PDF page already has enough text.
-  - page_kinds: [image, image_ocr, image_pdf_ocr, scan, screenshot]
-    engines: [pp_ocr_v5_onnx_directml, pp_ocr_v5_paddle, paddle_structure_v3, docling, paddleocr_vl]
-    description: Prefer local Windows GPU-capable text OCR, then stable Paddle/Docling fallbacks.
-  - page_kinds: [table, complex_layout]
-    engines: [paddle_structure_v3, paddleocr_vl]
-    description: Prefer document layout engines for table-heavy pages.
-  - page_kinds: [low_quality, difficult_scan]
-    engines: [paddleocr_vl_remote, paddleocr_vl]
-    description: Use remote ROCm/VL sidecar first when available, CPU VL only as slow fallback.
+  - page_kinds: [image, image_ocr, image_pdf_ocr, scan, screenshot, table, complex_layout, low_quality, difficult_scan]
+    engines: [paddleocr_hybrid]
+    description: Layout-led OCR pipeline using PP-StructureV3 layout/table parsing and local PP-OCRv5 DirectML line candidates.
 engines:
-  - engine_id: pp_ocr_v5_onnx_directml
-    label: PP-OCRv5 ONNX DirectML
-    model_name: PP-OCRv5
-    model_version: v5
-    accelerator: directml
+  - engine_id: paddleocr_hybrid
+    label: PaddleOCR PP-StructureV3 + PP-OCRv5 DirectML pipeline
+    model_name: PP-StructureV3 + local PP-OCRv5 server DirectML
+    model_version: canonical-layout-v3
+    accelerator: directml_if_ready_else_cpu
     priority: 10
-    experimental: true
-  - engine_id: pp_ocr_v5_paddle
-    label: PP-OCRv5 Paddle
-    model_name: PP-OCRv5
-    model_version: v5
-    accelerator: cpu
-    priority: 20
-  - engine_id: paddle_structure_v3
-    label: PP-StructureV3
+    experimental: false
+    options:
+      pipeline: canonical_layout_v3
+      timeout_seconds: 150
+stage_models:
+  preprocess:
+    profile: document_multi_dpi
+    enabled_steps: [orientation_correction, deskew, document_crop_unwarp]
+    experimental_steps: [render_dpi_400_candidate, grayscale_autocontrast_sharpen_candidate]
+    disabled_by_default: [grayscale, binarize, sharpen, strong_contrast]
+  pp_structure_v3:
+    engine_id: paddle_structure_v3
     model_name: PP-StructureV3
+    model_version: "3"
     accelerator: cpu
-    priority: 30
-  - engine_id: docling
-    label: Docling
-    model_name: Docling
-    accelerator: cpu
-    priority: 40
-  - engine_id: paddleocr_vl
-    label: PaddleOCR-VL-1.5 CPU fallback
-    model_name: PaddleOCR-VL-1.5
-    model_version: "1.5"
-    accelerator: cpu
-    priority: 50
-  - engine_id: paddleocr_vl_remote
-    label: PaddleOCR-VL remote ROCm sidecar
-    model_name: PaddleOCR-VL-1.5
-    model_version: "1.5"
-    accelerator: remote
-    priority: 60
+    role: layout_table_reading_order_parser
+    enabled: true
+    required: true
+    run_policy: local_paddle_page_stream
+    timeout_seconds: 45
+  pp_ocr_v5:
+    engine_id: pp_ocr_v5_onnx_directml
+    fallback_engine_ids: []
+    model_name: PP-OCRv5
+    model_version: v5-server
+    accelerator: directml_safe
+    role: line_and_cell_recognizer
+    timeout_seconds: 90
+    options:
+      model_type: server
+      render_dpi: 300
+      render_dpi_candidates: [300, 400, 500, 600]
+      rapidocr_max_side_len: 1536
+      directml_safe_mode: true
+      tile_max_side_len: 1536
+      tile_overlap: 192
+      image_preprocess: none
+      page_render_workers: 2
 cache_policy:
-  include_engine_id: true
-  include_engine_version: true
+  include_file_sha256: true
+  include_page: true
+  include_render_dpi: true
+  include_preprocess_profile: true
+  include_stage: true
+  include_model_name: true
+  include_model_version: true
   include_accelerator: true
+  include_merge_policy_version: true
 gpu_policy:
   target: windows_radeon
   default_accelerator: directml_if_ready_else_cpu
+  pp_ocr_v5_default: directml
+  paddleocr_vl_default: disabled
+  strong_pipeline_requires: [pp_structure_v3, pp_ocr_v5]
+  local_cpu_heavy_stages_default_enabled: false
   rocm_default_enabled: false
   unofficial_gpu_overrides: false
 quality_thresholds:

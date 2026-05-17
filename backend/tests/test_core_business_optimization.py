@@ -1,18 +1,22 @@
 import json
+from io import BytesIO
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from sqlalchemy import select
 
 from app.core.config_loader import load_document_profile, load_extraction_schema
-from app.core.database import CaseRecord, FieldResultRecord, SessionLocal
+from app.core.database import CaseRecord, FieldResultRecord, ReviewAuditRecord, SessionLocal
 from app.core.settings import settings
 from app.domain.models import DocumentIR, DocumentIRBlock, ExtractionCandidate, ValidatedFieldResult
 from app.main import app
 from app.services import ocr
 from app.services.deidentify import deidentify_document_ir
 from app.services.pipeline import process_case
-from app.services.provider import ModelFallbackProvider, SemanticExtractionProvider
+from app.services.llm_provider.fallback import ModelFallbackProvider
+from app.services.llm_provider.types import SemanticExtractionProvider
+from app.services.export import build_export_workbook
 from app.services.validation import validate_candidate
 
 
@@ -35,8 +39,6 @@ def _profile():
 
 
 def test_model_fallback_returns_unknown_for_complex_fields_after_all_models_fail(monkeypatch):
-    from app.services import provider as provider_module
-
     schema = load_extraction_schema()
     field = schema.field_by_key("hypertension_history")
     group = schema.group_by_key(field.field_group_key)
@@ -48,7 +50,7 @@ def test_model_fallback_returns_unknown_for_complex_fields_after_all_models_fail
         section_label="既往史",
         confidence=0.98,
     )
-    monkeypatch.setattr(provider_module, "_provider_for_profile", lambda profile: _AlwaysFailingProvider())
+    monkeypatch.setattr("app.services.llm_provider.fallback._provider_for_profile", lambda profile: _AlwaysFailingProvider())
 
     fallback = ModelFallbackProvider([_profile()])
     candidates = fallback.extract_group(
@@ -134,6 +136,179 @@ def test_review_rejects_nonexistent_evidence_span():
 
     assert response.status_code == 400
     assert "evidence_span" in response.json()["detail"]
+
+
+def test_manual_review_without_evidence_is_audited_and_exported():
+    db = SessionLocal()
+    case_id = "CASE-OPT-MANUAL-REVIEW"
+    try:
+        db.query(ReviewAuditRecord).filter(ReviewAuditRecord.case_id == case_id).delete()
+        db.query(FieldResultRecord).filter(FieldResultRecord.case_id == case_id).delete()
+        db.query(CaseRecord).filter(CaseRecord.case_id == case_id).delete()
+        db.commit()
+        db.add(
+            CaseRecord(
+                case_id=case_id,
+                filename="case.txt",
+                file_hash="hash",
+                file_path="case.txt",
+                status="completed",
+                document_ir_json=DocumentIR(
+                    document_id=case_id,
+                    profile_id="medical_inpatient_zh",
+                    source_filename="case.txt",
+                    blocks=[
+                        DocumentIRBlock(
+                            block_id="b1",
+                            page=1,
+                            reading_order=1,
+                            text="入院记录未明确HH分级。",
+                            section_label="入院记录",
+                            confidence=0.98,
+                        )
+                    ],
+                ).model_dump_json(),
+            )
+        )
+        db.add(
+            FieldResultRecord(
+                case_id=case_id,
+                field_key="hh_grade",
+                payload_json=ValidatedFieldResult(
+                    field_key="hh_grade",
+                    field_group_key="score_group",
+                    normalized_code="unknown",
+                    status="unknown",
+                    review_required=True,
+                    evidence_type="no_evidence",
+                    acceptance_reason="unknown_or_insufficient_evidence",
+                ).model_dump_json(),
+            )
+        )
+        db.commit()
+        client = TestClient(app)
+
+        response = client.post(
+            f"/api/cases/{case_id}/review",
+            json={
+                "field_key": "hh_grade",
+                "normalized_code": "2",
+                "raw_value": "2",
+                "reviewer": "local-reviewer",
+                "comment": "人工复核确认",
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["normalized_code"] == "2"
+        assert payload["review_required"] is False
+        assert payload["validation_state"] == "reviewed"
+        assert payload["evidence_span"] is None
+        assert payload["provenance"]["manual_review_without_document_evidence"] is True
+
+        audits = db.execute(
+            select(ReviewAuditRecord).where(ReviewAuditRecord.case_id == case_id)
+        ).scalars().all()
+        assert len(audits) == 1
+        assert json.loads(audits[0].after_json)["normalized_code"] == "2"
+
+        summary = client.get(f"/api/cases/{case_id}").json()
+        assert summary["audit_count"] == 1
+
+        export_response = client.get(f"/api/cases/{case_id}/export")
+        assert export_response.status_code == 200
+        workbook = load_workbook(BytesIO(export_response.content), data_only=True)
+        sheet = workbook["EYEX"]
+        headers = [cell.value for cell in sheet[1]]
+        assert sheet.cell(row=2, column=headers.index("HH分组") + 1).value == "2"
+    finally:
+        db.query(ReviewAuditRecord).filter(ReviewAuditRecord.case_id == case_id).delete()
+        db.query(FieldResultRecord).filter(FieldResultRecord.case_id == case_id).delete()
+        db.query(CaseRecord).filter(CaseRecord.case_id == case_id).delete()
+        db.commit()
+        db.close()
+
+
+def test_export_serializes_structured_audit_values():
+    data = build_export_workbook(
+        [
+            ValidatedFieldResult(
+                field_key="hypertension_history",
+                field_group_key="history_group",
+                normalized_code="0",
+                status="confirmed",
+                review_required=False,
+                provenance={
+                    "ocr_page_quality": {
+                        "page": 1,
+                        "quality_band": "good",
+                    }
+                },
+            )
+        ]
+    )
+
+    workbook = load_workbook(BytesIO(data), data_only=True)
+    audit = workbook["Evidence Audit"]
+    headers = [cell.value for cell in audit[1]]
+    value = audit.cell(row=2, column=headers.index("ocr_page_quality") + 1).value
+    assert value == '{"page":1,"quality_band":"good"}'
+
+
+def test_export_only_writes_pass_or_reviewed_values():
+    data = build_export_workbook(
+        [
+            ValidatedFieldResult(
+                field_key="gender",
+                field_group_key="demographics_group",
+                normalized_code="1",
+                status="confirmed",
+                confidence=0.99,
+                review_required=False,
+                validation_state="accepted",
+                provenance={"decision_status": "REVIEW"},
+                acceptance_reason="model_confidence_without_pass",
+            ),
+            ValidatedFieldResult(
+                field_key="age",
+                field_group_key="demographics_group",
+                normalized_code="16",
+                status="confirmed",
+                confidence=0.99,
+                review_required=False,
+                validation_state="accepted",
+                provenance={"decision_status": "PASS"},
+                acceptance_reason="explicit_evidence",
+            ),
+            ValidatedFieldResult(
+                field_key="hospital",
+                field_group_key="demographics_group",
+                normalized_code="河北医科大学第四医院",
+                status="confirmed",
+                confidence=0.7,
+                review_required=False,
+                validation_state="reviewed",
+                provenance={"manual_review_without_document_evidence": True},
+                acceptance_reason="manual_review",
+            ),
+        ]
+    )
+
+    workbook = load_workbook(BytesIO(data), data_only=True)
+    sheet = workbook["EYEX"]
+    headers = [cell.value for cell in sheet[1]]
+
+    assert sheet.cell(row=2, column=headers.index("性别(男1，女2)") + 1).value == "unknown"
+    assert sheet.cell(row=2, column=headers.index("年龄") + 1).value == "16"
+    assert sheet.cell(row=2, column=headers.index("医院") + 1).value == "河北医科大学第四医院"
+
+    audit = workbook["Evidence Audit"]
+    audit_headers = [cell.value for cell in audit[1]]
+    assert audit.cell(row=2, column=audit_headers.index("exportable") + 1).value is False
+    assert audit.cell(row=2, column=audit_headers.index("export_gate_reason") + 1).value == "decision_not_pass"
+    assert audit.cell(row=3, column=audit_headers.index("export_gate_reason") + 1).value == "pass_decision"
+    assert audit.cell(row=4, column=audit_headers.index("export_gate_reason") + 1).value == "manual_review"
 
 
 def test_deidentification_blocks_online_when_residual_phi_remains():

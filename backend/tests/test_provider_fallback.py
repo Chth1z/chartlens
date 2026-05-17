@@ -1,18 +1,27 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.domain.models import DocumentIR, FieldGroup
-from app.services import provider as provider_module
-from app.services.provider import (
-    ModelFallbackProvider,
-    OpenAICompatibleChatProvider,
-    SemanticExtractionProvider,
+from app.domain.models import DocumentIRBlock
+from app.core.config_loader import load_extraction_schema
+from app.services.document_context import build_document_context
+from app.services.llm_provider.fallback import ModelFallbackProvider
+from app.services.llm_provider.adapters import OpenAICompatibleChatProvider, OpenAIResponsesProvider
+from app.services.llm_provider.types import SemanticExtractionProvider
+from app.services.llm_provider.utils import (
+    _API_KEY_COOLDOWN_UNTIL,
     _api_keys_for_attempts,
-    _candidates_from_text,
-    _openai_compatible_base_url_candidates,
     _mark_api_key_cooldown,
+    _openai_compatible_base_url_candidates,
 )
-
-
+from app.services.llm_provider.parsing import (
+    _candidates_from_text,
+    _evidence_candidates_from_text,
+    _evidence_candidate_response_schema,
+    _response_schema,
+)
+from app.services.llm_provider.payloads import _responses_evidence_first_payload
 class _AlwaysFailingProvider(SemanticExtractionProvider):
     name = "always-failing"
     route = "online_llm"
@@ -28,7 +37,7 @@ def test_model_fallback_records_failure_reason(monkeypatch):
         profile_id="deepseek_v4_flash",
         model="deepseek-v4-flash",
     )
-    monkeypatch.setattr(provider_module, "_provider_for_profile", lambda profile: _AlwaysFailingProvider())
+    monkeypatch.setattr("app.services.llm_provider.fallback._provider_for_profile", lambda profile: _AlwaysFailingProvider())
     fallback = ModelFallbackProvider([profile])
 
     fallback.extract_group(
@@ -131,6 +140,196 @@ def test_llm_candidate_parser_accepts_double_encoded_json_string():
     assert _candidates_from_text(text) == []
 
 
+def test_evidence_candidate_parser_groups_candidates_by_field():
+    text = """
+    {
+      "evidence_candidates": [
+        {
+          "field_key": "gender",
+          "candidate_value": "男",
+          "normalized_code": "1",
+          "evidence_text": "性别：男",
+          "field_label_seen": "性别",
+          "source_type": "ocr_text",
+          "document_region": "基本信息",
+          "visual_confirmed": false,
+          "block_id": "b1",
+          "block_ids": ["b1"],
+          "text": "性别：男",
+          "page": 1,
+          "bbox": [],
+          "confidence": 0.96,
+          "ocr_confidence": 0.98,
+          "section_label": "基本信息",
+          "document_kind": "admission_note",
+          "forbidden_inference_flags": [],
+          "conflicts": []
+        }
+      ]
+    }
+    """
+
+    grouped = _evidence_candidates_from_text(text)
+
+    assert grouped["gender"][0].normalized_code == "1"
+    assert grouped["gender"][0].evidence_text == "性别：男"
+
+
+def test_responses_evidence_first_payload_carries_remote_safety_policy():
+    schema = load_extraction_schema()
+    field = schema.field_by_key("gender")
+    context = build_document_context(
+        DocumentIR(
+            document_id="case-context",
+            profile_id="medical_inpatient_zh",
+            source_filename="case.pdf",
+            blocks=[
+                DocumentIRBlock(
+                    block_id="b1",
+                    page=1,
+                    reading_order=1,
+                    text="性别：男",
+                    confidence=0.98,
+                    section_label="基本信息",
+                )
+            ],
+        )
+    )
+    profile = SimpleNamespace(
+        input=["text"],
+        max_output_tokens=1024,
+        prompt_cache_key="test-cache",
+        reasoning_effort="low",
+    )
+
+    payload = _responses_evidence_first_payload(
+        document_context=context,
+        fields=[field],
+        model="gpt-test",
+        profile=profile,
+    )
+
+    user_content = payload["input"][1]["content"][0]["text"]
+    assert '"task": "collect_field_evidence_candidates"' in user_content
+    assert '"remote_context_mode": "safe_evidence_only"' in user_content
+    assert '"evidence_policy"' in user_content
+    assert payload["text"]["format"]["schema"]["required"] == ["evidence_candidates"]
+
+
+def test_structured_output_schemas_are_strict_mode_compatible():
+    for schema in (_response_schema(), _evidence_candidate_response_schema()):
+        _assert_strict_json_schema(schema)
+
+
+def test_responses_evidence_first_payload_minimizes_remote_context_by_default():
+    schema = load_extraction_schema()
+    field = schema.field_by_key("gender")
+    context = build_document_context(
+        DocumentIR(
+            document_id="case-remote-minimized",
+            profile_id="medical_inpatient_zh",
+            source_filename="case.pdf",
+            blocks=[
+                DocumentIRBlock(
+                    block_id="b1",
+                    page=1,
+                    reading_order=1,
+                    text="姓名：张三 性别：男 住址：深圳市南山区科技园",
+                    confidence=0.98,
+                    section_label="基本信息",
+                )
+            ],
+            metadata={
+                "page_images": [
+                    {
+                        "page": 1,
+                        "path": "D:/sensitive/original-page.png",
+                        "width": 1200,
+                        "height": 1600,
+                        "online_allowed": True,
+                    }
+                ]
+            },
+        )
+    )
+    profile = SimpleNamespace(
+        input=["text", "image"],
+        max_output_tokens=1024,
+        prompt_cache_key="test-cache",
+        reasoning_effort="low",
+    )
+
+    payload = _responses_evidence_first_payload(
+        document_context=context,
+        fields=[field],
+        model="gpt-test",
+        profile=profile,
+    )
+
+    user_content = payload["input"][1]["content"][0]["text"]
+    assert '"remote_context_mode": "safe_evidence_only"' in user_content
+    assert "张三" not in user_content
+    assert "深圳市" not in user_content
+    assert "性别：男" not in user_content
+    assert "D:/sensitive/original-page.png" not in user_content
+    assert all(item["type"] != "input_image" for item in payload["input"][1]["content"])
+
+
+def _assert_strict_json_schema(schema):
+    if schema.get("type") == "object":
+        assert schema.get("additionalProperties") is False
+        properties = schema.get("properties", {})
+        assert sorted(schema.get("required", [])) == sorted(properties)
+        for child in properties.values():
+            _assert_strict_json_schema(child)
+    if schema.get("type") == "array":
+        _assert_strict_json_schema(schema.get("items", {}))
+
+
+def test_online_evidence_collection_uses_local_when_full_context_upload_disabled(monkeypatch):
+    schema = load_extraction_schema()
+    field = schema.field_by_key("gender")
+    context = build_document_context(
+        DocumentIR(
+            document_id="case-local-evidence-only",
+            profile_id="medical_inpatient_zh",
+            source_filename="case.pdf",
+            blocks=[
+                DocumentIRBlock(
+                    block_id="b1",
+                    page=1,
+                    reading_order=1,
+                    text="性别：男",
+                    confidence=0.98,
+                    section_label="基本信息",
+                )
+            ],
+        )
+    )
+    provider = OpenAIResponsesProvider.__new__(OpenAIResponsesProvider)
+    provider.profile = SimpleNamespace(
+        input=["text", "image"],
+        max_output_tokens=1024,
+        prompt_cache_key="test-cache",
+        reasoning_effort="low",
+    )
+    provider.api_keys = ["sk-test"]
+    provider.model = "gpt-test"
+    provider.base_url = None
+    provider.client_class = object
+    monkeypatch.setattr("app.services.llm_provider.adapters._read_evidence_candidate_cache", lambda cache_key: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters._write_evidence_candidate_cache", lambda cache_key, result: None)
+    monkeypatch.setattr(
+        "app.services.llm_provider.adapters._responses_evidence_first_payload",
+        lambda **kwargs: pytest.fail("remote full-context payload should not be built"),
+    )
+
+    evidence = provider.collect_evidence(document_context=context, fields=[field])
+
+    assert evidence["gender"][0].normalized_code == "1"
+    assert provider.last_usage["remote_skipped_reason"] == "remote_full_context_disabled"
+
+
 def test_rate_limited_api_key_is_skipped_during_cooldown(monkeypatch):
     profile = SimpleNamespace(
         model_ref="custom/demo-model",
@@ -138,13 +337,13 @@ def test_rate_limited_api_key_is_skipped_during_cooldown(monkeypatch):
         profile_id="provider_custom_demo_model",
         model="demo-model",
     )
-    provider_module._API_KEY_COOLDOWN_UNTIL.clear()
-    monkeypatch.setattr(provider_module.settings, "model_key_cooldown_seconds", 30, raising=False)
+    _API_KEY_COOLDOWN_UNTIL.clear()
+    monkeypatch.setattr("app.services.llm_provider.utils.settings.model_key_cooldown_seconds", 30, raising=False)
 
     _mark_api_key_cooldown(profile, "rate-limited-key", RuntimeError("rate limit exceeded"))
 
     assert _api_keys_for_attempts(profile, ["rate-limited-key", "healthy-key"]) == ["healthy-key"]
-    provider_module._API_KEY_COOLDOWN_UNTIL.clear()
+    _API_KEY_COOLDOWN_UNTIL.clear()
 
 
 def test_openai_compatible_base_url_candidates_try_v1_for_root_relay():
@@ -194,13 +393,12 @@ def test_openai_compatible_provider_retries_v1_when_root_path_404(monkeypatch):
         def __init__(self, *, api_key: str, base_url: str, timeout: float) -> None:
             self.chat = SimpleNamespace(completions=FakeCompletions(base_url))
 
-    monkeypatch.setattr(provider_module, "api_keys_for_profile", lambda profile: ["sk-relay"])
-    monkeypatch.setattr(provider_module, "_llm_cache_key", lambda *args, **kwargs: "cache-key")
-    monkeypatch.setattr(provider_module, "_read_llm_result_cache", lambda cache_key: None)
-    monkeypatch.setattr(provider_module, "_write_llm_result_cache", lambda cache_key, result: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters.api_keys_for_profile", lambda profile: ["sk-relay"])
+    monkeypatch.setattr("app.services.llm_provider.adapters._llm_cache_key", lambda *args, **kwargs: "cache-key")
+    monkeypatch.setattr("app.services.llm_provider.adapters._read_llm_result_cache", lambda cache_key: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters._write_llm_result_cache", lambda cache_key, result: None)
     monkeypatch.setattr(
-        provider_module,
-        "_chat_completions_payload",
+        "app.services.llm_provider.adapters._chat_completions_payload",
         lambda **kwargs: {"model": "demo-model", "messages": []},
     )
 
@@ -250,13 +448,12 @@ def test_openai_compatible_provider_retries_v1_when_root_returns_html(monkeypatc
         def __init__(self, *, api_key: str, base_url: str, timeout: float) -> None:
             self.chat = SimpleNamespace(completions=FakeCompletions(base_url))
 
-    monkeypatch.setattr(provider_module, "api_keys_for_profile", lambda profile: ["sk-relay"])
-    monkeypatch.setattr(provider_module, "_llm_cache_key", lambda *args, **kwargs: "cache-key")
-    monkeypatch.setattr(provider_module, "_read_llm_result_cache", lambda cache_key: None)
-    monkeypatch.setattr(provider_module, "_write_llm_result_cache", lambda cache_key, result: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters.api_keys_for_profile", lambda profile: ["sk-relay"])
+    monkeypatch.setattr("app.services.llm_provider.adapters._llm_cache_key", lambda *args, **kwargs: "cache-key")
+    monkeypatch.setattr("app.services.llm_provider.adapters._read_llm_result_cache", lambda cache_key: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters._write_llm_result_cache", lambda cache_key, result: None)
     monkeypatch.setattr(
-        provider_module,
-        "_chat_completions_payload",
+        "app.services.llm_provider.adapters._chat_completions_payload",
         lambda **kwargs: {"model": "demo-model", "messages": []},
     )
 
@@ -299,13 +496,12 @@ def test_openai_compatible_provider_accepts_plain_string_response(monkeypatch):
         def __init__(self, *, api_key: str, base_url: str, timeout: float) -> None:
             self.chat = SimpleNamespace(completions=FakeCompletions())
 
-    monkeypatch.setattr(provider_module, "api_keys_for_profile", lambda profile: ["sk-relay"])
-    monkeypatch.setattr(provider_module, "_llm_cache_key", lambda *args, **kwargs: "cache-key")
-    monkeypatch.setattr(provider_module, "_read_llm_result_cache", lambda cache_key: None)
-    monkeypatch.setattr(provider_module, "_write_llm_result_cache", lambda cache_key, result: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters.api_keys_for_profile", lambda profile: ["sk-relay"])
+    monkeypatch.setattr("app.services.llm_provider.adapters._llm_cache_key", lambda *args, **kwargs: "cache-key")
+    monkeypatch.setattr("app.services.llm_provider.adapters._read_llm_result_cache", lambda cache_key: None)
+    monkeypatch.setattr("app.services.llm_provider.adapters._write_llm_result_cache", lambda cache_key, result: None)
     monkeypatch.setattr(
-        provider_module,
-        "_chat_completions_payload",
+        "app.services.llm_provider.adapters._chat_completions_payload",
         lambda **kwargs: {"model": "demo-model", "messages": []},
     )
 

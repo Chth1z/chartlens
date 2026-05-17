@@ -13,7 +13,7 @@ from app.core import database
 from app.core.database import CaseRecord, FieldResultRecord, SessionLocal, json_loads
 from app.core.settings import settings
 from app.domain.models import DocumentIR, DocumentIRBlock, ValidatedFieldResult
-from app.main import app
+from app.main import app, create_app
 from app.services.model_auth import set_runtime_provider_api_key
 from app.services import model_providers
 from app.services.pipeline import process_case
@@ -29,6 +29,34 @@ def test_non_loopback_browser_origin_is_rejected():
     )
 
     assert response.status_code == 403
+
+
+def test_remote_browser_origin_is_allowed_when_remote_access_is_configured(monkeypatch):
+    monkeypatch.setattr(settings, "allow_remote_access", True)
+    monkeypatch.setattr(settings, "local_api_token", "local-token")
+    client = TestClient(create_app())
+
+    origin = "http://192.168.1.20:5173"
+    headers = {
+        "origin": origin,
+        "authorization": "Bearer local-token",
+    }
+
+    preflight = client.options(
+        "/api/settings/validate",
+        headers={
+            "origin": origin,
+            "access-control-request-method": "POST",
+            "access-control-request-headers": "authorization,content-type",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == origin
+
+    response = client.post("/api/settings/validate", headers=headers, json={})
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
 
 
 def test_upload_rejects_unsupported_file_type(monkeypatch, tmp_path):
@@ -273,3 +301,13 @@ def test_stop_script_only_stops_eyex_processes():
     assert "Get-CimInstance" in script
     assert "CommandLine" in script
     assert "Stop-Process -Id $connection.OwningProcess -Force" not in script
+
+
+def test_root_cmd_wrappers_keep_window_open_unless_suppressed():
+    for name in ("install-ocr.cmd", "start.cmd", "stop.cmd"):
+        wrapper = Path(name).read_text(encoding="utf-8")
+
+        assert "EYEX_NO_PAUSE" in wrapper
+        assert "pause >nul" in wrapper
+        assert "Press any key to close this window." in wrapper
+        assert "exit /b %EYEX_EXIT_CODE%" in wrapper

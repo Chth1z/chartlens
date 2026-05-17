@@ -1,0 +1,12 @@
+profile_id: medical_inpatient_zh
+label: 中文住院病历 OCR 回归评测
+default_ocr_profile: windows_radeon_balanced
+default_document_profile: medical_inpatient_zh
+thresholds:
+  max_cer: 0.05
+  max_wer: 0.1
+  requires_real_hardware: true
+  requires_deidentified_corpus: true
+  min_cases: 5
+  target_accelerators: [directml, cuda, rocm_remote]
+cases: []

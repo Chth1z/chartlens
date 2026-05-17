@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { ChevronDown, Filter, Search } from "lucide-react";
 import type { FieldDefinition, FieldResult } from "../../shared/types/api";
 import { confidenceBand, type FilterMode } from "../cases/status";
@@ -35,9 +35,11 @@ export const FieldResultsPanel = memo(function FieldResultsPanel({
     ["ocr_low", "OCR低质"],
     ["no_evidence", "无证据"],
     ["review", "需复核"],
+    ["manual_review", "人工复核"],
     ["accepted", "已确认"]
   ];
   const activeFilterLabel = filterOptions.find(([key]) => key === filter)?.[1] ?? "全部";
+  const sortedResults = useMemo(() => [...filteredResults].sort(compareFieldRisk), [filteredResults]);
 
   return (
     <section className="fields-panel">
@@ -100,7 +102,7 @@ export const FieldResultsPanel = memo(function FieldResultsPanel({
       </div>
       <div className="field-table" role="list">
         {filteredResults.length === 0 && <div className="empty-state">暂无字段结果</div>}
-        {[...filteredResults].sort(compareFieldRisk).map((result) => {
+        {sortedResults.map((result) => {
           const field = fieldMap.get(result.field_key);
           const band = confidenceBand(result);
           const statusText = riskStatusText(result, band);
@@ -150,6 +152,11 @@ function compareFieldRisk(left: FieldResult, right: FieldResult) {
 }
 
 function riskStatusText(result: FieldResult, band: ReturnType<typeof confidenceBand>) {
+  if (band === "manual_review" || result.validation_state === "reviewed" || result.acceptance_reason === "manual_review") return "人工复核";
+  const decisionStatus = typeof result.provenance?.decision_status === "string" ? result.provenance.decision_status : null;
+  if (decisionStatus === "CONFLICT") return "冲突";
+  if (decisionStatus === "MISSING") return "无证据";
+  if (decisionStatus === "REVIEW") return "需复核";
   if (result.validation_state === "rejected") return "已拦截";
   if (result.error_code === "NO_EVIDENCE_CANDIDATES_SKIPPED_LLM") return "无证据";
   if (result.error_code === "DEIDENTIFICATION_RISK_BLOCKED_ONLINE_LLM") return "脱敏复核";

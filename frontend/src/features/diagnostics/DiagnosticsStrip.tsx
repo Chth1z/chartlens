@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { AlertTriangle, BrainCircuit, Clock3, FileSearch, Layers, RefreshCw } from "lucide-react";
-import type { CaseDiagnostics, CaseRecord, OcrQuality, ProcessingRun } from "../../shared/types/api";
+import type { CaseDiagnostics, CaseRecord, OcrQuality, ProcessingRun, RuntimeServiceStatus } from "../../shared/types/api";
 import { formatMs, isWorkingStatus, qualityText, statusLabel } from "../cases/status";
 import { formatTokenSummary } from "./diagnosticsLog";
-import { formatOcrProcessingError, ocrReadinessSummary } from "./ocrReadiness";
+import { formatOcrProcessingError, ocrReadinessSummary, ocrRuntimeSummary } from "./ocrReadiness";
 
 interface DiagnosticsStripProps {
   selectedCase?: CaseRecord;
@@ -14,6 +14,7 @@ interface DiagnosticsStripProps {
   cacheHit: boolean;
   cachedInputTokens: number;
   latestModelLabel: string;
+  ocrRuntimeService?: RuntimeServiceStatus | null;
 }
 
 export const DiagnosticsStrip = memo(function DiagnosticsStrip({
@@ -24,7 +25,8 @@ export const DiagnosticsStrip = memo(function DiagnosticsStrip({
   diagnosticsLoading,
   cacheHit,
   cachedInputTokens,
-  latestModelLabel
+  latestModelLabel,
+  ocrRuntimeService
 }: DiagnosticsStripProps) {
   const pageCacheHits = metricNumber(activeRun, "page_cache_hit_count");
   const secondPassPages = metricNumberArray(activeRun, "second_pass_ocr_pages");
@@ -39,10 +41,20 @@ export const DiagnosticsStrip = memo(function DiagnosticsStrip({
   const unavailableEngines = activeQuality?.ocr_unavailable_engines ?? [];
   const attemptedEngines = activeQuality?.ocr_attempted_engines ?? [];
   const unavailableReasons = activeQuality?.ocr_unavailable_reasons ?? metricStringRecord(activeRun, "ocr_unavailable_reasons");
-  const ocrEngineErrors = activeQuality?.ocr_engine_errors ?? {};
+  const ocrEngineErrors = activeQuality?.ocr_engine_errors ?? metricStringRecord(activeRun, "ocr_engine_errors");
+  const ocrTraceError = metricString(activeRun, "ocr_trace_error");
+  const ocrSelectedEngine = metricString(activeRun, "ocr_selected_engine") || ocrEngine;
   const ocrReady = ocrStatus === "completed";
-  const processingError = formatOcrProcessingError(selectedCase?.error_message, unavailableReasons);
+  const runtimeOcrSummary = ocrRuntimeService?.ready === false ? ocrRuntimeSummary(ocrRuntimeService) : null;
+  const processingError = formatOcrProcessingError(activeRun?.error_message || selectedCase?.error_message, unavailableReasons, ocrEngineErrors, ocrTraceError);
   const tokenSummary = formatTokenSummary(activeRun?.input_tokens, cachedInputTokens, activeRun?.output_tokens);
+  const extractMs = metricNumber(activeRun, "extract_ms");
+  const persistMs = metricNumber(activeRun, "persist_ms");
+  const ocrTraceTotalMs = metricNumber(activeRun, "ocr_trace_total_ms");
+  const ocrSlowestStage = metricString(activeRun, "ocr_slowest_stage");
+  const ocrSlowestStageMs = metricNumber(activeRun, "ocr_slowest_stage_ms");
+  const ocrTimedOutStages = metricNumber(activeRun, "ocr_timed_out_stage_count");
+  const ocrFailedStages = metricNumber(activeRun, "ocr_failed_stage_count");
 
   return (
     <section className="diagnostics-strip" aria-label="处理摘要">
@@ -54,11 +66,11 @@ export const DiagnosticsStrip = memo(function DiagnosticsStrip({
         </div>
         <div className={`summary-card summary-ocr quality-${ocrReady ? activeQuality?.quality_band ?? "poor" : "poor"}`}>
           <span>{ocrReady ? <BrainCircuit size={15} /> : <AlertTriangle size={15} />} 智能文档</span>
-          <strong>{ocrReady ? ocrEngine : "引擎未就绪"}</strong>
+          <strong>{ocrReady ? ocrEngine : ocrSelectedEngine && ocrSelectedEngine !== "none" ? ocrSelectedEngine : "引擎未就绪"}</strong>
           <small>
             {ocrReady
               ? `${qualityText(activeQuality?.quality_band)} / ${activeQuality?.ocr_block_count ?? 0} 块${cacheHit ? " / 缓存命中" : ""}`
-              : ocrReadinessSummary(attemptedEngines, unavailableEngines, unavailableReasons)}
+              : runtimeOcrSummary ?? processingError ?? ocrReadinessSummary(attemptedEngines, unavailableEngines, unavailableReasons, ocrEngineErrors, ocrTraceError)}
           </small>
         </div>
         <div className="summary-card summary-layout">
@@ -69,7 +81,19 @@ export const DiagnosticsStrip = memo(function DiagnosticsStrip({
         <div className="summary-card summary-time">
           <span><Clock3 size={15} /> 耗时</span>
           <strong>{formatMs(activeRun?.latency_ms)}</strong>
-          <small>解析 {formatMs(metricNumber(activeRun, "ocr_ms"))} / 版面 {formatMs(metricNumber(activeRun, "layout_ms"))} / 规则 {formatMs(metricNumber(activeRun, "rule_ms"))}{pageCacheHits ? ` / 页缓存 ${pageCacheHits}` : ""}{secondPassPages.length ? ` / 二次 p.${secondPassPages.join(",")}` : ""}{Object.keys(ocrEngineErrors).length ? " / 有错误" : ""}</small>
+          <small>
+            OCR {formatMs(metricNumber(activeRun, "ocr_ms"))}
+            {ocrTraceTotalMs ? ` / 链路 ${formatMs(ocrTraceTotalMs)}` : ""}
+            {" / "}版面 {formatMs(metricNumber(activeRun, "layout_ms"))}
+            {" / "}抽取 {formatMs(extractMs)}
+            {" / "}保存 {formatMs(persistMs)}
+            {ocrSlowestStageMs ? ` / 最慢 ${ocrSlowestStage || "OCR阶段"} ${formatMs(ocrSlowestStageMs)}` : ""}
+            {pageCacheHits ? ` / 页缓存 ${pageCacheHits}` : ""}
+            {secondPassPages.length ? ` / 二次 p.${secondPassPages.join(",")}` : ""}
+            {ocrTimedOutStages ? ` / 超时 ${ocrTimedOutStages}` : ""}
+            {ocrFailedStages ? ` / 失败阶段 ${ocrFailedStages}` : ""}
+            {Object.keys(ocrEngineErrors).length ? " / 有错误" : ""}
+          </small>
         </div>
         <div className="summary-card summary-model">
           <span><FileSearch size={15} /> 模型</span>

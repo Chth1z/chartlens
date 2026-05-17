@@ -40,9 +40,16 @@ npm run dev
 - `model_profiles`: OpenAI Responses API、DeepSeek、OpenAI-compatible Chat Completions 参数。
 - `validation_rules`: 核心护栏说明。
 
-默认 SQLite、上传文件、OCR 缓存、provider 设置和本机密钥缓存都写入 `var/storage/`。历史环境如果 `.env` 仍设置 `EYEX_DATABASE_URL=sqlite:///./storage/eyex.sqlite3`，会继续使用旧位置；新环境建议使用 `.env.example` 中的 `var/storage` 默认值。
+默认 SQLite、上传文件、OCR 缓存、provider 设置和本机密钥缓存都写入 `var/storage/`。本机 `.env` 也应使用 `EYEX_DATABASE_URL=sqlite:///./var/storage/eyex.sqlite3`；旧 `storage/` 位置不再作为运行态入口保留。
 
 `EYEX_DOCUMENT_PROFILE` 可切换文档领域 profile。profile 除了章节别名，也可以声明文档类型映射、脱敏正则、在线模型外发门禁、OCR 视觉解析提示词和抽取规则提示词；新增领域应优先扩展 `config/document_profiles/*.yaml` 和 schema/export 配置，而不是在 pipeline/provider/OCR 代码中写死场景逻辑。
+
+配置发现接口：
+
+- `GET /api/config/catalog`：列出当前激活配置和所有可用 profile/schema/template/model/OCR/eval 配置。
+- `GET /api/config/{kind}/{config_id}`：读取单个 YAML 配置及解析后的 JSON；`kind` 支持 `document_profiles`、`extraction_schemas`、`export_templates`、`model_profiles`、`ocr_profiles`、`evaluation_profiles`、`validation_rules`。
+
+领域差异通过 domain plugin 入口收敛，默认 `config` plugin 直接执行 profile 中声明的文档类型、提示词和脱敏规则；后续如医疗、发票、合同需要领域计算器或特殊召回策略，应注册独立 plugin，而不是改公共 pipeline。
 
 `unknown` 是内部唯一“不详/未提及”表示；导出模板决定映射为空值或 `9`。复杂字段不得把未提及推断为 `0`。
 
@@ -60,36 +67,53 @@ npm run dev
 
 ## OCR / 智能文档解析
 
-OCR 层默认采用智能文档引擎链：
+OCR 层默认采用 AMD GPU 保护的固定混合路线：
 
 ```text
-原生 PDF 文本 -> HTTP 智能文档 sidecar / OpenAI 视觉文档模型 / PaddleOCR-VL / PP-StructureV3 / Docling
+原生 PDF 文本 -> 本地 OCR sidecar -> PP-OCRv5 server ONNX + DirectML -> 可选远端 PaddleOCR-VL AMD/ROCm -> DocumentIR 合并
 ```
 
 相关环境变量：
 
 - `EYEX_OCR_STRATEGY=intelligent`
 - `EYEX_OCR_PROFILE=windows_radeon_balanced`：OCR 引擎顺序由 `config/ocr_profiles/*.yaml` 控制。
-- `EYEX_OCR_DOCUMENT_AI_URL=`：可选，本地或内网智能文档 sidecar，例如 PaddleOCR-VL/PP-StructureV3 服务。
+- `EYEX_OCR_DOCUMENT_AI_URL=http://127.0.0.1:8765/extract`：本地 OCR sidecar。
+- `EYEX_OCR_PADDLEOCR_VL_URL=`：可选的远端 AMD/ROCm PaddleOCR-VL sidecar；支持 EYEX `/extract` 或官方 PaddleOCR-VL `/layout-parsing`；未配置时不会在本机 CPU 上运行 PaddleOCR-VL。
+- `EYEX_OCR_ACCELERATOR=directml` 和 `EYEX_OCR_DIRECTML_MODEL_DIR=var\models\ppocrv5-directml-server`：本机 PP-OCRv5 DirectML 路线。
 - `EYEX_OPENAI_API_KEY=` 和 `EYEX_OCR_OPENAI_MODEL=`：可选，使用 OpenAI Responses 视觉文件输入作为高难度兜底。
 
-旧 RapidOCR 兜底已移除。智能文档引擎不可用时，病例会进入 `failed`，前端处理摘要会显示缺失原因，例如未配置 sidecar、未配置模型密钥或本地包未安装。
+旧 CPU RapidOCR 兜底已移除。DirectML 不可用或运行时被 AMD 驱动超时禁用时，病例会进入 `failed`，前端处理摘要会显示缺失原因；不会静默退回本机 CPU 重模型。
 
-重型 OCR 依赖不放进主后端依赖。PaddleOCR-VL 官方文档给出的手动安装验证范围是 Python 3.9-3.13，建议单独环境安装：
+重型 OCR 依赖不放进主后端依赖。OCR sidecar 使用独立 `.venv-ocr`，安装脚本无参执行即可自动检测显卡、准备项目内模型目录并启动 sidecar：
 
 ```powershell
-.\install-ocr.cmd -PythonExe py -PythonArgs -3.11 -UseDeepSeek -StartSidecar
+.\install-ocr.cmd
 ```
 
-安装脚本会创建 `.venv-ocr`，安装 PaddlePaddle/PaddleOCR-VL/PP-StructureV3/Docling 和 sidecar 服务依赖，并写入：
+安装脚本会创建 `.venv-ocr`，在 AMD Radeon Windows 上准备 PP-OCRv5 server ONNX DirectML 模型，并自动探测/尝试准备官方 AMD/ROCm PaddleOCR-VL Docker sidecar。若 Docker/ROCm sidecar 可用，会写入 `EYEX_OCR_PADDLEOCR_VL_URL=http://127.0.0.1:8080/layout-parsing`；否则继续使用本机 DirectML PP-OCRv5，不会退回本机 CPU VL。基础写入项：
 
 ```text
 EYEX_OCR_DOCUMENT_AI_URL=http://127.0.0.1:8765/extract
 EYEX_OCR_PROFILE=windows_radeon_balanced
+EYEX_OCR_ACCELERATOR=directml
 ```
 
-首次安装会预热 PaddleOCR-VL、PP-StructureV3 和 Docling，模型权重下载可能需要几分钟；使用 `-SkipWarmup` 才会改成首次识别时再下载。
-脚本默认设置 `PADDLE_PDX_MODEL_SOURCE=BOS`，避免 HuggingFace 模型下载在国内网络下卡住。
+如果 `.env` 已有 `EYEX_OCR_PADDLEOCR_VL_URL=http://host:8080/layout-parsing` 或 `http://host:8765/extract`，无参安装会自动接入远端 ROCm PaddleOCR-VL。`scripts\probe-amd-ocr.ps1` 会显示 `paddleocr_vl_rocm_sidecar` 状态。所有模型、缓存、compose 文件和临时目录都固定在项目内 `var/`。
+
+本机 DirectML 合成 OCR 评测如果要绕过当前运行中的 sidecar，只在当前
+PowerShell 会话清空 URL 后运行：
+
+```powershell
+$env:EYEX_OCR_DOCUMENT_AI_URL=''
+.\scripts\run-ocr-eval.ps1 -ProfileId synthetic_medical_directml
+```
+
+如果评测或诊断提示 sidecar 过期，使用现有根脚本安全重启，不要手动杀进程：
+
+```powershell
+.\stop.cmd
+.\start.cmd
+```
 
 如果已经接入 DeepSeek API，可以在 `.env` 设置：
 
@@ -134,5 +158,8 @@ API key 读取也按 OpenClaw 思路支持多个来源：当前进程内存、`O
 ```powershell
 .\.venv\Scripts\python -m pytest backend\tests
 cd frontend
+npm test
 npm run build
+cd ..
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1
 ```

@@ -1,8 +1,9 @@
 from pathlib import Path
+import time
 
 from app.core.settings import settings
 from ocr_sidecar.main import engine_status, extract_with_engines, local_engines
-from app.services.intelligent_ocr import IntelligentOcrBlock, IntelligentOcrResult
+from app.services.ocr_engine import IntelligentOcrBlock, IntelligentOcrResult
 
 
 class MissingEngine:
@@ -32,6 +33,20 @@ class LocalEngine:
         )
 
 
+class SlowLocalEngine:
+    name = "slow_local"
+
+    def available(self) -> bool:
+        return True
+
+    def extract(self, file_path: Path) -> IntelligentOcrResult:
+        time.sleep(0.05)
+        return IntelligentOcrResult(
+            engine="slow_local_fixture",
+            blocks=[IntelligentOcrBlock(page=1, text="慢引擎结果", bbox=[0, 0, 10, 10], confidence=0.7)],
+        )
+
+
 def test_sidecar_extract_payload_preserves_blocks_and_unavailable_reasons(tmp_path):
     file_path = tmp_path / "case.pdf"
     file_path.write_bytes(b"%PDF fixture")
@@ -49,10 +64,29 @@ def test_sidecar_extract_payload_preserves_blocks_and_unavailable_reasons(tmp_pa
             "table_id": None,
             "row": None,
             "col": None,
+            "row_span": 1,
+            "col_span": 1,
+            "stage_source": None,
+            "candidate_id": None,
+            "candidate_group_id": None,
+            "conflict_flags": [],
+            "canonical_source_ids": [],
+            "layout_region_id": None,
+            "line_group_id": None,
+            "coordinate_system": None,
+            "merge_confidence": None,
+            "merge_flags": [],
+            "model_name": None,
+            "model_version": None,
+            "model_variant": None,
+            "render_dpi": None,
+            "preprocess_profile": None,
         }
     ]
     assert payload["unavailable_engines"] == ["missing"]
     assert payload["unavailable_reasons"] == {"missing": "missing dependency"}
+    assert payload["metadata"]["ocr_trace"]["selected_engine"] == "local_fixture"
+    assert any(stage["engine"] == "local" and stage["status"] == "completed" for stage in payload["metadata"]["ocr_trace"]["stages"])
 
 
 def test_sidecar_engine_status_only_reports_reason_when_unavailable():
@@ -68,14 +102,29 @@ def test_sidecar_engine_status_only_reports_reason_when_unavailable():
     }
 
 
-def test_sidecar_default_engine_order_follows_active_profile_with_vl_as_last_fallback(monkeypatch):
+def test_sidecar_default_engine_order_uses_hybrid_accuracy_pipeline(monkeypatch):
     monkeypatch.delenv("EYEX_OCR_SIDECAR_ENGINES", raising=False)
     monkeypatch.setattr(settings, "ocr_profile", "windows_radeon_balanced")
 
-    assert [engine.name for engine in local_engines()] == [
-        "pp_ocr_v5_onnx_directml",
-        "pp_ocr_v5_paddle",
-        "paddle_structure_v3",
-        "docling",
-        "paddleocr_vl",
-    ]
+    assert [engine.name for engine in local_engines()] == ["paddleocr_hybrid"]
+
+
+def test_sidecar_ignores_runtime_engine_override_env(monkeypatch):
+    monkeypatch.setenv("EYEX_OCR_SIDECAR_ENGINES", "pp_ocr_v5_paddle,docling")
+    monkeypatch.setattr(settings, "ocr_profile", "windows_radeon_balanced")
+
+    assert [engine.name for engine in local_engines()] == ["paddleocr_hybrid"]
+
+
+def test_sidecar_times_out_slow_engine_and_falls_back(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "ocr_engine_timeout_seconds", 0.01)
+    file_path = tmp_path / "case.pdf"
+    file_path.write_bytes(b"%PDF fixture")
+
+    payload = extract_with_engines(file_path, [SlowLocalEngine(), LocalEngine()])
+
+    assert payload["engine"] == "local_fixture"
+    assert payload["engine_errors"]["slow_local"].startswith("[PAGE_TIMEOUT]")
+    assert payload["metadata"]["ocr_trace"]["selected_engine"] == "local_fixture"
+    assert any(stage["engine"] == "slow_local" and stage["status"] == "timeout" for stage in payload["metadata"]["ocr_trace"]["stages"])
+    assert any(stage["engine"] == "local" and stage["status"] == "completed" for stage in payload["metadata"]["ocr_trace"]["stages"])

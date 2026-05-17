@@ -58,14 +58,37 @@ def _resolve_requested_accelerator(requested: str, probes: dict[str, dict[str, A
 def _directml_probe() -> dict[str, Any]:
     providers = _onnx_available_providers()
     model_dir = settings.ocr_directml_model_dir
-    model_ready = bool(model_dir and Path(model_dir).exists())
+    runtime_disabled_reason = _directml_runtime_disabled_reason()
+    model_ready = _directml_model_dir_ready(model_dir)
     return {
-        "available": "DmlExecutionProvider" in providers and model_ready,
+        "available": "DmlExecutionProvider" in providers and model_ready and not runtime_disabled_reason,
         "provider_available": "DmlExecutionProvider" in providers,
         "providers": providers,
         "model_dir": str(model_dir) if model_dir else "",
         "model_dir_exists": model_ready,
+        "runtime_disabled": bool(runtime_disabled_reason),
+        "runtime_disabled_reason": runtime_disabled_reason,
     }
+
+
+def _directml_model_dir_ready(model_dir: Path | None) -> bool:
+    if not model_dir:
+        return False
+    path = Path(model_dir)
+    return (
+        path.exists()
+        and (path / "ch_PP-OCRv5_det_server.onnx").exists()
+        and (path / "ch_PP-OCRv5_rec_server.onnx").exists()
+    )
+
+
+def _directml_runtime_disabled_reason() -> str:
+    try:
+        from app.services.ocr_engine.errors import directml_disabled_reason
+
+        return str(directml_disabled_reason() or "")
+    except Exception:
+        return ""
 
 
 def _onnx_available_providers() -> list[str]:
@@ -104,9 +127,11 @@ def _rocm_probe() -> dict[str, Any]:
 
 
 def _remote_probe() -> dict[str, Any]:
+    url = settings.ocr_paddleocr_vl_url or ""
     return {
-        "available": bool(settings.ocr_document_ai_url),
-        "url": settings.ocr_document_ai_url or "",
+        "available": bool(url),
+        "url": url,
+        "purpose": "paddleocr_vl_remote",
     }
 
 

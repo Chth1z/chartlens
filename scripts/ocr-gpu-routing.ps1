@@ -55,7 +55,7 @@ function Test-EyexPathUnderRoot {
 function Get-EyexDefaultDirectMLModelDir {
   param([string]$ProjectRoot = "")
   $root = Resolve-EyexAbsolutePath -Path $ProjectRoot
-  return [System.IO.Path]::GetFullPath((Join-Path $root "var\models\ppocrv5-directml"))
+  return [System.IO.Path]::GetFullPath((Join-Path $root "var\models\ppocrv5-directml-server"))
 }
 
 function Get-EyexGpuInventory {
@@ -83,7 +83,7 @@ function Test-EyexDirectMLModelDir {
   if (!$resolved) {
     return $false
   }
-  return (Test-Path -LiteralPath (Join-Path $resolved.Path "det.onnx")) -and (Test-Path -LiteralPath (Join-Path $resolved.Path "rec.onnx"))
+  return (Test-Path -LiteralPath (Join-Path $resolved.Path "ch_PP-OCRv5_det_server.onnx")) -and (Test-Path -LiteralPath (Join-Path $resolved.Path "ch_PP-OCRv5_rec_server.onnx"))
 }
 
 function Test-EyexGpuName {
@@ -128,8 +128,6 @@ function Resolve-EyexOcrGpuRoute {
   $directMLDirInsideProject = Test-EyexPathUnderRoot -Path $directMLCandidate -Root $projectRootPath
   $hasDirectMLAssets = $directMLDirInsideProject -and (Test-EyexDirectMLModelDir -Path $directMLCandidate)
   $canAutoInstallDirectMLAssets = !$DisableAutoDirectMLModelInstall
-  $hasRemoteRocm = [bool]($RemoteRocmSidecarUrl -and $RemoteRocmSidecarUrl.Trim())
-
   if ($GpuPolicy -eq "Off") {
     return [pscustomobject]@{
       route = "cpu"
@@ -164,23 +162,6 @@ function Resolve-EyexOcrGpuRoute {
     }
   }
 
-  if ($hasAmd -and $hasRemoteRocm) {
-    return [pscustomobject]@{
-      route = "amd_rocm_remote"
-      reason = "AMD GPU detected; using configured remote ROCm PaddleOCR-VL sidecar."
-      ocr_profile = "rocm_remote_vl"
-      accelerator = "remote"
-      use_gpu = $false
-      use_directml = $false
-      can_guarantee_gpu = $true
-      directml_model_dir = ""
-      remote_rocm_sidecar_url = $RemoteRocmSidecarUrl.Trim()
-      needs_directml_model_install = $false
-      project_root = $projectRootPath
-      required_action = ""
-    }
-  }
-
   if (($hasAmd -or $hasAnyGpu) -and !$directMLDirInsideProject) {
     $vendorRoute = if ($hasAmd) { "amd_directml" } else { "windows_directml" }
     return [pscustomobject]@{
@@ -202,7 +183,7 @@ function Resolve-EyexOcrGpuRoute {
   if ($hasAmd -and $hasDirectMLAssets) {
     return [pscustomobject]@{
       route = "amd_directml"
-      reason = "AMD Radeon detected; using PP-OCRv5 ONNX with ONNX Runtime DirectML."
+      reason = "AMD Radeon detected; using the fixed hybrid OCR profile with PP-OCRv5 server ONNX on ONNX Runtime DirectML."
       ocr_profile = "windows_radeon_balanced"
       accelerator = "directml"
       use_gpu = $false
@@ -219,7 +200,7 @@ function Resolve-EyexOcrGpuRoute {
   if ($hasAmd -and $canAutoInstallDirectMLAssets) {
     return [pscustomobject]@{
       route = "amd_directml"
-      reason = "AMD Radeon detected; installer will prepare RapidOCR PP-OCRv5 ONNX models under the EYEX project directory."
+      reason = "AMD Radeon detected; installer will prepare hybrid OCR DirectML PP-OCRv5 server ONNX models under the EYEX project directory."
       ocr_profile = "windows_radeon_balanced"
       accelerator = "directml"
       use_gpu = $false
@@ -246,14 +227,14 @@ function Resolve-EyexOcrGpuRoute {
       remote_rocm_sidecar_url = ""
       needs_directml_model_install = $true
       project_root = $projectRootPath
-      required_action = "DirectML model directory must contain RapidOCR PP-OCRv5 ONNX files or det.onnx and rec.onnx aliases. Enable automatic model preparation, or pass -RemoteRocmSidecarUrl for a validated ROCm/VL sidecar."
+      required_action = "DirectML model directory must contain RapidOCR PP-OCRv5 server ONNX files. Enable automatic model preparation."
     }
   }
 
   if ($hasAnyGpu -and $hasDirectMLAssets) {
     return [pscustomobject]@{
       route = "windows_directml"
-      reason = "Non-NVIDIA GPU detected; using PP-OCRv5 ONNX with ONNX Runtime DirectML."
+      reason = "Non-NVIDIA GPU detected; using the fixed hybrid OCR profile with PP-OCRv5 server ONNX on ONNX Runtime DirectML."
       ocr_profile = "windows_radeon_balanced"
       accelerator = "directml"
       use_gpu = $false
@@ -270,7 +251,7 @@ function Resolve-EyexOcrGpuRoute {
   if ($hasAnyGpu -and $canAutoInstallDirectMLAssets) {
     return [pscustomobject]@{
       route = "windows_directml"
-      reason = "GPU detected; installer will prepare RapidOCR PP-OCRv5 ONNX models under the EYEX project directory for ONNX Runtime DirectML."
+      reason = "GPU detected; installer will prepare hybrid OCR DirectML PP-OCRv5 server ONNX models under the EYEX project directory."
       ocr_profile = "windows_radeon_balanced"
       accelerator = "directml"
       use_gpu = $false
@@ -296,7 +277,7 @@ function Resolve-EyexOcrGpuRoute {
     remote_rocm_sidecar_url = ""
     needs_directml_model_install = $false
     project_root = $projectRootPath
-    required_action = "No supported GPU OCR route. Use NVIDIA CUDA, enable automatic DirectML PP-OCRv5 model preparation, or configure a remote ROCm PaddleOCR-VL sidecar."
+    required_action = "No supported GPU OCR route. Use NVIDIA CUDA or enable automatic DirectML PP-OCRv5 model preparation."
   }
 }
 

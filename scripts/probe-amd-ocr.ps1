@@ -55,7 +55,11 @@ payload["packages"] = {
 print(json.dumps(payload, ensure_ascii=False))
 "@
   try {
-    return & $PythonExe -c $code 2>$null | ConvertFrom-Json
+    $output = $code | & $PythonExe - 2>$null
+    if (!$output) {
+      return @{ available = $false; error = "Python probe returned no output" }
+    }
+    return ($output -join "`n") | ConvertFrom-Json
   } catch {
     return @{ available = $false; error = $_.Exception.Message }
   }
@@ -76,7 +80,7 @@ if ($pythonProbe.onnxruntime -and $pythonProbe.onnxruntime.providers) {
 }
 
 $hasRadeon = @($gpus | Where-Object { $_.Name -match "AMD|Radeon" }).Count -gt 0
-$route = Resolve-EyexOcrGpuRoute -ProjectRoot $root -GpuPolicy $GpuPolicy -DirectMLModelDir $DirectMLModelDir -RemoteRocmSidecarUrl $RemoteRocmSidecarUrl -DisableAutoDirectMLModelInstall:$DisableAutoDirectMLModelInstall
+$route = Resolve-EyexOcrGpuRoute -ProjectRoot $root -GpuPolicy $GpuPolicy -DirectMLModelDir $DirectMLModelDir -RemoteRocmSidecarUrl "" -DisableAutoDirectMLModelInstall:$DisableAutoDirectMLModelInstall
 $recommendation = $route.ocr_profile
 
 [ordered]@{
@@ -99,7 +103,12 @@ $recommendation = $route.ocr_profile
   rocm = @{
     local_ready = [bool]($pythonProbe.paddle -and $pythonProbe.paddle.compiled_rocm)
     rx6600_default_enabled = $false
-    note = "RX 6600 is not enabled by default for ROCm PaddleOCR-VL; use validated remote ROCm sidecar for VL."
+    note = "ROCm/PaddleOCR-VL is parked outside the default EYEX OCR route."
+  }
+  paddleocr_vl = @{
+    enabled = $false
+    status = "disabled"
+    reason = "PaddleOCR-VL is temporarily disabled in EYEX; the default route is local PP-OCRv5 DirectML plus PP-StructureV3 when available."
   }
   gpu_route = $route
   recommended_ocr_profile = $recommendation

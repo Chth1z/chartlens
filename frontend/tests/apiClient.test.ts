@@ -1,5 +1,5 @@
 import * as api from "../src/shared/api/client.js";
-import { ApiError, deleteCase, getAuthStatus } from "../src/shared/api/client.js";
+import { ApiError, deleteCase, downloadCaseExport, getAuthStatus, listCases } from "../src/shared/api/client.js";
 
 function assertEqual<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -68,6 +68,34 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     );
   }
 
+  if (url.endsWith("/api/cases")) {
+    return new Response(
+      JSON.stringify([
+        {
+          case_id: "case-audit",
+          filename: "case.txt",
+          status: "completed",
+          created_at: "2026-05-01T00:00:00Z",
+          updated_at: "2026-05-01T00:00:00Z",
+          result_count: 1,
+          review_required_count: 0,
+          audit_count: 3
+        }
+      ]),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  if (url.endsWith("/api/cases/case-audit/export")) {
+    return new Response("xlsx-bytes", {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": 'attachment; filename="case-audit.xlsx"'
+      }
+    });
+  }
+
   if (url.endsWith("/api/cases/case-1")) {
     assertEqual(init?.method, "DELETE", "deleteCase should use DELETE");
     return new Response(JSON.stringify({ detail: "Case not found" }), {
@@ -81,6 +109,13 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 
 const auth = await getAuthStatus();
 assertEqual(auth.model_auth.auth_mode, "online", "AuthStatus should allow backend llm modes");
+
+const cases = await listCases();
+assertEqual(cases[0].audit_count, 3, "listCases should preserve persisted review audit count");
+
+const exportFile = await downloadCaseExport("case-audit");
+assertEqual(exportFile.filename, "case-audit.xlsx", "downloadCaseExport should read backend filename");
+assertEqual(await exportFile.blob.text(), "xlsx-bytes", "downloadCaseExport should return workbook bytes");
 
 await assertRejectsApiError(() => deleteCase("case-1"), "Case not found");
 
