@@ -105,7 +105,7 @@ def test_fixture_count_matches_committed_baseline():
     interpretable."""
     profile = load_evaluation_profile(PROFILE_ID)
     fixture_files = sorted(path.stem for path in FIXTURES_DIR.glob("*.txt"))
-    assert len(profile.gold_cases) == 7
+    assert len(profile.gold_cases) == 8
     assert fixture_files == [
         "eval-mock-001",
         "eval-mock-002",
@@ -114,6 +114,7 @@ def test_fixture_count_matches_committed_baseline():
         "eval-mock-005",
         "eval-mock-006",
         "eval-mock-007",
+        "eval-mock-008",
     ]
 
 
@@ -134,12 +135,14 @@ def test_baseline_file_is_present_and_well_formed():
     assert summary["evidence_coverage"] == pytest.approx(1.0)
     assert summary["unknown_misfill_rate"] == pytest.approx(0.0)
     assert summary["auto_accept_precision"] == pytest.approx(1.0)
-    # Accuracy floor: the rule-only path now scores 1.0 on the synthetic
-    # fixtures after E1-005 closed the positive-history clause-boundary gap.
-    # Keep the floor exact so a regression below this number fails loudly.
-    # To raise the floor again, regenerate the baseline as part of a
-    # precision task and update this assertion in the same commit.
-    assert summary["accuracy"] == pytest.approx(1.0)
+    # Accuracy floor: the rule-only path scores 52/54 = ~0.9630 on the
+    # synthetic fixtures. The 2 known recall gaps are eval-mock-008
+    # hypertension_history (`血压偏高` missing from the synonyms list) and
+    # drinking_history (`嗜酒` missing from the synonyms list). E1-005
+    # synonym widening or E1-001 LLM-assisted prompt rewrite will close at
+    # least one of these gaps; either change must regenerate the baseline
+    # and update this assertion in the same commit.
+    assert summary["accuracy"] == pytest.approx(52 / 54)
 
 
 @pytest.mark.skipif(

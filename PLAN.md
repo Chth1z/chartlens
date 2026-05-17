@@ -135,6 +135,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Done
 
+### done PLAN-mock-general-challenge-case
+
+- Goal: Add a "challenge" fixture (`eval-mock-008`) that uses real-world non-standard phrasings missing from the schema synonyms list. The case must lower the rule-only baseline below 1.0 so that any future E1 task targeting `mock_general` has a measurable recall gap to close.
+- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: `eval-mock-008.txt` exists; YAML gold reflects the human-correct answer (not what the current rule path can recover); baseline regenerated at `accuracy=52/54≈0.9630` with `auto_accept_precision=1.0` (no false positives, only missed positives); two new regression tests in `test_evidence_first_extraction.py` pin the `'血压偏高' → MISSING` and `'嗜酒' → MISSING` behavior so the precision-task lifecycle (fixture/baseline/test triple update in one commit) is enforced.
+
 ### done PLAN-mock-general-coverage-expansion
 
 - Goal: Widen `mock_general` from 5 to 7 synthetic fixtures so the precision baseline exercises code paths that the original set did not touch: heart_disease_history positive, stroke_history positive, implicit-negative (`既往史：无特殊`), and the `excluded_sections: [家族史]` guard against family-history leakage.

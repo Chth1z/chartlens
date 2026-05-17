@@ -93,3 +93,20 @@ gold_cases:
       stroke_history: "0"
       smoking_history: "0"
       drinking_history: "0"
+  - case_id: eval-mock-008
+    # Challenge case: real-world phrasings that miss the schema synonym list.
+    # '血压偏高' is medically equivalent to 高血压 but is not in the
+    # hypertension_history synonyms; '嗜酒' is medically equivalent to 饮酒
+    # but is not in drinking_history synonyms. Diabetes uses the standard
+    # word and serves as a control. Smoking is explicitly negated.
+    # The gold therefore reflects the human-correct answer, not what the
+    # current rule path can recover. Failures here are real recall gaps and
+    # are the targets of the remaining E1-005 / E1-001 work.
+    tags: [demographics, history_synonym_gap, lifestyle_synonym_gap]
+    gold:
+      gender: "1"
+      age: "57"
+      hypertension_history: "1"
+      diabetes_history: "1"
+      smoking_history: "0"
+      drinking_history: "1"

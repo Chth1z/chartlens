@@ -255,3 +255,60 @@ def test_smoking_history_positive_span_is_clause_bounded():
     assert candidates[0].evidence_type == "explicit_positive"
     assert "吸烟史" in (candidates[0].evidence_span or "")
     assert "否认" not in (candidates[0].evidence_span or "")
+
+
+def test_non_standard_hypertension_phrasing_is_currently_unknown():
+    """Pin the current recall gap: '血压偏高' is not in the hypertension
+    synonyms list, so the rule path cannot lift it to a positive code and
+    falls back to MISSING.
+
+    This is the eval-mock-008 baseline gap. The next E1 task that widens
+    synonyms or routes through an LLM must update this test in the same
+    commit as the rule change so the fixture/baseline/test triple stays in
+    sync.
+    """
+    schema = load_extraction_schema()
+    hypertension = schema.field_by_key("hypertension_history")
+    document_ir = _document_ir(
+        [
+            DocumentIRBlock(
+                block_id="b-history",
+                page=1,
+                reading_order=1,
+                text="既往史：血压偏高8年，未规律服药。",
+                confidence=0.97,
+                section_label="既往史",
+            )
+        ]
+    )
+
+    evidence = collect_local_evidence(build_document_context(document_ir), [hypertension])
+    decisions = adjudicate_field_decisions([hypertension], evidence)
+
+    assert decisions[hypertension.key].decision_status == "MISSING"
+
+
+def test_non_standard_drinking_phrasing_is_currently_unknown():
+    """Pin the current recall gap for drinking_history: '嗜酒' is not in the
+    drinking synonyms list (only '嗜烟酒' is), so the rule path returns
+    MISSING. Same precision-task lifecycle rule applies as the hypertension
+    sibling test."""
+    schema = load_extraction_schema()
+    drinking = schema.field_by_key("drinking_history")
+    document_ir = _document_ir(
+        [
+            DocumentIRBlock(
+                block_id="b-personal",
+                page=1,
+                reading_order=1,
+                text="个人史：嗜酒30年，每日饮白酒约半斤。否认吸烟史。",
+                confidence=0.97,
+                section_label="个人史",
+            )
+        ]
+    )
+
+    evidence = collect_local_evidence(build_document_context(document_ir), [drinking])
+    decisions = adjudicate_field_decisions([drinking], evidence)
+
+    assert decisions[drinking.key].decision_status == "MISSING"
