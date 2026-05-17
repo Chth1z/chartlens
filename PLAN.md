@@ -135,6 +135,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Done
 
+### done PLAN-mock-general-baseline
+
+- Goal: Establish a deterministic precision baseline for `mock_general` so every E1 task has a real before/after comparison line. Add 5 synthetic Chinese inpatient case fixtures, expand the evaluation profile gold cases to cover demographics + chronic disease + lifestyle fields, ship a bootstrap script that processes fixtures and writes the baseline JSON, and gate the baseline with a contract test.
+- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `python -m pytest backend\tests\test_eval_fixtures.py`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: `config/evaluation_profiles/fixtures/mock_general/eval-mock-00{1..5}.txt` exist; `config/evaluation_profiles/mock_general.yaml` declares 5 gold cases with stable IDs; `scripts/bootstrap-eval-fixtures.py` and `.ps1` exist with documented exit codes; `config/evaluation_profiles/baselines/mock_general.json` is the committed precision baseline (accuracy 0.90625, auto_accept_precision 1.0, evidence_coverage 1.0, unknown_misfill_rate 0.0); `backend/tests/test_eval_fixtures.py` enforces fixture-gold sync, baseline schema, and reproducibility through bootstrap+eval.
+
 ### done E0-008 Field-extraction eval runner
 
 - Goal: Build a CLI runner for `config/evaluation_profiles/*.yaml` analogous to `scripts/run-ocr-eval.py`. The runner reports per-field precision, recall, exact-match, unknown-rate, and token cost with a stable schema so before/after diffs are mechanical. This unblocks every E1 precision task.

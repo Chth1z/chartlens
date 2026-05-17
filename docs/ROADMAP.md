@@ -31,6 +31,16 @@ Within a phase, lower numbers are not strictly higher priority; prerequisites fo
 
 If a roadmap task targets a behavior these profiles do not measure, the first sub-task is to extend the relevant profile.
 
+## Active Baselines
+
+These are the live precision baselines that any E1 task must beat or match. They were measured by `scripts/bootstrap-eval-fixtures.py --profile-id <id> --baseline` and the report is committed to `config/evaluation_profiles/baselines/<profile_id>.json`. The on-disk JSON is the canonical "before" reference; any precision task that improves the metrics must regenerate the baseline as part of the same commit.
+
+| Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 0.90625 (29/32) | 1.0 (29/29) | 1.0 (29/29) | 0.0 | 5 synthetic cases. Three failures are positive-history recall gaps where rules see "高血压病史10年" / "吸烟史20年" but do not lift them to a positive code. Direct target for E1-005 (rule pre-filter widening) and E1-001 (LLM evidence-first prompt rewrite). |
+
+The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
+
 ## E0 — Governance and Structural Prerequisites
 
 ### E0-001 — Decide application/ vs services/ flat layout
@@ -95,7 +105,7 @@ If a roadmap task targets a behavior these profiles do not measure, the first su
 ### E1-001 — Evidence-first system prompt rewrite
 
 - Goal: rewrite `backend/app/services/llm_provider/payloads.py:_evidence_first_system_prompt` and the medical document profile's `extraction_system_prompt` for higher precision and lower unknown-rate, while preserving DeepSeek prompt-cache prefix stability. The rewrite drops chain-of-thought instructions for clinical extraction (per "LLMs are not Zero-Shot Reasoners for Biomedical Information Extraction" arxiv:2408.12249, which shows standard prompting beats CoT/self-consistency on biomedical IE). It strengthens the evidence-grounding contract: every candidate must reference a verbatim span and a `block_id`, and explicitly forbids name/diagnosis/department-derived inference.
-- Acceptance: extraction eval profile run on `medical_inpatient_zh` shows non-decreasing exact-match precision and a non-increasing unknown-rate. Token cost per case does not increase by more than 5% when measured against the recorded baseline. The system-prompt prefix that DeepSeek caches is stable byte-for-byte across requests in the same field group; the eval report records `cache_hit_rate` before and after.
+- Acceptance: extraction eval profile run on `medical_inpatient_zh` shows non-decreasing exact-match precision and a non-increasing unknown-rate. Token cost per case does not increase by more than 5% when measured against the recorded baseline. The system-prompt prefix that DeepSeek caches is stable byte-for-byte across requests in the same field group; the eval report records `cache_hit_rate` before and after. On `mock_general`, the LLM-assisted run must close at least 2 of the 3 known recall gaps (positive `hypertension_history` / `smoking_history` cases) without regressing any auto_accepted=true field, and the new baseline is committed alongside the prompt change.
 - Prerequisites: E0-008.
 - Reference: olmOCR 2 unit-test verifier pattern; biomedical IE arxiv 2408.12249 finding that CoT degrades clinical extraction; DeepSeek context-caching docs (90% cost cut on cached prefixes). See `docs/REFERENCE_PROJECTS.md`.
 
@@ -123,7 +133,7 @@ If a roadmap task targets a behavior these profiles do not measure, the first su
 ### E1-005 — Local rule pre-filter before LLM call
 
 - Goal: tighten `evidence_first.collect_local_evidence` so that high-confidence rule matches (regex hit on patient-header layout key-value with confidence ≥ 0.95) skip the LLM call entirely and record `acceptance_reason=rule_pre_accepted`. Currently the rule layer always defers to LLM adjudication when LLM is available. The change must not affect fields whose `evidence_policy.high_risk=true`.
-- Acceptance: extraction eval run shows token cost reduction (target 20% on demographics group) without precision change on auto-accepted fields. Diagnostics ledger surfaces the new `rule_pre_accepted` reason.
+- Acceptance: extraction eval run shows token cost reduction (target 20% on demographics group) without precision change on auto-accepted fields. Diagnostics ledger surfaces the new `rule_pre_accepted` reason. On `mock_general`, the rule-only baseline (`accuracy=0.90625`, `auto_accept_precision=1.0`) must hold; if positive history rules are widened to recover one or more of the 3 known recall gaps, the new floor is committed and the baseline regenerated.
 - Prerequisites: E0-008.
 - Reference: PaddleOCR profile-driven shortcut pattern (do not call heavyweight model when light model is sufficient).
 

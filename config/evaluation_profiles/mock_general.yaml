@@ -1,12 +1,71 @@
 profile_id: mock_general
-label: 通用非动脉瘤评测模板
+label: 通用合成中文住院病例评测基线
 schema_id: medical_inpatient_zh
+# Synthetic, fully de-identified short Chinese inpatient narratives that
+# exercise the rule-driven shortcut path of ConservativeLocalProvider.
+# Fixtures live next to this YAML under fixtures/mock_general/<case_id>.txt.
+# Bootstrap them through scripts/bootstrap-eval-fixtures.py before running
+# scripts/run-extraction-eval.ps1.
 field_tags:
-  ocular_pressure: [ophthalmology, numeric]
+  gender: [demographics]
+  age: [demographics]
+  hypertension_history: [history, chronic_disease]
+  diabetes_history: [history, chronic_disease]
+  hyperlipidemia_history: [history, chronic_disease]
+  smoking_history: [lifestyle]
+  drinking_history: [lifestyle]
 thresholds:
   auto_accept_precision: 0.95
   evidence_coverage: 1.0
+  unknown_misfill_rate: 0.0
 token_budget:
   max_input_tokens_per_case: 1200
   max_input_tokens_per_accepted_field: 500
-gold_cases: []
+gold_cases:
+  - case_id: eval-mock-001
+    tags: [demographics, history_negative, lifestyle_mixed]
+    gold:
+      gender: "1"
+      age: "66"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      smoking_history: "1"
+      drinking_history: "0"
+  - case_id: eval-mock-002
+    tags: [demographics, history_positive, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "54"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      hyperlipidemia_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+  - case_id: eval-mock-003
+    tags: [demographics, history_positive, lifestyle_positive]
+    gold:
+      gender: "1"
+      age: "72"
+      diabetes_history: "1"
+      hyperlipidemia_history: "1"
+      smoking_history: "1"
+      drinking_history: "1"
+  - case_id: eval-mock-004
+    tags: [demographics, history_all_negative, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "38"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      hyperlipidemia_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+  - case_id: eval-mock-005
+    tags: [demographics, history_mixed, lifestyle_positive]
+    gold:
+      gender: "1"
+      age: "48"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      smoking_history: "1"
+      drinking_history: "1"
