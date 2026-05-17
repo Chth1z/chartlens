@@ -47,6 +47,11 @@ class CountingProvider(SemanticExtractionProvider):
             for field in fields
         ]
 
+    def collect_evidence(self, *, document_context, fields):
+        # CountingProvider only counts extract_group calls; provide a
+        # minimal evidence shape so the ABC contract is satisfied.
+        return {field.key: [] for field in fields}
+
 
 def _profile():
     return SimpleNamespace(

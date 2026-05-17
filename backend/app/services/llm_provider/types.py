@@ -2,6 +2,41 @@ from abc import ABC, abstractmethod
 from typing import Any
 from app.domain.models import DocumentIR, DocumentContext, DocumentIRBlock, EvidenceCandidate, ExtractionCandidate, FieldDecision, FieldDefinition, FieldGroup
 
+
+def local_collect_evidence_fallback(
+    document_context: DocumentContext,
+    fields: list[FieldDefinition],
+) -> dict[str, list[EvidenceCandidate]]:
+    """Run the rule-driven local evidence collector.
+
+    This is the canonical fallback path that any LLM adapter may call when
+    its remote evidence-collection implementation is intentionally not yet
+    in place, or when a remote call must degrade gracefully (HTTP error,
+    malformed JSON, rate limit). Adapters that delegate to this function
+    must do so explicitly; the base class no longer offers this behavior
+    as a default override.
+
+    See `docs/LLM_PROVIDER_REFACTOR.md` for the architectural rule.
+    """
+    from app.services.evidence_first import collect_local_evidence
+
+    return collect_local_evidence(document_context, fields)
+
+
+def local_evidence_fallback_usage() -> dict[str, Any]:
+    """The standard `last_usage` payload for an adapter that delegates to
+    `local_collect_evidence_fallback`. Surfaces the fallback in diagnostics
+    via `evidence_collection_method=local_fallback` so a runtime ledger
+    query can find the runs that did not actually call the LLM."""
+    return {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0,
+        "evidence_collection_method": "local_fallback",
+    }
+
+
 class SemanticExtractionProvider(ABC):
     name = "semantic-provider"
     route = "unknown"
@@ -18,16 +53,28 @@ class SemanticExtractionProvider(ABC):
     ) -> list[ExtractionCandidate]:
         raise NotImplementedError
 
+    @abstractmethod
     def collect_evidence(
         self,
         *,
         document_context: DocumentContext,
         fields: list[FieldDefinition],
     ) -> dict[str, list[EvidenceCandidate]]:
-        from app.services.evidence_first import collect_local_evidence
+        """Collect per-field evidence candidates from the de-identified
+        DocumentContext.
 
-        self.last_usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0, "cost_usd": 0.0}
-        return collect_local_evidence(document_context, fields)
+        Adapters MUST implement this method explicitly. To preserve the
+        previous "delegate to local rule extraction" behavior, an adapter
+        may return `local_collect_evidence_fallback(document_context, fields)`
+        directly and assign `local_evidence_fallback_usage()` to
+        `self.last_usage`. The choice between calling the upstream API and
+        delegating to local extraction must be visible in the adapter's
+        source rather than implicit through inheritance.
+
+        See `docs/DECISIONS.md` 2026-05-18 "Default-inheritance shim for
+        collect_evidence is forbidden" and `docs/LLM_PROVIDER_REFACTOR.md`.
+        """
+        raise NotImplementedError
 
     def adjudicate_fields(
         self,
@@ -68,4 +115,3 @@ def _unknown_model_unavailable(field: FieldDefinition, error_code: str, summary:
         risk_level="high",
         validation_state="needs_review",
     )
-

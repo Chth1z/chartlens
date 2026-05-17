@@ -24,7 +24,7 @@ from app.services.domain_profile import extraction_rules, extraction_system_prom
 from app.services.model_auth import api_keys_for_profile
 from app.services.model_selection import get_active_model_profile, resolve_model_chain
 from app.services.safe_errors import safe_error_message
-from .types import SemanticExtractionProvider
+from .types import SemanticExtractionProvider, local_collect_evidence_fallback, local_evidence_fallback_usage
 
 class ConservativeLocalProvider(SemanticExtractionProvider):
     """Development-only provider: extracts only explicit evidence and never turns missing into negative."""
@@ -43,6 +43,24 @@ class ConservativeLocalProvider(SemanticExtractionProvider):
         del document_ir, group
         self.last_usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0, "cost_usd": 0.0}
         return [_extract_explicit_field(field, blocks) for field in fields]
+
+    def collect_evidence(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+    ) -> dict[str, list[EvidenceCandidate]]:
+        # Local provider's only mode is rule-based evidence collection.
+        # Explicit override per E1-011 Phase 1: the base class no longer
+        # provides this behavior as a default.
+        self.last_usage = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cached_input_tokens": 0,
+            "cost_usd": 0.0,
+            "evidence_collection_method": "local_rule",
+        }
+        return local_collect_evidence_fallback(document_context, fields)
 
 
 NEGATION_PREFIX = ("否认", "无", "未见", "不伴", "未发现", "未诉")

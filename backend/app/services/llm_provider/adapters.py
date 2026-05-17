@@ -24,7 +24,7 @@ from app.services.domain_profile import extraction_rules, extraction_system_prom
 from app.services.model_auth import api_keys_for_profile
 from app.services.model_selection import get_active_model_profile, resolve_model_chain
 from app.services.safe_errors import safe_error_message
-from .types import SemanticExtractionProvider
+from .types import SemanticExtractionProvider, local_collect_evidence_fallback, local_evidence_fallback_usage
 from .cache import _llm_cache_key, _read_llm_result_cache, _write_llm_result_cache, _cache_hit_usage, _cache_miss_usage, _evidence_first_cache_key, _read_evidence_candidate_cache, _write_evidence_candidate_cache
 from .utils import _base_url_for_profile, _api_keys_for_attempts, _is_rate_limit_or_timeout, _mark_api_key_cooldown, _model_for_profile, _openai_compatible_base_url_candidates, _should_try_next_openai_compatible_response, _should_try_next_openai_compatible_base_url, _chat_response_content, _model_ref
 from .payloads import _responses_payload, _responses_evidence_first_payload, _requires_local_evidence_collection, _remote_exposure_policy, _remote_context_mode, _chat_completions_payload, _anthropic_payload, _gemini_payload
@@ -242,6 +242,23 @@ class OpenAICompatibleChatProvider(SemanticExtractionProvider):
         _write_llm_result_cache(cache_key, result)
         return result
 
+    def collect_evidence(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+    ) -> dict[str, list[EvidenceCandidate]]:
+        # E1-011 Phase 1: explicit delegation. Phase 2 will replace this
+        # with a real /chat/completions call against an OpenAI-compatible
+        # endpoint (DeepSeek, OpenRouter, Moonshot, Qwen, Z.AI, Azure,
+        # Custom) using response_format=json_object and the evidence-first
+        # JSON schema. Until Phase 2, the medical pipeline silently falls
+        # back to the rule path; the WARN line in the bootstrap script
+        # surfaces this fact, and `evidence_collection_method=local_fallback`
+        # in last_usage marks it in the durable observability ledger.
+        self.last_usage = local_evidence_fallback_usage()
+        return local_collect_evidence_fallback(document_context, fields)
+
 
 class AnthropicMessagesProvider(SemanticExtractionProvider):
     name = "anthropic-messages"
@@ -308,6 +325,18 @@ class AnthropicMessagesProvider(SemanticExtractionProvider):
         _write_llm_result_cache(cache_key, result)
         return result
 
+    def collect_evidence(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+    ) -> dict[str, list[EvidenceCandidate]]:
+        # E1-011 Phase 1: explicit delegation. Phase 3 will replace this
+        # with an Anthropic Messages call shaped as a `submit_evidence_candidates`
+        # tool_use that wraps the evidence-first JSON schema.
+        self.last_usage = local_evidence_fallback_usage()
+        return local_collect_evidence_fallback(document_context, fields)
+
 
 class GoogleGeminiProvider(SemanticExtractionProvider):
     name = "google-gemini"
@@ -373,3 +402,15 @@ class GoogleGeminiProvider(SemanticExtractionProvider):
         _write_llm_result_cache(cache_key, result)
         return result
 
+    def collect_evidence(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+    ) -> dict[str, list[EvidenceCandidate]]:
+        # E1-011 Phase 1: explicit delegation. Phase 3 will replace this
+        # with a Gemini generateContent call using systemInstruction +
+        # responseMimeType=application/json + responseSchema for the
+        # evidence-first JSON contract.
+        self.last_usage = local_evidence_fallback_usage()
+        return local_collect_evidence_fallback(document_context, fields)

@@ -29,6 +29,9 @@ class _AlwaysFailingProvider(SemanticExtractionProvider):
     def extract_group(self, *, document_ir, group, fields, blocks):
         raise RuntimeError("upstream model rejected request")
 
+    def collect_evidence(self, *, document_context, fields):
+        raise RuntimeError("upstream model rejected request")
+
 
 def test_model_fallback_records_failure_reason(monkeypatch):
     profile = SimpleNamespace(

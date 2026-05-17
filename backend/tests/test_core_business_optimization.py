@@ -27,6 +27,9 @@ class _AlwaysFailingProvider(SemanticExtractionProvider):
     def extract_group(self, *, document_ir, group, fields, blocks):
         raise RuntimeError("upstream unavailable")
 
+    def collect_evidence(self, *, document_context, fields):
+        raise RuntimeError("upstream unavailable")
+
 
 def _profile():
     return SimpleNamespace(

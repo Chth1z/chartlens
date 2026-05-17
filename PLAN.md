@@ -43,6 +43,15 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: ROADMAP E1-011 Phase 1.
 - Done condition: `SemanticExtractionProvider.collect_evidence` is `@abstractmethod`; every concrete adapter has an explicit override; the contract test exists; AGENTS.md "Architecture Boundaries" gains the explicit-delegation rule; DECISIONS.md gains a new entry "Default-inheritance shim for collect_evidence is forbidden"; rule-only baseline (1.0/54) is unchanged.
 
+### todo PLAN-llm-provider-phase-1
+
+- Goal: ROADMAP E1-011 Phase 1. Make `collect_evidence` `@abstractmethod` on `SemanticExtractionProvider`. Move the current default body to `local_collect_evidence_fallback(document_context, fields)` exported from `services/llm_provider/types.py`. Every concrete adapter (`OpenAIResponsesProvider` keeps real impl; `OpenAICompatibleChatProvider` / `AnthropicMessagesProvider` / `GoogleGeminiProvider` / `ConservativeLocalProvider` all gain explicit overrides; the LLM ones return `local_collect_evidence_fallback(...)` for now). Add `tests/test_provider_contracts.py` asserting no adapter inherits the default and every `provider` value in `config/model_providers/mainstream.yaml` resolves through `_provider_for_profile`. AGENTS.md gains the rule "Every concrete `SemanticExtractionProvider` adapter must explicitly choose between calling its remote API and delegating to `local_collect_evidence_fallback`."
+- Out of scope: No new LLM call. No prompt change. No accuracy change. Phase 2 / 3 work.
+- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. The `mock_general_llm.json` baseline still records `input_tokens=0` (because adapters explicitly chose to delegate); the WARN line still fires; both are now expected, pinned behavior.
+- Risk: Very low. This is a refactor that names an existing behavior with no on-disk metric change. The contract test is the ratchet that prevents the gap from re-hiding.
+- Trigger: ROADMAP E1-011 Phase 1.
+- Done condition: `SemanticExtractionProvider.collect_evidence` is `@abstractmethod`; every concrete adapter has an explicit override; the contract test exists; AGENTS.md "Architecture Boundaries" gains the explicit-delegation rule; DECISIONS.md gains a new entry "Default-inheritance shim for collect_evidence is forbidden"; rule-only baseline (1.0/54) is unchanged.
+
 ### todo PLAN-llm-provider-phase-2
 
 - Goal: ROADMAP E1-011 Phase 2. Implement `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom actually call their `/chat/completions` endpoint with `response_format: json_object` and the evidence-first JSON schema. New `_chat_completions_evidence_first_payload` mirrors `_responses_evidence_first_payload`. Cacheable prefix (system prompt + extraction rules + JSON schema descriptor) is byte-stable for DeepSeek prompt-cache hits. Malformed JSON degrades to `local_collect_evidence_fallback` instead of crashing. New test stubs an OpenAI-compatible HTTP server, asserts payload shape and graceful degradation.
@@ -170,6 +179,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
 
 ## Done
+
+### done PLAN-llm-provider-phase-1
+
+- Goal: ROADMAP E1-011 Phase 1. Make `collect_evidence` `@abstractmethod` on `SemanticExtractionProvider`. Move the previous default body to `local_collect_evidence_fallback(document_context, fields)`. Every concrete adapter declares an explicit override. Add a contract test that asserts no adapter inherits the default and every catalog provider value resolves to an adapter.
+- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: `SemanticExtractionProvider.collect_evidence` and `extract_group` are both `@abstractmethod`; `OpenAIResponsesProvider` keeps its real implementation; `OpenAICompatibleChatProvider`, `AnthropicMessagesProvider`, `GoogleGeminiProvider` each declare an explicit `collect_evidence` that returns `local_collect_evidence_fallback(...)` (Phase 2 / 3 will replace these with real upstream calls); `ConservativeLocalProvider` declares its own real implementation. New `backend/tests/test_provider_contracts.py` (15 tests) pins the rules. Existing 3 stub providers in test files (`_AlwaysFailingProvider` ×2 and `CountingProvider`) gained their own `collect_evidence` overrides. AGENTS.md "Architecture Boundaries" gains the explicit-delegation rule. `docs/DECISIONS.md` 2026-05-18 records "Default-inheritance shim for collect_evidence is forbidden". Mock_general rule baseline (1.0/54) and LLM baseline (1.0/54 with `input_tokens=0`) both unchanged on disk; the WARN line in the bootstrap script still fires because adapters explicitly chose to delegate. 318 backend tests pass (303 prior + 15 new contract tests).
 
 ### done PLAN-llm-baseline-bootstrap
 
