@@ -17,6 +17,7 @@ from app.domain.models import (
 
 NEGATION_TERMS = ("否认", "无", "未见", "未诉", "无明显", "无特殊")
 UNCERTAIN_TERMS = ("?", "？", "待排", "疑似", "考虑", "可能")
+SENTENCE_TERMINATORS = ("。", "；", ";", "\n")
 FAMILY_SECTIONS = {"家族史", "婚育史"}
 FAMILY_CONTEXT_PATTERN = re.compile(
     r"(?:家族史|婚育史|其父|其母|父亲|母亲|父母|家属|配偶|兄弟|姐妹|祖父|祖母|外祖父|外祖母|孕期|妊娠期|"
@@ -570,12 +571,29 @@ def _negative_span(text: str, term: str, negation_terms: list[str]) -> str | Non
 
 def _positive_span(text: str, term: str) -> str | None:
     for match in re.finditer(re.escape(term), text):
-        start = max(0, match.start() - 12)
-        end = min(len(text), match.end() + 24)
-        span = text[start:end]
-        if any(negation in span for negation in NEGATION_TERMS):
+        # Clip the span at sentence terminators on both sides so negations or
+        # uncertainty markers that belong to a neighboring field in the next
+        # clause cannot contaminate the positive evidence for this term.
+        left_start = max(0, match.start() - 12)
+        right_end = min(len(text), match.end() + 24)
+        left_text = text[left_start:match.start()]
+        for terminator in SENTENCE_TERMINATORS:
+            idx = left_text.rfind(terminator)
+            if idx != -1:
+                left_start = left_start + idx + 1
+                left_text = text[left_start:match.start()]
+        right_text = text[match.end():right_end]
+        for terminator in SENTENCE_TERMINATORS:
+            idx = right_text.find(terminator)
+            if idx != -1:
+                right_end = match.end() + idx
+                break
+        # Negation that appears AFTER the term belongs to the next clause and
+        # is handled by `_negative_span` against that clause's term. Only the
+        # left context can negate the current occurrence.
+        if any(negation in left_text for negation in NEGATION_TERMS):
             continue
-        return _trim_span(span)
+        return _trim_span(text[left_start:right_end])
     return None
 
 

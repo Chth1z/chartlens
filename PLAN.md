@@ -135,6 +135,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Done
 
+### done E1-005-clause-boundary Positive history span clipped at sentence terminators
+
+- Goal: Close the 3 known positive-history recall gaps in the `mock_general` baseline by fixing `_positive_span` in `services/evidence_first.py`, which incorrectly suppressed valid positive evidence whenever the next clause negated a different field. Companion regression tests pin the corrected clause-boundary behavior so future refactors cannot reintroduce the leak.
+- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: `services/evidence_first.py:_positive_span` clips left and right windows at `。 ； ; \n` and only consults left-side negation; two new regression tests in `test_evidence_first_extraction.py` cover `高血压病史10年。否认糖尿病史。` and `吸烟史20年，每日10支。否认饮酒史。`; baseline regenerated at `accuracy=1.0` (32/32), `auto_accept_precision=1.0`, `evidence_coverage=1.0`, `unknown_misfill_rate=0.0`; the `test_baseline_file_is_present_and_well_formed` floor is raised from 0.90625 to 1.0 in the same commit.
+
 ### done PLAN-mock-general-baseline
 
 - Goal: Establish a deterministic precision baseline for `mock_general` so every E1 task has a real before/after comparison line. Add 5 synthetic Chinese inpatient case fixtures, expand the evaluation profile gold cases to cover demographics + chronic disease + lifestyle fields, ship a bootstrap script that processes fixtures and writes the baseline JSON, and gate the baseline with a contract test.

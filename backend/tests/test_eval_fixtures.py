@@ -115,10 +115,12 @@ def test_baseline_file_is_present_and_well_formed():
     assert summary["evidence_coverage"] == pytest.approx(1.0)
     assert summary["unknown_misfill_rate"] == pytest.approx(0.0)
     assert summary["auto_accept_precision"] == pytest.approx(1.0)
-    # Accuracy floor: we measured 0.90625 against the synthetic baseline. Keep
-    # the floor exact so a regression below this number fails loudly. To raise
-    # the floor, regenerate the baseline as part of a precision task.
-    assert summary["accuracy"] == pytest.approx(0.90625)
+    # Accuracy floor: the rule-only path now scores 1.0 on the synthetic
+    # fixtures after E1-005 closed the positive-history clause-boundary gap.
+    # Keep the floor exact so a regression below this number fails loudly.
+    # To raise the floor again, regenerate the baseline as part of a
+    # precision task and update this assertion in the same commit.
+    assert summary["accuracy"] == pytest.approx(1.0)
 
 
 @pytest.mark.skipif(

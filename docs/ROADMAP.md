@@ -37,7 +37,7 @@ These are the live precision baselines that any E1 task must beat or match. They
 
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 0.90625 (29/32) | 1.0 (29/29) | 1.0 (29/29) | 0.0 | 5 synthetic cases. Three failures are positive-history recall gaps where rules see "高血压病史10年" / "吸烟史20年" but do not lift them to a positive code. Direct target for E1-005 (rule pre-filter widening) and E1-001 (LLM evidence-first prompt rewrite). |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (32/32) | 1.0 (32/32) | 1.0 (32/32) | 0.0 | 5 synthetic cases. Raised from 0.90625 to 1.0 on 2026-05-17 by the clause-boundary fix in `_positive_span` (E1-005 partial). The remaining E1-005 token-saving shortcut work is still open. |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 
@@ -130,12 +130,13 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Prerequisites: E0-005, E0-008.
 - Reference: Unstructured element types; Docling reading-order graph; Marker block taxonomy (ideas only, no source copy). See `docs/REFERENCE_PROJECTS.md`.
 
-### E1-005 — Local rule pre-filter before LLM call
+### E1-005 — Local rule pre-filter before LLM call (partially done 2026-05-17 via clause-boundary fix)
 
 - Goal: tighten `evidence_first.collect_local_evidence` so that high-confidence rule matches (regex hit on patient-header layout key-value with confidence ≥ 0.95) skip the LLM call entirely and record `acceptance_reason=rule_pre_accepted`. Currently the rule layer always defers to LLM adjudication when LLM is available. The change must not affect fields whose `evidence_policy.high_risk=true`.
 - Acceptance: extraction eval run shows token cost reduction (target 20% on demographics group) without precision change on auto-accepted fields. Diagnostics ledger surfaces the new `rule_pre_accepted` reason. On `mock_general`, the rule-only baseline (`accuracy=0.90625`, `auto_accept_precision=1.0`) must hold; if positive history rules are widened to recover one or more of the 3 known recall gaps, the new floor is committed and the baseline regenerated.
 - Prerequisites: E0-008.
 - Reference: PaddleOCR profile-driven shortcut pattern (do not call heavyweight model when light model is sufficient).
+- Outcome (partial, 2026-05-17): the recall-gap half of the goal is closed. The fix in `services/evidence_first.py:_positive_span` clips positive-evidence windows to the surrounding clause (sentence terminators `。 ； ; \n`) and only checks the LEFT context for negation; right-side negation belongs to a different field and is now ignored. Two new regression tests in `test_evidence_first_extraction.py` pin the corrected behavior on `高血压病史10年。否认糖尿病史。` and `吸烟史20年，每日10支。否认饮酒史。`. The `mock_general` baseline now scores `accuracy=1.0` (32/32), `auto_accept_precision=1.0`, `evidence_coverage=1.0`, `unknown_misfill_rate=0.0`. The remaining `rule_pre_accepted` shortcut work (skip LLM on high-confidence rule hits, surface the reason in diagnostics) is still open and will land in a follow-up commit.
 
 ### E1-006 — Provider contract test set
 

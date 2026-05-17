@@ -189,3 +189,69 @@ def test_field_adjudication_surfaces_conflicts_instead_of_guessing():
     assert decisions[gender.key].normalized_code == "unknown"
     assert len(decisions[gender.key].conflict_candidates) == 2
     assert decisions[gender.key].needs_human_review is True
+
+
+def test_positive_history_span_does_not_inherit_neighbor_clause_negation():
+    """E1-005 regression: a positive 'X病史N年' clause must not be silently
+    rejected when the next clause negates a different field.
+
+    Before the fix, the right-side 24-char window of `_positive_span` could
+    swallow text past the sentence terminator, so '高血压病史10年。否认糖尿
+    病史。' would see '否认' inside the candidate window for hypertension and
+    discard the positive evidence. This test pins the corrected behavior.
+    """
+    schema = load_extraction_schema()
+    hypertension = schema.field_by_key("hypertension_history")
+    document_ir = _document_ir(
+        [
+            DocumentIRBlock(
+                block_id="b-history",
+                page=1,
+                reading_order=1,
+                text="既往史：高血压病史10年，规律服药控制。否认糖尿病史。",
+                confidence=0.97,
+                section_label="既往史",
+            )
+        ]
+    )
+
+    evidence = collect_local_evidence(build_document_context(document_ir), [hypertension])
+    decisions = adjudicate_field_decisions([hypertension], evidence)
+    candidates = decisions_to_extraction_candidates([hypertension], decisions)
+
+    assert decisions[hypertension.key].decision_status == "PASS"
+    assert candidates[0].normalized_code == "1"
+    assert candidates[0].evidence_type == "explicit_positive"
+    assert "高血压病史" in (candidates[0].evidence_span or "")
+    # The neighboring '否认糖尿病史' clause must not appear inside the
+    # hypertension evidence span.
+    assert "否认" not in (candidates[0].evidence_span or "")
+
+
+def test_smoking_history_positive_span_is_clause_bounded():
+    """E1-005 regression: 吸烟史 with a duration clause should not be
+    suppressed by a following 否认饮酒史 clause."""
+    schema = load_extraction_schema()
+    smoking = schema.field_by_key("smoking_history")
+    document_ir = _document_ir(
+        [
+            DocumentIRBlock(
+                block_id="b-personal",
+                page=1,
+                reading_order=1,
+                text="个人史：吸烟史20年，每日10支。否认饮酒史。",
+                confidence=0.97,
+                section_label="个人史",
+            )
+        ]
+    )
+
+    evidence = collect_local_evidence(build_document_context(document_ir), [smoking])
+    decisions = adjudicate_field_decisions([smoking], evidence)
+    candidates = decisions_to_extraction_candidates([smoking], decisions)
+
+    assert decisions[smoking.key].decision_status == "PASS"
+    assert candidates[0].normalized_code == "1"
+    assert candidates[0].evidence_type == "explicit_positive"
+    assert "吸烟史" in (candidates[0].evidence_span or "")
+    assert "否认" not in (candidates[0].evidence_span or "")
