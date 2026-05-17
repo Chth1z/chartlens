@@ -2,7 +2,7 @@
 
 This document inventories every export-template field, every schema field, and the actual coverage of the `mock_general` baseline. It is the planning ground for expanding the precision baseline beyond demographics + history + lifestyle to the full clinical extraction surface.
 
-Status as of 2026-05-18 (`dev` HEAD `aecb7b9`): the rule-only baseline scores `52/54 = 0.9630` on 8 synthetic fixtures, but those 54 gold assertions only touch **9 of the 22 schema fields**. The remaining 13 fields are still completely unmeasured by the precision contract.
+Status as of 2026-05-18 (`dev` HEAD `9dedc7c` + Phase A): the rule-only baseline scores `72/72 = 1.000` on 10 synthetic fixtures, covering **11 of 22 schema fields**. Phase A added `hospital` and `urban_residence`. The remaining 11 fields are still completely unmeasured by the precision contract.
 
 ## Export Template Inventory
 
@@ -10,18 +10,18 @@ Status as of 2026-05-18 (`dev` HEAD `aecb7b9`): the rule-only baseline scores `5
 
 | Order | field_key | Header | Group | Type | Allowed codes | Today's gold cases |
 | ---: | --- | --- | --- | --- | --- | ---: |
-| 1 | `gender` | 性别(男1，女2) | demographics | enum | `1`, `2`, unknown | 8 |
-| 2 | `age` | 年龄 | demographics | number | integer, unknown | 8 |
-| 3 | `hospital` | 医院 | demographics | string | free-text | **0** |
-| 4 | `urban_residence` | 是否城市（1非城市2城市） | demographics | enum | `1`, `2`, unknown | **0** |
-| 5 | `hypertension_history` | 高血压病史（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 7 |
-| 6 | `diabetes_history` | 糖尿病史（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 7 |
+| 1 | `gender` | 性别(男1，女2) | demographics | enum | `1`, `2`, unknown | 10 |
+| 2 | `age` | 年龄 | demographics | number | integer, unknown | 10 |
+| 3 | `hospital` | 医院 | demographics | string | free-text | 3 |
+| 4 | `urban_residence` | 是否城市（1非城市2城市） | demographics | enum | `1`, `2`, unknown | 3 |
+| 5 | `hypertension_history` | 高血压病史（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 9 |
+| 6 | `diabetes_history` | 糖尿病史（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 9 |
 | 7 | `hyperlipidemia_history` | 高血脂病史（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 4 |
 | 8 | `heart_disease_history` | 既往心脏疾病分组 | history | enum | `1`, `0`, unknown | 2 |
 | 9 | `stroke_history` | 卒中分组（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 2 |
 | 10 | `tumor_history` | 既往肿瘤 | history | enum | `1`, `0`, unknown | **0** |
-| 11 | `smoking_history` | 是否吸烟 | lifestyle | enum | `1`, `0`, unknown | 8 |
-| 12 | `drinking_history` | 是否饮酒 | lifestyle | enum | `1`, `0`, unknown | 8 |
+| 11 | `smoking_history` | 是否吸烟 | lifestyle | enum | `1`, `0`, unknown | 10 |
+| 12 | `drinking_history` | 是否饮酒 | lifestyle | enum | `1`, `0`, unknown | 10 |
 | 13 | `single_multiple` | 单发多发 | aneurysm | enum | `single`, `multiple`, unknown | **0** |
 | 14 | `aneurysm_location` | 动脉瘤位置（1颈内，2中，3前，4后循环，unknown不详） | aneurysm | enum | `1`-`4`, unknown | **0** |
 | 15 | `hh_grade` | HH分组 | score | enum | I-V, unknown | **0** |
@@ -38,12 +38,12 @@ Status as of 2026-05-18 (`dev` HEAD `aecb7b9`): the rule-only baseline scores `5
 
 ## Coverage Gap Summary
 
-Currently covered: **9 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
+Currently covered: **11 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
 
-Currently uncovered: **13 of 22 schema fields**, grouped by the kind of recall path each one exercises:
+Currently uncovered: **11 of 22 schema fields**, grouped by the kind of recall path each one exercises:
 
-- **String free-text**: `hospital`. Not a code-mapped enum; the rule path mostly returns the hospital name verbatim. Needs at least one fixture with a clear `医院: XXX` label.
-- **Enum derived from address-or-residence**: `urban_residence`. Has `pre_redaction_derivations` rules that run before PHI redaction. Needs a fixture with a clear urban or rural address pattern, and a fixture with NO address to verify the rule does not over-fire.
+- **String free-text** _(closed by Phase A 2026-05-18)_: ~~`hospital`~~ ✅. Rule path matches `XX医院` substring patterns through `_extract_hospital`. Covered by `eval-mock-009` (`海安市第三人民医院`), `eval-mock-010` (`海安县中医院`), and `eval-mock-005` (unknown path).
+- **Enum derived from address-or-residence** _(closed by Phase A 2026-05-18)_: ~~`urban_residence`~~ ✅. `pre_redaction_derivations` runs before PHI redaction. Covered by `eval-mock-009` (urban: `南京市鼓楼区五一路` → `2`), `eval-mock-010` (rural: `海安县曲塘镇五星村3组` → `1`), and `eval-mock-005` (no address → unknown). Privacy boundary pinned by `test_phase_a_address_redaction_holds_in_deidentified_ir`.
 - **Negative-history binary**: `tumor_history`. Same shape as the existing diabetes/heart-disease tests; one positive (`恶性肿瘤史`) and one explicit-negative (`否认肿瘤史`) fixture should cover the rule path.
 - **Imaging-fact enums**: `single_multiple`, `aneurysm_location`. Source sections are `辅助检查 / 影像报告 / CTA / DSA`. Fixtures need short imaging-report paragraphs with terms like `单发动脉瘤`, `右侧后交通动脉动脉瘤`, `多发动脉瘤`. The rule path is `_fact_then_code_evidence` plus `synonyms / code_map`.
 - **Score grades**: `hh_grade`, `wfns_grade`, `fisher_grade`, `mrs_score`. Source sections are `入院记录 / 评分 / 体格检查`. Fixtures need lines like `Hunt-Hess II级`, `Fisher 3级`, `WFNS Ⅲ级`, `mRS 1分`. Most rule-only paths look for the synonym followed by a Roman/Arabic numeral; a fixture without an explicit grade must remain unknown to verify the path does not hallucinate.
@@ -57,11 +57,11 @@ The current 8-case set was chosen to exercise the rule paths actually used by de
 
 Each phase below is one PLAN task. Phases are ordered by the cost of authoring credible synthetic fixtures plus the risk of bugs they would expose.
 
-### Phase A — Demographics completion
+### Phase A — Demographics completion (done 2026-05-18)
 
 Adds: `hospital`, `urban_residence`.
 
-Rationale: these are the simplest remaining fields. `hospital` is a pure string lookup; `urban_residence` is an opt-in derivation rule that should already work but has zero coverage today. Two new fixtures. Expected baseline change: total_fields rises, accuracy stays near current.
+Outcome: rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps (eval-mock-003 / age and eval-mock-010 / diabetes_history) that are independent of Phase A's address-derivation work; both become next-up targets for the open `rule_pre_accepted` shortcut and a v3 prompt rewrite.
 
 ### Phase B — History completion
 

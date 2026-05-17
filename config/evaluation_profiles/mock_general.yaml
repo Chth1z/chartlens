@@ -9,6 +9,8 @@ schema_id: medical_inpatient_zh
 field_tags:
   gender: [demographics]
   age: [demographics]
+  hospital: [demographics]
+  urban_residence: [demographics]
   hypertension_history: [history, chronic_disease]
   diabetes_history: [history, chronic_disease]
   hyperlipidemia_history: [history, chronic_disease]
@@ -63,10 +65,12 @@ gold_cases:
       smoking_history: "0"
       drinking_history: "0"
   - case_id: eval-mock-005
-    tags: [demographics, history_mixed, lifestyle_positive]
+    tags: [demographics, history_mixed, lifestyle_positive, hospital_unknown, urban_residence_unknown]
     gold:
       gender: "1"
       age: "48"
+      hospital: unknown
+      urban_residence: unknown
       hypertension_history: "1"
       diabetes_history: "0"
       smoking_history: "1"
@@ -110,3 +114,35 @@ gold_cases:
       diabetes_history: "1"
       smoking_history: "0"
       drinking_history: "1"
+  - case_id: eval-mock-009
+    # Phase A coverage case: explicit hospital label inside 入院记录, urban
+    # address inside 基本信息. The pre_redaction_derivations rule for
+    # urban_residence must fire on the address before deidentification and
+    # produce a safe `是否城市判定：城市` derivation block; the rule path
+    # for hospital must match the `医院: XXX医院` label.
+    tags: [demographics, hospital_present, urban_residence_urban, history_mixed, lifestyle_positive]
+    gold:
+      gender: "1"
+      age: "62"
+      hospital: 海安市第三人民医院
+      urban_residence: "2"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      smoking_history: "1"
+      drinking_history: "0"
+  - case_id: eval-mock-010
+    # Phase A coverage case: rural address (`乡 / 村`) plus a different
+    # hospital name. Verifies that the rural branch of the pre-redaction
+    # derivation fires and produces `是否城市判定：非城市`, and that the
+    # rule path for hospital still matches even when the patient lives in
+    # a non-urban area.
+    tags: [demographics, hospital_present, urban_residence_rural, history_negative, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "50"
+      hospital: 海安县中医院
+      urban_residence: "1"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"

@@ -13,66 +13,66 @@
       "max_input_tokens_per_case": 1200,
       "max_input_tokens_per_accepted_field": 500
     },
-    "gold_case_count": 8,
+    "gold_case_count": 10,
     "semantic_provider_kind": "llm"
   },
   "summary": {
-    "total_fields": 54,
-    "correct": 54,
-    "auto_accept_count": 54,
-    "auto_accept_correct": 54,
+    "total_fields": 72,
+    "correct": 70,
+    "auto_accept_count": 67,
+    "auto_accept_correct": 66,
     "unknown_misfills": 0,
-    "expected_unknown": 0,
-    "predicted_non_unknown": 54,
-    "evidence_covered": 54,
-    "input_tokens": 37792,
-    "output_tokens": 11170,
+    "expected_unknown": 2,
+    "predicted_non_unknown": 69,
+    "evidence_covered": 69,
+    "input_tokens": 51037,
+    "output_tokens": 15049,
     "cost_usd": 0.0,
-    "case_count": 8,
-    "evaluated_case_count": 8,
+    "case_count": 10,
+    "evaluated_case_count": 10,
     "blocked_case_count": 0,
-    "accuracy": 1.0,
-    "auto_accept_precision": 1.0,
+    "accuracy": 0.9722222222222222,
+    "auto_accept_precision": 0.9850746268656716,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
-    "tokens_per_case": 4724.0,
-    "tokens_per_accepted_field": 699.8518518518518,
+    "tokens_per_case": 5103.7,
+    "tokens_per_accepted_field": 761.7462686567164,
     "field_tags": {
       "demographics": {
-        "total": 16,
-        "correct": 16,
-        "auto_accept_count": 16,
-        "auto_accept_correct": 16,
-        "accuracy": 1.0,
-        "auto_accept_precision": 1.0
+        "total": 26,
+        "correct": 25,
+        "auto_accept_count": 22,
+        "auto_accept_correct": 21,
+        "accuracy": 0.9615384615384616,
+        "auto_accept_precision": 0.9545454545454546
       },
       "history": {
-        "total": 22,
-        "correct": 22,
-        "auto_accept_count": 22,
-        "auto_accept_correct": 22,
-        "accuracy": 1.0,
+        "total": 26,
+        "correct": 25,
+        "auto_accept_count": 25,
+        "auto_accept_correct": 25,
+        "accuracy": 0.9615384615384616,
         "auto_accept_precision": 1.0
       },
       "chronic_disease": {
-        "total": 22,
-        "correct": 22,
-        "auto_accept_count": 22,
-        "auto_accept_correct": 22,
-        "accuracy": 1.0,
+        "total": 26,
+        "correct": 25,
+        "auto_accept_count": 25,
+        "auto_accept_correct": 25,
+        "accuracy": 0.9615384615384616,
         "auto_accept_precision": 1.0
       },
       "lifestyle": {
-        "total": 16,
-        "correct": 16,
-        "auto_accept_count": 16,
-        "auto_accept_correct": 16,
+        "total": 20,
+        "correct": 20,
+        "auto_accept_count": 20,
+        "auto_accept_correct": 20,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       }
     },
     "ocr_quality_bands": {
-      "good": 8
+      "good": 10
     }
   },
   "cases": [
@@ -201,9 +201,9 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 12590,
+        "output_tokens": 3980,
+        "cached_input_tokens": 12544,
         "cost_usd": 0.0
       },
       "tags": [
@@ -304,13 +304,13 @@
       "case_id": "eval-mock-003",
       "status": "evaluated",
       "total_fields": 6,
-      "correct": 6,
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
+      "correct": 5,
+      "accuracy": 0.8333333333333334,
+      "precision": 0.8333333333333334,
+      "recall": 0.8333333333333334,
       "auto_accept_count": 6,
-      "auto_accept_correct": 6,
-      "auto_accept_precision": 1.0,
+      "auto_accept_correct": 5,
+      "auto_accept_precision": 0.8333333333333334,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
@@ -319,8 +319,8 @@
       "evidence_coverage": 1.0,
       "usage": {
         "input_tokens": 12593,
-        "output_tokens": 3492,
-        "cached_input_tokens": 1792,
+        "output_tokens": 3673,
+        "cached_input_tokens": 12544,
         "cost_usd": 0.0
       },
       "tags": [
@@ -358,8 +358,8 @@
         {
           "field_key": "age",
           "expected": "72",
-          "actual": "72",
-          "correct": true,
+          "actual": "integer",
+          "correct": false,
           "auto_accepted": true,
           "has_evidence": true,
           "review_required": false,
@@ -527,8 +527,8 @@
     {
       "case_id": "eval-mock-005",
       "status": "evaluated",
-      "total_fields": 6,
-      "correct": 6,
+      "total_fields": 8,
+      "correct": 8,
       "accuracy": 1.0,
       "precision": 1.0,
       "recall": 1.0,
@@ -536,7 +536,7 @@
       "auto_accept_correct": 6,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
-      "expected_unknown": 0,
+      "expected_unknown": 2,
       "unknown_misfill_rate": 0.0,
       "predicted_non_unknown": 6,
       "evidence_covered": 6,
@@ -550,7 +550,9 @@
       "tags": [
         "demographics",
         "history_mixed",
-        "lifestyle_positive"
+        "lifestyle_positive",
+        "hospital_unknown",
+        "urban_residence_unknown"
       ],
       "ocr_quality": {
         "quality_band": "good",
@@ -588,6 +590,26 @@
           "has_evidence": true,
           "review_required": false,
           "error_code": null
+        },
+        {
+          "field_key": "hospital",
+          "expected": "unknown",
+          "actual": "unknown",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
+        },
+        {
+          "field_key": "urban_residence",
+          "expected": "unknown",
+          "actual": "unknown",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "hypertension_history",
@@ -649,9 +671,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12454,
-        "output_tokens": 3713,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -778,9 +800,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12745,
-        "output_tokens": 3965,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -987,6 +1009,264 @@
           "field_key": "drinking_history",
           "expected": "1",
           "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-009",
+      "status": "evaluated",
+      "total_fields": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "auto_accept_count": 7,
+      "auto_accept_correct": 7,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 12932,
+        "output_tokens": 3784,
+        "cached_input_tokens": 1792,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "hospital_present",
+        "urban_residence_urban",
+        "history_mixed",
+        "lifestyle_positive"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 145,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "62",
+          "actual": "62",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hospital",
+          "expected": "海安市第三人民医院",
+          "actual": "海安市第三人民医院",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "urban_residence",
+          "expected": "2",
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-010",
+      "status": "evaluated",
+      "total_fields": 8,
+      "correct": 7,
+      "accuracy": 0.875,
+      "precision": 1.0,
+      "recall": 0.875,
+      "auto_accept_count": 6,
+      "auto_accept_correct": 6,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 7,
+      "evidence_covered": 7,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 12922,
+        "output_tokens": 3612,
+        "cached_input_tokens": 1792,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "hospital_present",
+        "urban_residence_rural",
+        "history_negative",
+        "lifestyle_negative"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 131,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "2",
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "50",
+          "actual": "50",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hospital",
+          "expected": "海安县中医院",
+          "actual": "海安县中医院",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "urban_residence",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": "EVIDENCE_SPAN_NOT_FOUND"
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
           "correct": true,
           "auto_accepted": true,
           "has_evidence": true,
