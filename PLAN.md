@@ -135,6 +135,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Done
 
+### done E0-008 Field-extraction eval runner
+
+- Goal: Build a CLI runner for `config/evaluation_profiles/*.yaml` analogous to `scripts/run-ocr-eval.py`. The runner reports per-field precision, recall, exact-match, unknown-rate, and token cost with a stable schema so before/after diffs are mechanical. This unblocks every E1 precision task.
+- Acceptance commands: `python -m pytest backend\tests\test_extraction_eval.py`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: `backend/app/services/extraction_eval.py` is the canonical scoring service; FastAPI `/api/evals/*` routes delegate to it; `scripts/run-extraction-eval.py` and `.ps1` exist with documented exit codes (0 ok, 2 blocked, `--allow-blocked` overrides); `backend/tests/test_extraction_eval.py` covers schema, scoring, missing-case, summary, and CLI exit codes (9 tests pass); side effect routes.py dropped from 810 to 653 lines, clearing one governance warning.
+
 ### done PLAN-write-architecture-doc
 
 - Goal: Produce `docs/ARCHITECTURE.md` as the authoritative description of the EYEX main pipeline.

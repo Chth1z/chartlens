@@ -72,6 +72,11 @@ from app.core.settings import settings
 from app.domain.models import CaseSummary, EvaluationRequest, EvaluationResult, ReviewDecision, ValidatedFieldResult
 from app.services.diagnostics import build_case_diagnostics, frontend_evidence_config
 from app.services.export import build_export_workbook
+from app.services.extraction_eval import (
+    evaluate_case_against_gold,
+    run_extraction_evaluation,
+    summarize_eval_cases,
+)
 from app.services.model_selection import model_profiles_payload, set_active_model_profile
 from app.services.ocr_accelerators import resolve_ocr_device_status
 from app.services.model_providers import (
@@ -579,25 +584,18 @@ def clear_all_cases(db: Annotated[Session, Depends(get_db)]) -> dict:
 @router.post("/evals/runs", response_model=EvaluationResult)
 def run_eval(request: EvaluationRequest, db: Annotated[Session, Depends(get_db)]) -> EvaluationResult:
     _require_case(db, request.case_id)
-    results = {result.field_key: result for result in _results_for_case(db, request.case_id)}
-    total = len(request.gold)
-    correct = 0
-    unknown_count = 0
-    evidence_failures: list[str] = []
-    for field_key, expected in request.gold.items():
-        result = results.get(field_key)
-        actual = result.normalized_code if result else None
-        if actual == expected:
-            correct += 1
-        if actual in (None, "unknown"):
-            unknown_count += 1
-        if result and actual != "unknown" and not result.evidence_span:
-            evidence_failures.append(field_key)
+    case_payload = evaluate_case_against_gold(request.case_id, request.gold, db)
+    evidence_failures = [
+        field["field_key"]
+        for field in case_payload["fields"]
+        if field["actual"] not in (None, "unknown") and not field["has_evidence"]
+    ]
+    unknown_count = sum(1 for field in case_payload["fields"] if field["actual"] in (None, "unknown"))
     return EvaluationResult(
         case_id=request.case_id,
-        total=total,
-        correct=correct,
-        accuracy=correct / total if total else 0.0,
+        total=case_payload["total_fields"],
+        correct=case_payload["correct"],
+        accuracy=case_payload["accuracy"],
         unknown_count=unknown_count,
         missing_evidence_failures=evidence_failures,
     )
@@ -605,8 +603,8 @@ def run_eval(request: EvaluationRequest, db: Annotated[Session, Depends(get_db)]
 
 @router.post("/evals/batch", response_model=BatchEvaluationResponse)
 def run_batch_eval(request: BatchEvaluationPayload, db: Annotated[Session, Depends(get_db)]) -> dict:
-    case_results = [_eval_case(item.case_id, item.gold, db) for item in request.cases]
-    summary = _summarize_eval_cases(case_results)
+    case_results = [evaluate_case_against_gold(item.case_id, item.gold, db) for item in request.cases]
+    summary = summarize_eval_cases(case_results)
     return {"summary": summary, "cases": case_results}
 
 
@@ -616,18 +614,11 @@ def run_evaluation_profile(profile_id: str, db: Annotated[Session, Depends(get_d
         profile = load_evaluation_profile(profile_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Evaluation profile not found") from None
-    case_results = [_eval_case(item.case_id, item.gold, db, tags=item.tags) for item in profile.gold_cases]
-    summary = _summarize_eval_cases(case_results, field_tags=profile.field_tags)
+    report = run_extraction_evaluation(profile, db=db)
     return {
-        "profile": {
-            "profile_id": profile.profile_id,
-            "label": profile.label,
-            "schema_id": profile.schema_id,
-            "thresholds": profile.thresholds,
-            "token_budget": profile.token_budget,
-        },
-        "summary": summary,
-        "cases": case_results,
+        "profile": report["profile"],
+        "summary": report["summary"],
+        "cases": report["cases"],
     }
 
 
@@ -675,166 +666,8 @@ def _positive_float(value: object) -> float | None:
 
 
 def _eval_case(case_id: str, gold: dict[str, str], db: Session, *, tags: list[str] | None = None) -> dict:
-    case = _require_case(db, case_id)
-    results = {result.field_key: result for result in _results_for_case(db, case_id)}
-    field_metrics = []
-    correct = 0
-    predicted_non_unknown = 0
-    gold_non_unknown = 0
-    true_positive = 0
-    expected_unknown = 0
-    unknown_misfills = 0
-    evidence_covered = 0
-    auto_accept_count = 0
-    auto_accept_correct = 0
-    for field_key, expected in gold.items():
-        result = results.get(field_key)
-        actual = result.normalized_code if result else None
-        is_correct = actual == expected
-        correct += int(is_correct)
-        if expected != "unknown":
-            gold_non_unknown += 1
-        else:
-            expected_unknown += 1
-        if actual not in (None, "unknown"):
-            predicted_non_unknown += 1
-            evidence_covered += int(bool(result and result.evidence_span and result.evidence_block_id))
-            if expected == "unknown":
-                unknown_misfills += 1
-        if actual == expected and expected != "unknown":
-            true_positive += 1
-        if result and result.auto_accepted:
-            auto_accept_count += 1
-            auto_accept_correct += int(is_correct)
-        field_metrics.append(
-            {
-                "field_key": field_key,
-                "expected": expected,
-                "actual": actual,
-                "correct": is_correct,
-                "auto_accepted": bool(result.auto_accepted) if result else False,
-                "has_evidence": bool(result and result.evidence_span and result.evidence_block_id),
-                "review_required": bool(result.review_required) if result else True,
-                "error_code": result.error_code if result else "MISSING_RESULT",
-            }
-        )
-    diagnostics = json_loads(case.diagnostics_json, {})
-    usage = _usage_totals(diagnostics)
-    total = len(gold)
-    return {
-        "case_id": case_id,
-        "total_fields": total,
-        "correct": correct,
-        "accuracy": correct / total if total else 0.0,
-        "precision": true_positive / predicted_non_unknown if predicted_non_unknown else 0.0,
-        "recall": true_positive / gold_non_unknown if gold_non_unknown else 0.0,
-        "auto_accept_count": auto_accept_count,
-        "auto_accept_correct": auto_accept_correct,
-        "auto_accept_precision": auto_accept_correct / auto_accept_count if auto_accept_count else 0.0,
-        "unknown_misfills": unknown_misfills,
-        "expected_unknown": expected_unknown,
-        "unknown_misfill_rate": unknown_misfills / expected_unknown if expected_unknown else 0.0,
-        "predicted_non_unknown": predicted_non_unknown,
-        "evidence_covered": evidence_covered,
-        "evidence_coverage": evidence_covered / predicted_non_unknown if predicted_non_unknown else 1.0,
-        "usage": usage,
-        "tags": tags or [],
-        "ocr_quality": _case_ocr_quality(case),
-        "fields": field_metrics,
-    }
-
-
-def _summarize_eval_cases(case_results: list[dict], *, field_tags: dict[str, list[str]] | None = None) -> dict:
-    totals = {
-        "total_fields": sum(item["total_fields"] for item in case_results),
-        "correct": sum(item["correct"] for item in case_results),
-        "auto_accept_count": sum(item["auto_accept_count"] for item in case_results),
-        "auto_accept_correct": sum(item["auto_accept_correct"] for item in case_results),
-        "unknown_misfills": sum(item["unknown_misfills"] for item in case_results),
-        "expected_unknown": sum(item["expected_unknown"] for item in case_results),
-        "predicted_non_unknown": sum(item["predicted_non_unknown"] for item in case_results),
-        "evidence_covered": sum(item["evidence_covered"] for item in case_results),
-        "input_tokens": sum(item["usage"]["input_tokens"] for item in case_results),
-        "output_tokens": sum(item["usage"]["output_tokens"] for item in case_results),
-        "cost_usd": sum(item["usage"]["cost_usd"] for item in case_results),
-    }
-    auto_accept_count = totals["auto_accept_count"]
-    field_tag_summary = _field_tag_summary(case_results, field_tags or {})
-    quality_bands = _ocr_quality_band_counts(case_results)
-    return {
-        **totals,
-        "case_count": len(case_results),
-        "accuracy": totals["correct"] / totals["total_fields"] if totals["total_fields"] else 0.0,
-        "auto_accept_precision": (
-            totals["auto_accept_correct"] / totals["auto_accept_count"] if totals["auto_accept_count"] else 0.0
-        ),
-        "unknown_misfill_rate": (
-            totals["unknown_misfills"] / totals["expected_unknown"] if totals["expected_unknown"] else 0.0
-        ),
-        "evidence_coverage": (
-            totals["evidence_covered"] / totals["predicted_non_unknown"] if totals["predicted_non_unknown"] else 1.0
-        ),
-        "tokens_per_case": totals["input_tokens"] / len(case_results) if case_results else 0.0,
-        "tokens_per_accepted_field": totals["input_tokens"] / auto_accept_count if auto_accept_count else 0.0,
-        "field_tags": field_tag_summary,
-        "ocr_quality_bands": quality_bands,
-    }
-
-
-def _field_tag_summary(case_results: list[dict], field_tags: dict[str, list[str]]) -> dict:
-    buckets: dict[str, dict[str, int]] = {}
-    for case in case_results:
-        for field in case.get("fields", []):
-            tags = field_tags.get(field.get("field_key"), [])
-            for tag in tags:
-                bucket = buckets.setdefault(tag, {"total": 0, "correct": 0, "auto_accept_count": 0, "auto_accept_correct": 0})
-                bucket["total"] += 1
-                bucket["correct"] += int(bool(field.get("correct")))
-                if field.get("auto_accepted"):
-                    bucket["auto_accept_count"] += 1
-                    bucket["auto_accept_correct"] += int(bool(field.get("correct")))
-    return {
-        tag: {
-            **bucket,
-            "accuracy": bucket["correct"] / bucket["total"] if bucket["total"] else 0.0,
-            "auto_accept_precision": (
-                bucket["auto_accept_correct"] / bucket["auto_accept_count"] if bucket["auto_accept_count"] else 0.0
-            ),
-        }
-        for tag, bucket in buckets.items()
-    }
-
-
-def _ocr_quality_band_counts(case_results: list[dict]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for case in case_results:
-        band = str(case.get("ocr_quality", {}).get("quality_band") or "unknown")
-        counts[band] = counts.get(band, 0) + 1
-    return counts
-
-
-def _case_ocr_quality(case: CaseRecord) -> dict:
-    document = json.loads(case.document_ir_json) if case.document_ir_json else {"blocks": [], "metadata": {}}
-    diagnostics = json_loads(case.diagnostics_json, {})
-    metadata = document.get("metadata", {}) if isinstance(document, dict) else {}
-    quality = diagnostics.get("quality", {}) if isinstance(diagnostics, dict) else {}
-    return {
-        "quality_band": quality.get("quality_band") or metadata.get("quality_band") or "unknown",
-        "page_quality": metadata.get("ocr_page_quality", []),
-        "ocr_engine": metadata.get("ocr_engine") or quality.get("ocr_engine"),
-        "ocr_cache_status": metadata.get("ocr_cache_status") or quality.get("ocr_cache_status"),
-    }
-
-
-def _usage_totals(diagnostics: dict) -> dict:
-    totals = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0, "cost_usd": 0.0}
-    for item in diagnostics.get("llm_usage", []):
-        usage = item.get("usage", {}) if isinstance(item, dict) else {}
-        totals["input_tokens"] += int(usage.get("input_tokens", 0) or 0)
-        totals["output_tokens"] += int(usage.get("output_tokens", 0) or 0)
-        totals["cached_input_tokens"] += int(usage.get("cached_input_tokens", 0) or 0)
-        totals["cost_usd"] += float(usage.get("cost_usd", 0.0) or 0.0)
-    return totals
+    """Backward-compatible shim. Prefer `services.extraction_eval.evaluate_case_against_gold`."""
+    return evaluate_case_against_gold(case_id, gold, db, tags=tags)
 
 
 async def _save_upload_as_case(file: UploadFile, db: Session) -> CaseRecord:

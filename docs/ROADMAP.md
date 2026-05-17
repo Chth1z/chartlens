@@ -82,12 +82,13 @@ If a roadmap task targets a behavior these profiles do not measure, the first su
 - Prerequisites: none.
 - Reference: none. Internal frontend hygiene.
 
-### E0-008 — Field-extraction eval runner
+### E0-008 — Field-extraction eval runner (done 2026-05-17)
 
 - Goal: build a CLI runner for `config/evaluation_profiles/*.yaml` analogous to `scripts/run-ocr-eval.py`. The runner loads gold cases, processes them through the pipeline, and reports per-field precision, recall, exact-match, unknown-rate, and token cost. Output schema must be stable so before/after diffs are mechanical.
 - Acceptance: `scripts/run-extraction-eval.ps1 -ProfileId mock_general` runs end-to-end and produces a JSON report with the schema documented in the script header; backend tests cover the runner skeleton.
 - Prerequisites: none.
 - Reference: olmOCR 2 RLVR unit-test harness; Instructor validation-error feedback pattern. See `docs/REFERENCE_PROJECTS.md`. EYEX does not adopt RLVR training; the reference is the verification harness shape.
+- Outcome: shipped as `backend/app/services/extraction_eval.py` (the canonical builder), the FastAPI `/api/evals` routes now delegate to that service, and the CLI lives in `scripts/run-extraction-eval.py` plus `scripts/run-extraction-eval.ps1`. Report schema is versioned (`schema_version: "extraction-eval-v1"`) so downstream precision tasks can diff before/after deterministically. The runner does not reprocess cases; gold cases must be uploaded and processed first. Empty profiles or missing cases are reported as `summary.hard_blocker` with non-zero exit unless `--allow-blocked` is passed. Backend tests in `backend/tests/test_extraction_eval.py` cover the schema, scoring, missing-case path, summary aggregation, and CLI exit codes. Side benefit: `routes.py` dropped from 810 to 653 lines, clearing one governance warning.
 
 ## E1 — Borrow-from-Open-Source Precision Improvements
 
