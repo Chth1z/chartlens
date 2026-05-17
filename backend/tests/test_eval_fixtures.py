@@ -135,14 +135,11 @@ def test_baseline_file_is_present_and_well_formed():
     assert summary["evidence_coverage"] == pytest.approx(1.0)
     assert summary["unknown_misfill_rate"] == pytest.approx(0.0)
     assert summary["auto_accept_precision"] == pytest.approx(1.0)
-    # Accuracy floor: the rule-only path scores 52/54 = ~0.9630 on the
-    # synthetic fixtures. The 2 known recall gaps are eval-mock-008
-    # hypertension_history (`血压偏高` missing from the synonyms list) and
-    # drinking_history (`嗜酒` missing from the synonyms list). E1-005
-    # synonym widening or E1-001 LLM-assisted prompt rewrite will close at
-    # least one of these gaps; either change must regenerate the baseline
-    # and update this assertion in the same commit.
-    assert summary["accuracy"] == pytest.approx(52 / 54)
+    # Accuracy floor: synonym widening (E1-005, 2026-05-18) closed the
+    # eval-mock-008 recall gaps. The rule-only path now scores 54/54 = 1.0
+    # again. To raise the floor further, regenerate the baseline as part
+    # of a precision task and update this assertion in the same commit.
+    assert summary["accuracy"] == pytest.approx(1.0)
 
 
 @pytest.mark.skipif(

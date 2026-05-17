@@ -257,15 +257,11 @@ def test_smoking_history_positive_span_is_clause_bounded():
     assert "否认" not in (candidates[0].evidence_span or "")
 
 
-def test_non_standard_hypertension_phrasing_is_currently_unknown():
-    """Pin the current recall gap: '血压偏高' is not in the hypertension
-    synonyms list, so the rule path cannot lift it to a positive code and
-    falls back to MISSING.
-
-    This is the eval-mock-008 baseline gap. The next E1 task that widens
-    synonyms or routes through an LLM must update this test in the same
-    commit as the rule change so the fixture/baseline/test triple stays in
-    sync.
+def test_non_standard_hypertension_phrasing_is_recognized():
+    """E1-005 synonym widening: '血压偏高' was added to hypertension synonyms
+    so the rule path now lifts it to a positive code instead of falling back
+    to MISSING. Previous behavior (MISSING) was pinned; this test inverts
+    the assertion alongside the synonym-widening commit.
     """
     schema = load_extraction_schema()
     hypertension = schema.field_by_key("hypertension_history")
@@ -284,15 +280,20 @@ def test_non_standard_hypertension_phrasing_is_currently_unknown():
 
     evidence = collect_local_evidence(build_document_context(document_ir), [hypertension])
     decisions = adjudicate_field_decisions([hypertension], evidence)
+    candidates = decisions_to_extraction_candidates([hypertension], decisions)
 
-    assert decisions[hypertension.key].decision_status == "MISSING"
+    assert decisions[hypertension.key].decision_status == "PASS"
+    assert candidates[0].normalized_code == "1"
+    assert candidates[0].evidence_type == "explicit_positive"
+    assert "血压偏高" in (candidates[0].evidence_span or "")
 
 
-def test_non_standard_drinking_phrasing_is_currently_unknown():
-    """Pin the current recall gap for drinking_history: '嗜酒' is not in the
-    drinking synonyms list (only '嗜烟酒' is), so the rule path returns
-    MISSING. Same precision-task lifecycle rule applies as the hypertension
-    sibling test."""
+def test_non_standard_drinking_phrasing_is_recognized():
+    """E1-005 synonym widening: '嗜酒' was added to drinking_history synonyms
+    so the rule path now lifts it to a positive code. Previous behavior
+    (MISSING) was pinned; this test inverts the assertion alongside the
+    synonym-widening commit.
+    """
     schema = load_extraction_schema()
     drinking = schema.field_by_key("drinking_history")
     document_ir = _document_ir(
@@ -310,5 +311,9 @@ def test_non_standard_drinking_phrasing_is_currently_unknown():
 
     evidence = collect_local_evidence(build_document_context(document_ir), [drinking])
     decisions = adjudicate_field_decisions([drinking], evidence)
+    candidates = decisions_to_extraction_candidates([drinking], decisions)
 
-    assert decisions[drinking.key].decision_status == "MISSING"
+    assert decisions[drinking.key].decision_status == "PASS"
+    assert candidates[0].normalized_code == "1"
+    assert candidates[0].evidence_type == "explicit_positive"
+    assert "嗜酒" in (candidates[0].evidence_span or "")

@@ -34,6 +34,15 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
 - Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
 
+### todo PLAN-llm-baseline-bootstrap
+
+- Goal: Establish a parallel LLM-assisted baseline for `mock_general` running through the deepseek_v4_flash profile. Today's baseline is rule-only (zero token cost). The new baseline must be deterministic enough that subsequent E1-001 prompt rewrites have a real before/after token-cost and accuracy comparison. Produced as `config/evaluation_profiles/baselines/mock_general_llm.json` so the rule-only baseline stays the floor.
+- Out of scope: No prompt rewrite. No new fixtures. No change to the rule-only baseline JSON or its test floor.
+- Acceptance commands: `python scripts/check-llm-connectivity.py`; `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --baseline` (the bootstrap script must gain a `--provider` flag accepting `rule` or `llm`); `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Risk: deterministic LLM output is harder to pin. The bootstrap must call the provider with `temperature=0.0`, prompt cache key fixed, and assert a stable token count per case across two consecutive runs. Network or rate-limit failures must not corrupt the baseline JSON; write atomically and only on a clean run.
+- Trigger: deepseek_v4_flash connectivity confirmed on 2026-05-18; the rule-only baseline ratchet is at 1.0 ceiling; further precision work requires an LLM-assisted measurement target.
+- Done condition: `mock_general_llm.json` is committed; the bootstrap script supports the `--provider` flag; `test_eval_fixtures.py` gains a sibling test that reproduces the LLM baseline within an explicit token-count tolerance band; AGENTS.md Precision Tasks section updated to reference both baselines.
+
 ### todo PLAN-mock-general-phase-A
 
 - Goal: ROADMAP E1-010 Phase A. Extend the `mock_general` baseline to cover the two demographics fields currently outside the 8-case set: `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Reuse one existing fixture by adding the `医院: XXX市XXX医院` line and a sample address; add one new fixture with no address to verify `urban_residence` rule does not over-fire and stays unknown when the source has no usable signal.
@@ -143,6 +152,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
 
 ## Done
+
+### done E1-005-synonym-widening Close eval-mock-008 recall gaps and add LLM connectivity check
+
+- Goal: Close the 2 known recall gaps surfaced by the `eval-mock-008` challenge case by widening the schema synonym lists for `hypertension_history` and `drinking_history`. Add a connectivity check script that verifies the active LLM provider profile is reachable without ever printing the API key value. Configure the deepseek_v4_flash profile with the user-provided API key under explicit time-limited authorization (see `docs/DECISIONS.md` 2026-05-18 entry on chat-pasted keys).
+- Acceptance commands: `python scripts/check-llm-connectivity.py`; `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: Schema synonyms widened (`hypertension_history` adds `血压偏高 / 血压增高 / 血压高 / BP高`; `drinking_history` adds `嗜酒 / 喝酒 / 酗酒`); baseline regenerated at `accuracy=1.0` (54/54); the two pinned regression tests inverted from MISSING to PASS; `scripts/check-llm-connectivity.py` and `.ps1` exist with redacted key reporting and a `model_calls` ledger row; `test_model_profiles.py` made resilient to settings-driven default profile via monkeypatch; .env configured with deepseek key (gitignored). Old DPAPI-stored key backed up to `var/storage/provider_secrets.json.bak-2026-05-18` so the .env key is the active credential.
 
 ### done PLAN-field-coverage-and-ocr-postprocessing-research
 

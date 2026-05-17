@@ -200,7 +200,7 @@ fields:
     extract_mode: llm_semantic
     source_sections: [既往史, 病史, 入院记录, 出院诊断]
     excluded_sections: [家族史, 婚育史]
-    synonyms: [高血压, 高血压病, 血压升高]
+    synonyms: [高血压, 高血压病, 血压升高, 血压偏高, 血压增高, 血压高, BP高]
     negation_terms: [否认, 无, 未见]
     evidence_priority: [既往史, 病史, 入院记录]
     evidence_policy:
@@ -347,7 +347,7 @@ fields:
     extract_mode: llm_semantic
     source_sections: [个人史, 生活史, 入院记录]
     excluded_sections: [家族史, 婚育史]
-    synonyms: [饮酒, 饮酒史, 酒精, 烟酒, 嗜烟酒]
+    synonyms: [饮酒, 饮酒史, 酒精, 烟酒, 嗜烟酒, 嗜酒, 喝酒, 酗酒]
     negation_terms: [否认, 无, 不饮酒, 未饮酒, 无烟酒不良嗜好]
     evidence_priority: [个人史, 生活史, 入院记录]
     evidence_policy:

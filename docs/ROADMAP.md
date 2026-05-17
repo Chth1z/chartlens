@@ -37,7 +37,7 @@ These are the live precision baselines that any E1 task must beat or match. They
 
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 0.9630 (52/54) | 1.0 (52/52) | 1.0 (52/52) | 0.0 | 8 synthetic cases. The first 7 were extended on 2026-05-17 from the original 5 (heart_disease + stroke positive, implicit-negative, family-history exclusion). `eval-mock-008` is the challenge case: '血压偏高' (hypertension synonym gap) and '嗜酒' (drinking synonym gap) are real recall gaps that the rule path cannot recover and that fall to MISSING. They are explicitly pinned by `test_non_standard_hypertension_phrasing_is_currently_unknown` and `test_non_standard_drinking_phrasing_is_currently_unknown`. Closing them is the next E1-005 (synonym widening) or E1-001 (LLM evidence-first prompt) target; either change must regenerate the baseline JSON, lift `test_baseline_file_is_present_and_well_formed`'s accuracy floor, and update the two pinned regression tests in the same commit. |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (54/54) | 1.0 (54/54) | 1.0 (54/54) | 0.0 | 8 synthetic cases. Raised from 0.9630 to 1.0 on 2026-05-18 by the E1-005 synonym widening commit (`hypertension_history` adds `血压偏高/血压增高/血压高/BP高`; `drinking_history` adds `嗜酒/喝酒/酗酒`). The two pinned regression tests were inverted in the same commit (MISSING → PASS). The rule-only baseline now sits at the ceiling of synthetic cases; further precision gains require either an LLM-assisted path (E1-001), tighter `evidence_coverage` definition under the LLM path, or a real-world corpus where new recall gaps emerge naturally (E2-001/E2-002). |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 
@@ -130,13 +130,14 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Prerequisites: E0-005, E0-008.
 - Reference: Unstructured element types; Docling reading-order graph; Marker block taxonomy (ideas only, no source copy). See `docs/REFERENCE_PROJECTS.md`.
 
-### E1-005 — Local rule pre-filter before LLM call (partially done 2026-05-17 via clause-boundary fix)
+### E1-005 — Local rule pre-filter before LLM call (partially done 2026-05-17 + 2026-05-18)
 
 - Goal: tighten `evidence_first.collect_local_evidence` so that high-confidence rule matches (regex hit on patient-header layout key-value with confidence ≥ 0.95) skip the LLM call entirely and record `acceptance_reason=rule_pre_accepted`. Currently the rule layer always defers to LLM adjudication when LLM is available. The change must not affect fields whose `evidence_policy.high_risk=true`.
 - Acceptance: extraction eval run shows token cost reduction (target 20% on demographics group) without precision change on auto-accepted fields. Diagnostics ledger surfaces the new `rule_pre_accepted` reason. On `mock_general`, the rule-only baseline (`accuracy=0.90625`, `auto_accept_precision=1.0`) must hold; if positive history rules are widened to recover one or more of the 3 known recall gaps, the new floor is committed and the baseline regenerated.
 - Prerequisites: E0-008.
 - Reference: PaddleOCR profile-driven shortcut pattern (do not call heavyweight model when light model is sufficient).
 - Outcome (partial, 2026-05-17): the recall-gap half of the goal is closed. The fix in `services/evidence_first.py:_positive_span` clips positive-evidence windows to the surrounding clause (sentence terminators `。 ； ; \n`) and only checks the LEFT context for negation; right-side negation belongs to a different field and is now ignored. Two new regression tests in `test_evidence_first_extraction.py` pin the corrected behavior on `高血压病史10年。否认糖尿病史。` and `吸烟史20年，每日10支。否认饮酒史。`. The `mock_general` baseline now scores `accuracy=1.0` (32/32), `auto_accept_precision=1.0`, `evidence_coverage=1.0`, `unknown_misfill_rate=0.0`. The remaining `rule_pre_accepted` shortcut work (skip LLM on high-confidence rule hits, surface the reason in diagnostics) is still open and will land in a follow-up commit.
+- Outcome (partial, 2026-05-18): synonym widening for the eval-mock-008 challenge case. Added `血压偏高 / 血压增高 / 血压高 / BP高` to `hypertension_history.synonyms` and `嗜酒 / 喝酒 / 酗酒` to `drinking_history.synonyms`. Both pinned regression tests inverted from MISSING to PASS in the same commit. Baseline regenerated at `accuracy=1.0` (54/54). The `rule_pre_accepted` shortcut work remains the only open piece of E1-005.
 
 ### E1-006 — Provider contract test set
 

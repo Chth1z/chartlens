@@ -7,6 +7,7 @@ from app.services import model_providers
 
 def test_model_profiles_include_deepseek_and_custom(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "storage_dir", tmp_path)
+    monkeypatch.setattr(settings, "model_profile", "openai_structured")
     client = TestClient(app)
 
     response = client.get("/api/model-profiles")
