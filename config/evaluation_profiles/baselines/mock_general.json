@@ -13,22 +13,22 @@
       "max_input_tokens_per_case": 1200,
       "max_input_tokens_per_accepted_field": 500
     },
-    "gold_case_count": 5
+    "gold_case_count": 7
   },
   "summary": {
-    "total_fields": 32,
-    "correct": 32,
-    "auto_accept_count": 32,
-    "auto_accept_correct": 32,
+    "total_fields": 48,
+    "correct": 48,
+    "auto_accept_count": 48,
+    "auto_accept_correct": 48,
     "unknown_misfills": 0,
     "expected_unknown": 0,
-    "predicted_non_unknown": 32,
-    "evidence_covered": 32,
+    "predicted_non_unknown": 48,
+    "evidence_covered": 48,
     "input_tokens": 0,
     "output_tokens": 0,
     "cost_usd": 0.0,
-    "case_count": 5,
-    "evaluated_case_count": 5,
+    "case_count": 7,
+    "evaluated_case_count": 7,
     "blocked_case_count": 0,
     "accuracy": 1.0,
     "auto_accept_precision": 1.0,
@@ -38,40 +38,40 @@
     "tokens_per_accepted_field": 0.0,
     "field_tags": {
       "demographics": {
-        "total": 10,
-        "correct": 10,
-        "auto_accept_count": 10,
-        "auto_accept_correct": 10,
+        "total": 14,
+        "correct": 14,
+        "auto_accept_count": 14,
+        "auto_accept_correct": 14,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "history": {
-        "total": 12,
-        "correct": 12,
-        "auto_accept_count": 12,
-        "auto_accept_correct": 12,
+        "total": 20,
+        "correct": 20,
+        "auto_accept_count": 20,
+        "auto_accept_correct": 20,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "chronic_disease": {
-        "total": 12,
-        "correct": 12,
-        "auto_accept_count": 12,
-        "auto_accept_correct": 12,
+        "total": 20,
+        "correct": 20,
+        "auto_accept_count": 20,
+        "auto_accept_correct": 20,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "lifestyle": {
-        "total": 10,
-        "correct": 10,
-        "auto_accept_count": 10,
-        "auto_accept_correct": 10,
+        "total": 14,
+        "correct": 14,
+        "auto_accept_count": 14,
+        "auto_accept_correct": 14,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       }
     },
     "ocr_quality_bands": {
-      "good": 5
+      "good": 7
     }
   },
   "cases": [
@@ -622,6 +622,263 @@
           "field_key": "drinking_history",
           "expected": "1",
           "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-006",
+      "status": "evaluated",
+      "total_fields": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "heart_disease_positive",
+        "stroke_positive",
+        "history_mixed",
+        "lifestyle_mixed"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 110,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "60",
+          "actual": "60",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "heart_disease_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "stroke_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-007",
+      "status": "evaluated",
+      "total_fields": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "history_implicit_negative",
+        "family_history_present",
+        "lifestyle_negative"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 117,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "2",
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "45",
+          "actual": "45",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "heart_disease_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "stroke_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
           "correct": true,
           "auto_accepted": true,
           "has_evidence": true,

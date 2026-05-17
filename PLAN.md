@@ -135,6 +135,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Done
 
+### done PLAN-mock-general-coverage-expansion
+
+- Goal: Widen `mock_general` from 5 to 7 synthetic fixtures so the precision baseline exercises code paths that the original set did not touch: heart_disease_history positive, stroke_history positive, implicit-negative (`既往史：无特殊`), and the `excluded_sections: [家族史]` guard against family-history leakage.
+- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Done condition: `eval-mock-006.txt` and `eval-mock-007.txt` exist with the matching gold cases in the YAML; baseline regenerated at `accuracy=1.0` on 48/48 (up from 32/32) without metric regression on the original 5 cases; `field_tags` extended to include `heart_disease_history` and `stroke_history`; `test_fixture_count_matches_committed_baseline` pins the 7-case ledger so future drift is explicit.
+
 ### done E1-005-clause-boundary Positive history span clipped at sentence terminators
 
 - Goal: Close the 3 known positive-history recall gaps in the `mock_general` baseline by fixing `_positive_span` in `services/evidence_first.py`, which incorrectly suppressed valid positive evidence whenever the next clause negated a different field. Companion regression tests pin the corrected clause-boundary behavior so future refactors cannot reintroduce the leak.

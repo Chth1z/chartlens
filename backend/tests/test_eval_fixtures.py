@@ -98,6 +98,25 @@ def test_every_fixture_file_has_a_matching_gold_case():
     )
 
 
+def test_fixture_count_matches_committed_baseline():
+    """Pin the number of gold cases. If a precision task adds or removes a
+    fixture it must update this assertion in the same commit, so case-count
+    drift cannot happen silently and the baseline summary aggregates remain
+    interpretable."""
+    profile = load_evaluation_profile(PROFILE_ID)
+    fixture_files = sorted(path.stem for path in FIXTURES_DIR.glob("*.txt"))
+    assert len(profile.gold_cases) == 7
+    assert fixture_files == [
+        "eval-mock-001",
+        "eval-mock-002",
+        "eval-mock-003",
+        "eval-mock-004",
+        "eval-mock-005",
+        "eval-mock-006",
+        "eval-mock-007",
+    ]
+
+
 def test_baseline_file_is_present_and_well_formed():
     assert BASELINE_PATH.exists(), (
         "baseline file is missing. Regenerate with: "

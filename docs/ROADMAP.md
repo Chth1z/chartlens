@@ -37,7 +37,7 @@ These are the live precision baselines that any E1 task must beat or match. They
 
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (32/32) | 1.0 (32/32) | 1.0 (32/32) | 0.0 | 5 synthetic cases. Raised from 0.90625 to 1.0 on 2026-05-17 by the clause-boundary fix in `_positive_span` (E1-005 partial). The remaining E1-005 token-saving shortcut work is still open. |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (48/48) | 1.0 (48/48) | 1.0 (48/48) | 0.0 | 7 synthetic cases. The original 5 were extended by `eval-mock-006` (heart_disease + stroke positive, mixed history) and `eval-mock-007` (implicit-negative `既往史：无特殊` plus a family-history paragraph that must be ignored by `excluded_sections`). Raised from 0.90625 to 1.0 on 2026-05-17 by the clause-boundary fix in `_positive_span` (E1-005 partial); fixture coverage was widened to exercise heart_disease, stroke, implicit_negative, and family-history exclusion code paths. |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 

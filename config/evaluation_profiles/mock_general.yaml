@@ -12,6 +12,8 @@ field_tags:
   hypertension_history: [history, chronic_disease]
   diabetes_history: [history, chronic_disease]
   hyperlipidemia_history: [history, chronic_disease]
+  heart_disease_history: [history, chronic_disease]
+  stroke_history: [history, chronic_disease]
   smoking_history: [lifestyle]
   drinking_history: [lifestyle]
 thresholds:
@@ -69,3 +71,25 @@ gold_cases:
       diabetes_history: "0"
       smoking_history: "1"
       drinking_history: "1"
+  - case_id: eval-mock-006
+    tags: [demographics, heart_disease_positive, stroke_positive, history_mixed, lifestyle_mixed]
+    gold:
+      gender: "1"
+      age: "60"
+      heart_disease_history: "1"
+      stroke_history: "1"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      smoking_history: "1"
+      drinking_history: "0"
+  - case_id: eval-mock-007
+    tags: [demographics, history_implicit_negative, family_history_present, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "45"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      heart_disease_history: "0"
+      stroke_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
