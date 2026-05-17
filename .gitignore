@@ -7,6 +7,7 @@
 .venv-*/
 __pycache__/
 .pytest_cache/
+pytest-cache-files-*/
 *.pyc
 
 # Node / frontend build output
@@ -21,3 +22,7 @@ storage/
 logs/
 output/
 tmp/
+
+# IDE / editor workspace state
+.vscode/
+.idea/
