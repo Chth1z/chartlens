@@ -60,10 +60,10 @@ class OcrTrace:
     error: str = ""
 
     def start(self) -> None:
-        self.started_at = time.monotonic()
+        self.started_at = time.perf_counter()
 
     def finish(self) -> None:
-        self.finished_at = time.monotonic()
+        self.finished_at = time.perf_counter()
         self.total_duration_ms = (self.finished_at - self.started_at) * 1000
 
     def add_stage(self, stage: StageMetric) -> None:
@@ -89,7 +89,7 @@ class OcrTrace:
 @contextmanager
 def trace_stage(trace: OcrTrace, stage_name: str, engine_name: str = ""):
     """Context manager to time an OCR stage and record metrics."""
-    metric = StageMetric(stage=stage_name, engine=engine_name, started_at=time.monotonic())
+    metric = StageMetric(stage=stage_name, engine=engine_name, started_at=time.perf_counter())
     try:
         yield metric
         metric.status = "completed"
@@ -108,7 +108,7 @@ def trace_stage(trace: OcrTrace, stage_name: str, engine_name: str = ""):
         metric.error = str(exc)[:500]
         raise
     finally:
-        metric.finished_at = time.monotonic()
+        metric.finished_at = time.perf_counter()
         metric.duration_ms = (metric.finished_at - metric.started_at) * 1000
         trace.add_stage(metric)
 
