@@ -34,15 +34,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: Before adding the next persistent table or non-null column.
 - Done condition: `alembic` is in `requirements.txt`, baseline migration captures all 7 current tables, startup runs migrations, and the manual `_ensure_sqlite_columns` shim is deleted.
 
-### todo Add database migration baseline before schema expansion
-
-- Goal: Replace the manual `Base.metadata.create_all(...)` plus ad hoc `_ensure_sqlite_columns` `ALTER TABLE` path with an Alembic migration baseline. Startup runs `alembic upgrade head`. Fresh DB and existing DB go through the same path.
-- Out of scope: No move to Postgres. No schema additions in this task.
-- Acceptance commands: `python -m pytest backend\tests`; manually verify a fresh `var/storage/eyex.sqlite3` is created on first run and an existing one upgrades without manual SQL.
-- Risk: Manual `create_all` and ad hoc `ALTER` will become unsafe as review, eval, and job history grow.
-- Trigger: Before adding the next persistent table or non-null column.
-- Done condition: `alembic` is in `requirements.txt`, baseline migration captures all 7 current tables, startup runs migrations, and the manual `_ensure_sqlite_columns` shim is deleted.
-
 ### todo Move persistent processing jobs out of process memory
 
 - Goal: Replace the `ThreadPoolExecutor + BoundedSemaphore` in-memory queue assumption. On startup, scan `processing_runs` for `started/running` rows, mark them `failed` with reason `process_restart_aborted`, and rebound their cases from `extracting/ocr` back to `queued` so `enqueue_case` can pick them up. Failed runs are never silently retried; the operator sees a diagnostic reason.
