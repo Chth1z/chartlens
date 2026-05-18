@@ -115,3 +115,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Tightened `_evidence_first_system_prompt` and the evidence-first JSON schema so `evidence_text` MUST be a contiguous substring of the cited block's text, and `normalized_code` for free-text/numeric fields MUST be the actual extracted value (never a type-class placeholder like `'text'` or `'integer'`). Bumped `EVIDENCE_FIRST_PROMPT_VERSION` to `eyex-evidence-first-v3`. LLM-assisted `mock_general` baseline rose from 0.9861 (71/72) to 1.0 (72/72) deterministically across 3/3 cache-cleared runs; token cost dropped to 52,674 input / 12,985 output (-28% input, -34% output vs. prior). Backend tests 343 → 344 (new `test_v3_prompt_requires_substring_evidence_text`). Cacheable prefix byte-stability preserved.
 - Anchor: ROADMAP E1-001 outcome line; `docs/FIELD_COVERAGE.md` Phase A note.
+
+### done PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20)
+
+- ROADMAP E1-010 Phase B. Extended `mock_general` to cover `tumor_history`. Rule-only baseline rose from 1.0 (72/72) to 1.0 (80/80) on 11 fixtures. New `eval-mock-011` (explicit positive: `恶性肿瘤病史3年` → `tumor_history="1"`) plus extended gold on `eval-mock-007` (implicit-negative: `既往史：无特殊` → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80); token cost 26,406 input / 7,946 output. `mock_general.yaml` `field_tags` includes `tumor_history`; `test_eval_fixtures.py` fixture count updated to 11. Coverage: 12/22 schema fields.
+- Anchor: `docs/FIELD_COVERAGE.md` Phase B; ROADMAP E1-010 Phase B.

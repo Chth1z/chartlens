@@ -70,15 +70,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: Before the next backend contract change that adds or removes endpoint fields.
 - Done condition: One canonical `frontend/src/shared/api/schemas.ts` covers all endpoints; existing validator helpers are removed; existing 9 tests pass.
 
-### todo Split model_providers.py into catalog / store / discovery / api
-
-- Goal: Reduce the 659-line `backend/app/services/model_providers.py` to four focused modules: `model_providers/catalog.py` (YAML loader), `model_providers/settings_store.py` (persistence + decryption), `model_providers/discovery.py` (`fetch_provider_models` + URL fallback), and `model_providers/api.py` (FastAPI request/response shape).
-- Out of scope: No change to provider catalog YAML schema. No new provider added.
-- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`.
-- Risk: Provider settings schema is mirrored in frontend types; module boundary changes must not break import paths used by tests.
-- Trigger: After the llm_provider/ split, since both move toward the same router/credentials boundary.
-- Done condition: Each new module ≤ 300 lines, the `services/model_providers.py` file no longer exists or is a thin re-export shim.
-
 ### todo Clarify ocr_engine vs layout_normalizer boundary
 
 - Goal: Move all profile-driven same-line merging, paragraph reflow, screen-chrome removal, patient-header detection, and key-value derivation out of `ocr_engine/canonicalize.py` and into `services/layout_normalizer.py`. `ocr_engine/` only produces raw blocks plus single-engine canonical merging.
@@ -118,6 +109,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done E0-006 Split model_providers.py (2026-05-19)
+
+- Goal: Reduce the 659-line `backend/app/services/model_providers.py` to a focused subpackage with each module ≤ 300 lines.
+- Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/model_providers/`: `types.py` (45), `catalog.py` (200), `settings_store.py` (45), `discovery.py` (121), `api.py` (282), `__init__.py` (29). `__init__.py` re-exports the public API plus `httpx`, `explicit_api_keys_for_profile`, and `_fetch_models` for monkey-patch backward compatibility (used by `test_model_profiles.py` and `test_security_hardening.py`). `_provider_state` and `fetch_provider_models` resolve those names via the package namespace at call time so test patches still take effect. All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500-line soft trigger rule; ROADMAP `E0-006`.
+
 ### done E0-004 Split llm_provider adapters and payloads (2026-05-19)
 
 - Goal: Reduce `backend/app/services/llm_provider/adapters.py` (760 lines) and `payloads.py` (691 lines) below the AGENTS.md 500-line soft trigger by splitting into focused modules without behavior change.
@@ -142,16 +139,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure refactor, no behavior change. Split into `pipeline.py` (300 lines, orchestrator), `pipeline_evidence_first.py` (235 lines, evidence-first extraction flow), `pipeline_quality.py` (58 lines, quality summary helpers), `pipeline_errors.py` (17 lines, error formatting). All 344 backend tests pass; rule baseline 1.0 (80/80); LLM baseline 1.0 (80/80); frontend tests and build pass; governance scan passes (no large-file warning for any pipeline file).
 - Anchor: AGENTS.md 500-line soft trigger rule.
 
-### done PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20)
-
-- Goal: ROADMAP E1-010 Phase B. Extend `mock_general` to cover `tumor_history`.
-- Outcome: Rule-only baseline rises from 1.0 (72/72) to 1.0 (80/80) on 11 fixtures. New `eval-mock-011` (explicit positive: `恶性肿瘤病史3年` → `tumor_history="1"`) plus extended gold on `eval-mock-007` (implicit-negative: `既往史：无特殊` → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80); token cost 26,406 input / 7,946 output. `mock_general.yaml` `field_tags` includes `tumor_history`; `test_eval_fixtures.py` fixture count updated to 11. Coverage: 12/22 schema fields.
-- Anchor: `docs/FIELD_COVERAGE.md` Phase B; ROADMAP E1-010 Phase B.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-24: PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20).
 - 2026-05-23: PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19).
 - 2026-05-22: E1-005 rule_pre_accepted shortcut (2026-05-18).
 - 2026-05-19: PLAN-mock-general-phase-A (2026-05-18).

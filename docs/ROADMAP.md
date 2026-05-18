@@ -81,12 +81,13 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Prerequisites: E0-001.
 - Reference: PaddleOCR layered pipeline; Docling reading-order graph; Marker block taxonomy. See `docs/REFERENCE_PROJECTS.md`.
 
-### E0-006 — Split model_providers.py into catalog / store / discovery / api
+### E0-006 — Split model_providers.py into catalog / store / discovery / api (done 2026-05-19)
 
 - Goal: reduce the 659-line `services/model_providers.py` into four focused modules covering YAML loading, persistence and decryption, `fetch_provider_models` plus URL fallback, and the FastAPI request/response shape. Tracked in `PLAN.md`.
 - Acceptance: each new module ≤ 300 lines; the original file is a thin re-export shim or removed; full backend and frontend tests pass.
 - Prerequisites: E0-004.
 - Reference: same as E0-004.
+- Outcome (2026-05-19): pure structural refactor, no behavior change. Replaced the 659-line monolith with `backend/app/services/model_providers/`: `types.py` (45), `catalog.py` (200), `settings_store.py` (45), `discovery.py` (121), `api.py` (282), `__init__.py` (29). `__init__.py` re-exports the public API plus `httpx`, `explicit_api_keys_for_profile`, and `_fetch_models` so existing test monkey-patches keep working; `_provider_state` and `fetch_provider_models` resolve those names through the package namespace at call time. All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings. Anchor: `PLAN.md` Done "E0-006 Split model_providers.py".
 
 ### E0-007 — Split styles.css and EvidencePanel.tsx
 
