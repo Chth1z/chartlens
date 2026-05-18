@@ -86,6 +86,7 @@ Listed in reverse chronological order. Click through to the dated heading for th
 
 ### Promotion records (informational)
 
+- 2026-05-19 — Eleventh batched dev to main promotion
 - 2026-05-19 — Tenth batched dev to main promotion
 - 2026-05-19 — Ninth batched dev to main promotion
 - 2026-05-19 — Eighth batched dev to main promotion
