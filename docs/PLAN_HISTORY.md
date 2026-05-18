@@ -134,3 +134,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Split `frontend/src/styles.css` (3726 lines) into 10 feature-scoped stylesheets under `frontend/src/styles/` (`base.css` 109, `layout.css` 428, `cases.css` 182, `evidence.css` 256, `document.css` 785, `review.css` 429, `settings.css` 592, `providers.css` 269, `diagnostics.css` 253, `components.css` 422). Original `styles.css` reduced to a 10-line barrel using CSS `@import`. `ocrSourceDebug.test.ts` rewired to read the correct split file. All 9 frontend tests pass; build succeeds; governance scan passes with no large-file warnings.
 - Anchor: AGENTS.md 500/800-line ceiling rule.
+
+### done E0-004 Split llm_provider adapters and payloads (2026-05-19)
+
+- Reduced `backend/app/services/llm_provider/adapters.py` (760 lines) and `payloads.py` (691 lines) below the AGENTS.md 500-line soft trigger. Replaced `adapters.py` with `adapters/` subpackage (openai_responses 143, openai_compatible 253, anthropic 202, gemini 197, __init__ 28). Extracted evidence-first payload helpers to `payloads_evidence_first.py` (380); kept `payloads.py` (335) for legacy/shared helpers with backward-compat re-exports. Pure refactor; rule baseline 0.9623 (153/159) unchanged; LLM baseline 0.9748 (155/159).
+- Anchor: AGENTS.md 500-line soft trigger rule.

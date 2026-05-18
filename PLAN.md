@@ -100,6 +100,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-evidence-first (2026-05-19)
+
+- Goal: Reduce the 571-line `backend/app/services/evidence_first.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
+- Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/evidence_first/`: `__init__.py` (10) re-exports the public API; `spans.py` (62) owns text-span utilities (`_negative_span`, `_positive_span`, `_section_complete_negative_span`, `_contains_uncertain`, `_trim_span`, `_match_group`, `_normalize_rule_value`) plus the `NEGATION_TERMS`/`UNCERTAIN_TERMS`/`SENTENCE_TERMINATORS` constants; `candidates.py` (94) owns `_candidate` builder, `_apply_forbidden_context`, `_is_family_context`, `_candidate_context_text`, `_source_type`, `_field_label_seen`, `_candidate_confidence`, `_dedupe_candidates`; `rules.py` (214) owns the 5 evidence collection functions including the behavior-critical `_binary_history_evidence` guards (skip `computed_from_facts`/`fact_then_code` and `discharge_group` fields); `collection.py` (33) owns the public `collect_local_evidence` entry point with a runtime lazy import of `_select_candidate` to avoid `collection ⇄ adjudication` cycle; `adjudication.py` (210) owns `adjudicate_field_decisions`, `decisions_to_extraction_candidates`, and their helpers (`_select_candidate`, `_priority_rank`, `_review_reasons`, `_generic_allowed`, `_decision_summary`, `_evidence_type`, `_candidate_facts`, `_missing_candidate`). All 344 backend tests pass; rule baseline 0.9623 (153/159) reproduces byte-identically (`git diff` empty on the baseline JSON); frontend tests (9) and build pass; governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-split-diagnostics (2026-05-19)
 
 - Goal: Reduce the 633-line `backend/app/services/diagnostics.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
@@ -124,18 +130,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/model_providers/`: `types.py` (45), `catalog.py` (200), `settings_store.py` (45), `discovery.py` (121), `api.py` (282), `__init__.py` (29). `__init__.py` re-exports the public API plus `httpx`, `explicit_api_keys_for_profile`, and `_fetch_models` for monkey-patch backward compatibility (used by `test_model_profiles.py` and `test_security_hardening.py`). `_provider_state` and `fetch_provider_models` resolve those names via the package namespace at call time so test patches still take effect. All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings.
 - Anchor: AGENTS.md 500-line soft trigger rule; ROADMAP `E0-006`.
 
-### done E0-004 Split llm_provider adapters and payloads (2026-05-19)
-
-- Goal: Reduce `backend/app/services/llm_provider/adapters.py` (760 lines) and `payloads.py` (691 lines) below the AGENTS.md 500-line soft trigger by splitting into focused modules without behavior change.
-- Outcome: Pure structural refactor, no behavior change. `adapters.py` deleted; replaced by `adapters/` subpackage with `openai_responses.py` (143), `openai_compatible.py` (253), `anthropic.py` (202), `gemini.py` (197) plus an `__init__.py` (28) that re-exports the four provider classes and the names tests monkey-patch. Evidence-first payload helpers extracted to `payloads_evidence_first.py` (380); `payloads.py` (335) keeps the legacy/shared helpers and re-exports the evidence-first symbols for backward compatibility. All previously-passing 343 backend tests still pass (1 pre-existing OCR PowerShell GPU test fails identically on clean dev). Rule baseline 0.9623 (153/159) unchanged. LLM baseline 0.9748 (155/159), well above the 0.94 floor. Frontend tests (9) and build pass. Governance scan passes with no large-file warnings.
-- Anchor: AGENTS.md 500-line soft trigger rule.
-
-- Anchor: AGENTS.md 500-line soft trigger rule.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-28: E0-004 Split llm_provider adapters and payloads (2026-05-19).
 - 2026-05-27: PLAN-split-styles-css (2026-05-22).
 - 2026-05-26: Decide application/ vs services/ flat layout (2026-05-19).
 - 2026-05-25: PLAN-split-pipeline.py (2026-05-21).
