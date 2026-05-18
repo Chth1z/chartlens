@@ -110,3 +110,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Wired the `rule_pre_accepted` shortcut in `_extract_document_evidence_first` so phase-1 fields whose group has `semantic_strategy: rule_shortcut` AND `rule_shortcut_extract` returns confidence >= 0.95 bypass the LLM evidence-first chain entirely. Bypassed candidates carry `acceptance_reason="rule_pre_accepted"`, `provenance.source="rule_shortcut"`, `provenance.skipped_llm=True`, `provenance.decision_status="PASS"`. Backend tests 342 → 343. LLM-assisted `mock_general` baseline rose from 0.9722 (70/72) to 0.9861 (71/72).
 - Anchor: `docs/DECISIONS.md` 2026-05-18 "rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups"; AGENTS.md "Architecture Boundaries".
+
+### done PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19)
+
+- Tightened `_evidence_first_system_prompt` and the evidence-first JSON schema so `evidence_text` MUST be a contiguous substring of the cited block's text, and `normalized_code` for free-text/numeric fields MUST be the actual extracted value (never a type-class placeholder like `'text'` or `'integer'`). Bumped `EVIDENCE_FIRST_PROMPT_VERSION` to `eyex-evidence-first-v3`. LLM-assisted `mock_general` baseline rose from 0.9861 (71/72) to 1.0 (72/72) deterministically across 3/3 cache-cleared runs; token cost dropped to 52,674 input / 12,985 output (-28% input, -34% output vs. prior). Backend tests 343 → 344 (new `test_v3_prompt_requires_substring_evidence_text`). Cacheable prefix byte-stability preserved.
+- Anchor: ROADMAP E1-001 outcome line; `docs/FIELD_COVERAGE.md` Phase A note.

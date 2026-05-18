@@ -70,15 +70,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: Before the next backend contract change that adds or removes endpoint fields.
 - Done condition: One canonical `frontend/src/shared/api/schemas.ts` covers all endpoints; existing validator helpers are removed; existing 9 tests pass.
 
-### todo Split provider responsibilities under llm_provider/
-
-- Goal: Reorganize `backend/app/services/llm_provider/` into three explicit layers: `protocols/` (one adapter per protocol: OpenAI Responses, OpenAI Chat-compatible, Anthropic Messages, Gemini), `router.py` (fallback chain, key cooldown, error classification, retry policy), and `credentials.py` (DPAPI / Keychain / explicit plaintext opt-in). `services/extraction/` calls only the router.
-- Out of scope: No prompt or model semantics change. No new provider in this task.
-- Acceptance commands: `python -m pytest backend\tests\test_provider_fallback.py backend\tests\test_core_business_optimization.py backend\tests\test_security_hardening.py`; full `python -m pytest backend\tests` before merge.
-- Risk: Provider fallback and cache behavior can regress silently. Key cooldown timing is hard to test deterministically.
-- Trigger: After application/services layout decision lands; or any new provider, fallback, prompt, or cache change.
-- Done condition: No protocol-specific HTTP code lives in `fallback.py`, `adapters.py`, or `local_extraction.py`; business pipelines do not `import` a specific protocol adapter directly (enforced by governance scan).
-
 ### todo Split model_providers.py into catalog / store / discovery / api
 
 - Goal: Reduce the 659-line `backend/app/services/model_providers.py` to four focused modules: `model_providers/catalog.py` (YAML loader), `model_providers/settings_store.py` (persistence + decryption), `model_providers/discovery.py` (`fetch_provider_models` + URL fallback), and `model_providers/api.py` (FastAPI request/response shape).
@@ -127,6 +118,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done E0-004 Split llm_provider adapters and payloads (2026-05-19)
+
+- Goal: Reduce `backend/app/services/llm_provider/adapters.py` (760 lines) and `payloads.py` (691 lines) below the AGENTS.md 500-line soft trigger by splitting into focused modules without behavior change.
+- Outcome: Pure structural refactor, no behavior change. `adapters.py` deleted; replaced by `adapters/` subpackage with `openai_responses.py` (143), `openai_compatible.py` (253), `anthropic.py` (202), `gemini.py` (197) plus an `__init__.py` (28) that re-exports the four provider classes and the names tests monkey-patch. Evidence-first payload helpers extracted to `payloads_evidence_first.py` (380); `payloads.py` (335) keeps the legacy/shared helpers and re-exports the evidence-first symbols for backward compatibility. All previously-passing 343 backend tests still pass (1 pre-existing OCR PowerShell GPU test fails identically on clean dev). Rule baseline 0.9623 (153/159) unchanged. LLM baseline 0.9748 (155/159), well above the 0.94 floor. Frontend tests (9) and build pass. Governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-split-styles-css (2026-05-22)
 
 - Goal: Split `frontend/src/styles.css` (3726 lines) into feature-scoped stylesheets ≤ 800 lines each.
@@ -151,16 +148,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Rule-only baseline rises from 1.0 (72/72) to 1.0 (80/80) on 11 fixtures. New `eval-mock-011` (explicit positive: `恶性肿瘤病史3年` → `tumor_history="1"`) plus extended gold on `eval-mock-007` (implicit-negative: `既往史：无特殊` → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80); token cost 26,406 input / 7,946 output. `mock_general.yaml` `field_tags` includes `tumor_history`; `test_eval_fixtures.py` fixture count updated to 11. Coverage: 12/22 schema fields.
 - Anchor: `docs/FIELD_COVERAGE.md` Phase B; ROADMAP E1-010 Phase B.
 
-### done PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19)
-
-- Goal: Tighten `_evidence_first_system_prompt` and the evidence-first JSON schema so that `evidence_text` MUST be a contiguous substring of the cited block's text, and `normalized_code` for free-text/numeric fields MUST be the actual extracted value, never a type-class placeholder like `'text'` or `'integer'`. Bump `EVIDENCE_FIRST_PROMPT_VERSION` to `eyex-evidence-first-v3`.
-- Outcome: Two new prompt sections added to the cacheable prefix: "evidence_text 必须为引用 block 的连续子串" (with the `否认高血压病、糖尿病、冠心病等病史` verbatim-clause example) and "normalized_code 不是类型占位符" (with hospital/numeric concrete examples). JSON schema `evidence_text` and `normalized_code` fields gain `description` strings mirroring the rules. LLM-assisted `mock_general` baseline rises from 0.9861 (71/72) to 1.0 (72/72) deterministically — 3/3 cache-cleared runs hit 1.0. Token cost on the committed run: 52,674 input / 12,985 output (vs. prior 73,037/19,743 on the E1-005 chosen run; -28% input, -34% output). Backend tests 343 → 344 (new `test_v3_prompt_requires_substring_evidence_text`). Cacheable prefix byte-stability preserved (test passes).
-- Anchor: ROADMAP E1-001 outcome line updated; `docs/FIELD_COVERAGE.md` Phase A note updated.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-23: PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19).
 - 2026-05-22: E1-005 rule_pre_accepted shortcut (2026-05-18).
 - 2026-05-19: PLAN-mock-general-phase-A (2026-05-18).
 - 2026-05-21: PLAN-llm-provider-phase-3 (2026-05-18).
