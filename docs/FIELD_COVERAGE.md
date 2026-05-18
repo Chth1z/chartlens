@@ -63,7 +63,7 @@ Adds: `hospital`, `urban_residence`.
 
 Outcome: rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps (eval-mock-003 / age and eval-mock-010 / diabetes_history) that are independent of Phase A's address-derivation work; both become next-up targets for the open `rule_pre_accepted` shortcut and a v3 prompt rewrite.
 
-### Phase B — History completion
+### Phase B — History completion (todo, tracked as `PLAN-mock-general-phase-B`)
 
 Adds: `tumor_history`.
 

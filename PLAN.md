@@ -25,6 +25,33 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
+### todo PLAN-llm-evidence-text-substring (E1-001 v3)
+
+- Goal: Tighten `_evidence_first_system_prompt` and the evidence-first JSON schema so that the LLM's `evidence_text` field MUST be a contiguous substring of the cited block's text. Closes the two LLM gaps surfaced by Phase A: `eval-mock-009 / hospital` returns `'text'` (LLM echoing the schema's `allowed_codes=[text, unknown]` placeholder) and `eval-mock-010 / diabetes_history` paraphrases `否认糖尿病` from the verbatim `否认高血压病、糖尿病、冠心病等病史`. Bump `EVIDENCE_FIRST_PROMPT_VERSION` to `v3` so cached results from v2 are auto-invalidated.
+- Out of scope: No change to `allowed_codes` schema literals. No retry loop (E1-003 territory). No prompt-cache prefix migration (E1-002 territory) — keep the cacheable prefix byte-stable so DeepSeek prompt-cache still hits.
+- Acceptance commands: `Remove-Item var\storage\llm_cache -Recurse -Force; python scripts\bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --unsafe-eval-allow-remote-context --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Risk: Medium. A prompt rewrite could regress already-passing fields. Mitigations: Phase A privacy-redaction tests still run; the byte-stability test in `test_evidence_first_prompt.py` catches per-case leaks; the rule-only baseline 1.0/72 is the floor.
+- Trigger: ROADMAP E1-001 follow-up surfaced 2026-05-18; mock_general LLM baseline currently 0.9861 (71/72); the single failure pattern is the same family of placeholder-echo bug for both `hospital` and the `diabetes_history` paraphrase.
+- Done condition: prompt v3 explicitly requires `evidence_text` contiguous-substring of `text`; for string-type fields (`hospital`, free-text), prompt teaches that `normalized_code` must be the actual extracted value, not the type-class placeholder; new regression test `test_v3_prompt_requires_substring_evidence_text` pins the rule; LLM baseline reaches 1.0 (72/72) on at least 3 of 5 cache-cleared runs (i.e. variance shifts from "deterministic single failure" to "occasional variance"); `EVIDENCE_FIRST_PROMPT_VERSION = "eyex-evidence-first-v3"`; ROADMAP E1-001 outcome line dated 2026-05-19 (or whenever this lands) records the new baseline; DECISIONS.md gains a v3 entry only if a structural prompt-shape change beyond text-tightening lands.
+
+### todo PLAN-mock-general-phase-B (tumor_history)
+
+- Goal: ROADMAP E1-010 Phase B. Extend `mock_general` to cover `tumor_history`. Reuse `eval-mock-007` (already has `既往史：无特殊` implicit-negative pattern) by adding `tumor_history: "0"` to its gold; add one new fixture (`eval-mock-011`) with explicit `恶性肿瘤史` for the positive path; optionally add `tumor_history: "0"` to `eval-mock-001` / `eval-mock-002` for explicit-negative coverage if their `否认...病史` clauses include it.
+- Out of scope: No schema synonym change unless a recall gap appears. No phase C-G work. No new field beyond `tumor_history`.
+- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `Remove-Item var\storage\llm_cache -Recurse -Force; python scripts\bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --unsafe-eval-allow-remote-context --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
+- Risk: Low. Same rule shape as the existing diabetes / heart-disease history fields; the schema's `implicit_negative_policy: section_complete_only` already covers the negative path.
+- Trigger: ROADMAP E1-010 Phase A is done (2026-05-18); phase ordering in `docs/FIELD_COVERAGE.md`.
+- Done condition: at least one fixture asserts `tumor_history="1"` (positive path); at least one fixture asserts `tumor_history="0"` (explicit-negative or section-complete-implicit-negative); `mock_general.yaml` `field_tags` includes `tumor_history`; rule-only baseline regenerated; LLM-assisted baseline regenerated; `test_eval_fixtures.py::test_fixture_count_matches_committed_baseline` updated; `docs/ROADMAP.md` Active Baselines row updated; `docs/FIELD_COVERAGE.md` Phase B status moved from todo to done.
+
+### todo PLAN-split-pipeline.py
+
+- Goal: Split `backend/app/services/pipeline.py` (currently 526 lines, over the AGENTS.md 500-line soft trigger) along behavior boundaries. Suggested split: keep `pipeline.py` as the orchestrator (`process_case` + group dispatch); extract `pipeline_evidence_first.py` (the `_extract_document_evidence_first` flow including the 2026-05-18 `rule_pre_accepted` partition), `pipeline_quality.py` (page-quality summary, OCR-quality lookup), and `pipeline_errors.py` (formatting helpers like `_format_provider_failure`).
+- Out of scope: No business behavior change. No new field, no schema change. The export gate contract (`provenance.decision_status="PASS"`) and the `rule_pre_accepted` shortcut behavior must be preserved exactly.
+- Acceptance commands: `python -m pytest backend\tests` (343 must still pass); `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Both rule and LLM `mock_general` baselines must reproduce exactly (`accuracy=1.0` rule, `accuracy=0.9861` LLM on the chosen run).
+- Risk: Medium. The pipeline composes several long-lived contracts (trace recording, provider call boundaries, the export gate). Module boundary changes can introduce circular imports or accidentally drop a `model_copy(update=...)` call. Mitigation: every behavior path covered by the existing 343 tests; baseline reproduction is the hard contract.
+- Trigger: AGENTS.md "the next task touching this file must include a split" — `pipeline.py` crossed 500 lines on 2026-05-18 commit `be04ad6`. Any further pipeline-touching feature work must do the split first.
+- Done condition: each new file ≤ 500 lines; `pipeline.py` itself ≤ 500 lines; governance scan reports no large-file warning for any of the new files; backend and frontend tests both pass; both `mock_general` baselines reproduce identically.
+
 ### todo PLAN-split-styles-css
 
 - Goal: Split `frontend/src/styles.css` (currently 3211 lines) into feature-scoped stylesheets that match the `frontend/src/features/` layout. Aim for ≤ 800 lines per file. Suggested split: a base/reset module, an evidence panel module, a settings module, a diagnostics module, and a review module. Use CSS imports or component-level imports, not a runtime concatenation step.
@@ -34,40 +61,13 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
 - Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
 
-### todo PLAN-llm-provider-phase-1
-
-- Goal: ROADMAP E1-011 Phase 1. Make `collect_evidence` `@abstractmethod` on `SemanticExtractionProvider`. Move the current default body to `local_collect_evidence_fallback(document_context, fields)` exported from `services/llm_provider/types.py`. Every concrete adapter (`OpenAIResponsesProvider` keeps real impl; `OpenAICompatibleChatProvider` / `AnthropicMessagesProvider` / `GoogleGeminiProvider` / `ConservativeLocalProvider` all gain explicit overrides; the LLM ones return `local_collect_evidence_fallback(...)` for now). Add `tests/test_provider_contracts.py` asserting no adapter inherits the default and every `provider` value in `config/model_providers/mainstream.yaml` resolves through `_provider_for_profile`. AGENTS.md gains the rule "Every concrete `SemanticExtractionProvider` adapter must explicitly choose between calling its remote API and delegating to `local_collect_evidence_fallback`."
-- Out of scope: No new LLM call. No prompt change. No accuracy change. Phase 2 / 3 work.
-- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. The `mock_general_llm.json` baseline still records `input_tokens=0` (because adapters explicitly chose to delegate); the WARN line still fires; both are now expected, pinned behavior.
-- Risk: Very low. This is a refactor that names an existing behavior with no on-disk metric change. The contract test is the ratchet that prevents the gap from re-hiding.
-- Trigger: ROADMAP E1-011 Phase 1.
-- Done condition: `SemanticExtractionProvider.collect_evidence` is `@abstractmethod`; every concrete adapter has an explicit override; the contract test exists; AGENTS.md "Architecture Boundaries" gains the explicit-delegation rule; DECISIONS.md gains a new entry "Default-inheritance shim for collect_evidence is forbidden"; rule-only baseline (1.0/54) is unchanged.
-
-### todo PLAN-llm-provider-phase-1
-
-- Goal: ROADMAP E1-011 Phase 1. Make `collect_evidence` `@abstractmethod` on `SemanticExtractionProvider`. Move the current default body to `local_collect_evidence_fallback(document_context, fields)` exported from `services/llm_provider/types.py`. Every concrete adapter (`OpenAIResponsesProvider` keeps real impl; `OpenAICompatibleChatProvider` / `AnthropicMessagesProvider` / `GoogleGeminiProvider` / `ConservativeLocalProvider` all gain explicit overrides; the LLM ones return `local_collect_evidence_fallback(...)` for now). Add `tests/test_provider_contracts.py` asserting no adapter inherits the default and every `provider` value in `config/model_providers/mainstream.yaml` resolves through `_provider_for_profile`. AGENTS.md gains the rule "Every concrete `SemanticExtractionProvider` adapter must explicitly choose between calling its remote API and delegating to `local_collect_evidence_fallback`."
-- Out of scope: No new LLM call. No prompt change. No accuracy change. Phase 2 / 3 work.
-- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. The `mock_general_llm.json` baseline still records `input_tokens=0` (because adapters explicitly chose to delegate); the WARN line still fires; both are now expected, pinned behavior.
-- Risk: Very low. This is a refactor that names an existing behavior with no on-disk metric change. The contract test is the ratchet that prevents the gap from re-hiding.
-- Trigger: ROADMAP E1-011 Phase 1.
-- Done condition: `SemanticExtractionProvider.collect_evidence` is `@abstractmethod`; every concrete adapter has an explicit override; the contract test exists; AGENTS.md "Architecture Boundaries" gains the explicit-delegation rule; DECISIONS.md gains a new entry "Default-inheritance shim for collect_evidence is forbidden"; rule-only baseline (1.0/54) is unchanged.
-
-### todo PLAN-llm-provider-phase-2
-
-- Goal: ROADMAP E1-011 Phase 2. Implement `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom actually call their `/chat/completions` endpoint with `response_format: json_object` and the evidence-first JSON schema. New `_chat_completions_evidence_first_payload` mirrors `_responses_evidence_first_payload`. Cacheable prefix (system prompt + extraction rules + JSON schema descriptor) is byte-stable for DeepSeek prompt-cache hits. Malformed JSON degrades to `local_collect_evidence_fallback` instead of crashing. New test stubs an OpenAI-compatible HTTP server, asserts payload shape and graceful degradation.
-- Out of scope: Anthropic / Gemini implementations (Phase 3). Prompt content rewrite (E1-001). Retry-with-validation-feedback (E1-003). New fixtures.
-- Acceptance commands: `python scripts/check-llm-connectivity.py --profile-id deepseek_v4_flash`; `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
-- Risk: Medium. Real network round trip per fixture during baseline regenerate. Rate limits possible. Mitigations: existing `_api_keys_for_attempts` cooldown; client-side cache absorbs reruns; second consecutive run should hit DeepSeek server-side prompt cache.
-- Trigger: After Phase 1.
-- Done condition: `mock_general_llm.json` baseline records `input_tokens > 0`, `output_tokens > 0`, `cost_usd > 0`; accuracy stays at 1.0/54 (or higher); a second consecutive run records `cached_input_tokens > 0`; the bootstrap WARN line is gone; new contract tests pass.
-
 ### todo Decide application/ vs services/ flat layout
 
 - Goal: Resolve the dev-vs-main divergence. Either restore the `backend/app/application/` layer that exists on `main`, or formalize `backend/app/services/` subpackages with hard size limits in AGENTS.md. The chosen direction is recorded in `docs/DECISIONS.md` before any code in `services/` or `application/` is reorganized.
 - Out of scope: No business behavior change. No new feature in this task.
 - Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
 - Risk: Without a recorded decision, future split tasks (provider, pipeline, OCR boundary) keep blocked by an absent layer; pipeline.py keeps mixing orchestration, error formatting, worker pool, quality summary.
-- Trigger: After Triage 97 dirty files completes.
+- Trigger: Future split tasks (provider, pipeline, OCR boundary) keep waiting on this layout decision; pipeline.py crossed the 500-line soft trigger on 2026-05-18 and must split as part of its next-touching task.
 - Done condition: `docs/DECISIONS.md` has a dated decision; `pipeline.py` either no longer mixes orchestration with formatting/worker/quality, or has a follow-up task in PLAN to split it under the chosen layout.
 
 ### todo Add database migration baseline before schema expansion
