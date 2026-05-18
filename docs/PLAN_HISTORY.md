@@ -124,3 +124,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Split `backend/app/services/pipeline.py` (526 lines) into `pipeline.py` (300, orchestrator), `pipeline_evidence_first.py` (235, evidence-first extraction flow), `pipeline_quality.py` (58, quality summary helpers), and `pipeline_errors.py` (17, error formatting). Pure refactor with no behavior change; all 344 backend tests passed; rule and LLM `mock_general` baselines stayed at 1.0 (80/80); frontend tests and build passed; governance scan cleared the soft-trigger warning for every pipeline file.
 - Anchor: AGENTS.md 500-line soft trigger rule.
+
+### done Decide application/ vs services/ flat layout (2026-05-19)
+
+- Resolved the pending architecture decision: formalize `backend/app/services/` subpackages as the canonical backend layout. No `application/` layer. Complex subsystems get subpackage directories (`llm_provider/`, `ocr_engine/`); simpler modules use flat-file-with-prefix pattern (`pipeline_*.py`). Hard size limits from AGENTS.md apply. Unblocked E0-004 (provider split), E0-005 (OCR boundary), and E0-006 (model_providers split).
+- Anchor: `docs/DECISIONS.md` 2026-05-19 "Formalize services/ subpackages as the canonical backend layout".

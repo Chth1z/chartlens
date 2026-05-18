@@ -109,6 +109,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-layout-normalizer (2026-05-19)
+
+- Goal: Reduce the 767-line `backend/app/services/layout_normalizer.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
+- Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/layout_normalizer/`: `__init__.py` (4) re-exports `normalize_document_layout` plus `LAYOUT_NORMALIZER_VERSION`; `sections.py` (44) owns `_detect_section`, `_standalone_key_label`, `_is_section_title_like`, `_compact_text`, `_section_id`, `_sections_from_blocks`, `_renumber_blocks`; `block_merging.py` (200) owns same-line and paragraph-wrap merging plus geometry helpers and `_is_screen_chrome` (kept here because `_can_merge_wrapped_paragraph` calls it directly); `classification.py` (118) owns `_classify_blocks`, `_split_patient_header_block_ids`, `_document_region`, `_region_rule_matches`, `_safe_search`, `_is_patient_header`, and the `LAYOUT_NORMALIZER_VERSION` constant; `key_value_derivation.py` (390) owns the full `_derive_*` family plus `_extract_key_values`, `_estimated_span_bbox`, table-cell helpers; `orchestrator.py` (61) owns the public `normalize_document_layout`. Dependency direction is acyclic (`sections` → `block_merging` → `classification`/`key_value_derivation` → `orchestrator`). All 344 backend tests pass; rule baseline 0.9623 (153/159) byte-identical; frontend tests (9) and build pass; governance scan passes with no large-file warnings on any new file.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-split-routes (2026-05-19)
 
 - Goal: Reduce the 780-line `backend/app/api/routes.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
@@ -133,16 +139,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no visual change. Split into 10 files under `frontend/src/styles/`: `base.css` (109), `layout.css` (428), `cases.css` (182), `evidence.css` (256), `document.css` (785), `review.css` (429), `settings.css` (592), `providers.css` (269), `diagnostics.css` (253), `components.css` (422). Original `styles.css` replaced with a 10-line barrel using CSS `@import`. Updated `ocrSourceDebug.test.ts` to read from the correct split file. All 9 frontend tests pass; build succeeds; governance scan passes with no large-file warnings.
 - Anchor: AGENTS.md 500/800-line ceiling rule.
 
-### done Decide application/ vs services/ flat layout (2026-05-19)
-
-- Goal: Resolve the pending architecture decision. Either restore `backend/app/application/` or formalize `backend/app/services/` subpackages.
-- Outcome: Decision recorded in `docs/DECISIONS.md` 2026-05-19: formalize `services/` subpackages as the canonical backend layout. No `application/` layer. Complex subsystems get subpackage directories (`llm_provider/`, `ocr_engine/`); simpler modules use flat-file-with-prefix pattern (`pipeline_*.py`). Hard size limits from AGENTS.md apply. This unblocks E0-004 (provider split), E0-005 (OCR boundary), E0-006 (model_providers split).
-- Anchor: `docs/DECISIONS.md` 2026-05-19 "Formalize services/ subpackages as the canonical backend layout".
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-26: Decide application/ vs services/ flat layout (2026-05-19).
 - 2026-05-25: PLAN-split-pipeline.py (2026-05-21).
 - 2026-05-24: PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20).
 - 2026-05-23: PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19).
