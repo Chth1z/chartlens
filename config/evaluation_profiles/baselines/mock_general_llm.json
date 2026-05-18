@@ -25,8 +25,8 @@
     "expected_unknown": 2,
     "predicted_non_unknown": 78,
     "evidence_covered": 78,
-    "input_tokens": 26406,
-    "output_tokens": 7946,
+    "input_tokens": 39464,
+    "output_tokens": 11069,
     "cost_usd": 0.0,
     "case_count": 11,
     "evaluated_case_count": 11,
@@ -35,8 +35,8 @@
     "auto_accept_precision": 1.0,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
-    "tokens_per_case": 2400.5454545454545,
-    "tokens_per_accepted_field": 347.44736842105266,
+    "tokens_per_case": 3587.6363636363635,
+    "tokens_per_accepted_field": 519.2631578947369,
     "field_tags": {
       "demographics": {
         "total": 28,
@@ -94,9 +94,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13201,
-        "output_tokens": 3912,
-        "cached_input_tokens": 13184,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -201,9 +201,9 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 13199,
+        "output_tokens": 3597,
+        "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
       "tags": [
@@ -318,9 +318,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 13202,
+        "output_tokens": 3718,
+        "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
       "tags": [
@@ -671,9 +671,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 13063,
+        "output_tokens": 3754,
+        "cached_input_tokens": 13056,
         "cost_usd": 0.0
       },
       "tags": [
@@ -938,9 +938,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13205,
-        "output_tokens": 4034,
-        "cached_input_tokens": 13184,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [

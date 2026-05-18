@@ -25,15 +25,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo PLAN-split-pipeline.py
-
-- Goal: Split `backend/app/services/pipeline.py` (currently 526 lines, over the AGENTS.md 500-line soft trigger) along behavior boundaries. Suggested split: keep `pipeline.py` as the orchestrator (`process_case` + group dispatch); extract `pipeline_evidence_first.py` (the `_extract_document_evidence_first` flow including the 2026-05-18 `rule_pre_accepted` partition), `pipeline_quality.py` (page-quality summary, OCR-quality lookup), and `pipeline_errors.py` (formatting helpers like `_format_provider_failure`).
-- Out of scope: No business behavior change. No new field, no schema change. The export gate contract (`provenance.decision_status="PASS"`) and the `rule_pre_accepted` shortcut behavior must be preserved exactly.
-- Acceptance commands: `python -m pytest backend\tests` (344 must still pass); `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Both rule and LLM `mock_general` baselines must reproduce exactly (`accuracy=1.0` rule, `accuracy=1.0` LLM on the chosen run).
-- Risk: Medium. The pipeline composes several long-lived contracts (trace recording, provider call boundaries, the export gate). Module boundary changes can introduce circular imports or accidentally drop a `model_copy(update=...)` call. Mitigation: every behavior path covered by the existing 343 tests; baseline reproduction is the hard contract.
-- Trigger: AGENTS.md "the next task touching this file must include a split" — `pipeline.py` crossed 500 lines on 2026-05-18 with E1-005 rule_pre_accepted. Any further pipeline-touching feature work must do the split first.
-- Done condition: each new file ≤ 500 lines; `pipeline.py` itself ≤ 500 lines; governance scan reports no large-file warning for any of the new files; backend and frontend tests both pass; both `mock_general` baselines reproduce identically.
-
 ### todo PLAN-split-styles-css
 
 - Goal: Split `frontend/src/styles.css` (currently 3211 lines) into feature-scoped stylesheets that match the `frontend/src/features/` layout. Aim for ≤ 800 lines per file. Suggested split: a base/reset module, an evidence panel module, a settings module, a diagnostics module, and a review module. Use CSS imports or component-level imports, not a runtime concatenation step.
@@ -145,6 +136,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-pipeline.py (2026-05-21)
+
+- Goal: Split `backend/app/services/pipeline.py` (526 lines) into smaller modules to satisfy the AGENTS.md 500-line soft trigger.
+- Outcome: Pure refactor, no behavior change. Split into `pipeline.py` (300 lines, orchestrator), `pipeline_evidence_first.py` (235 lines, evidence-first extraction flow), `pipeline_quality.py` (58 lines, quality summary helpers), `pipeline_errors.py` (17 lines, error formatting). All 344 backend tests pass; rule baseline 1.0 (80/80); LLM baseline 1.0 (80/80); frontend tests and build pass; governance scan passes (no large-file warning for any pipeline file).
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20)
 
 - Goal: ROADMAP E1-010 Phase B. Extend `mock_general` to cover `tumor_history`.
@@ -169,16 +166,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: rule-only baseline rises from 1.0/54 to 1.0/72 on 10 fixtures. New `eval-mock-009` (urban: `南京市鼓楼区五一路` → `urban_residence=2`, `海安市第三人民医院`) and `eval-mock-010` (rural: `海安县曲塘镇五星村3组` → `urban_residence=1`, `海安县中医院`); `eval-mock-005` gold extended to anchor the unknown path. Privacy boundary verified by new parametrized test `test_phase_a_address_redaction_holds_in_deidentified_ir`: original `家庭住址` lines collapse to `[REDACTED]`; only the safe `是否城市判定` derivation block carries forward. The LLM-assisted baseline temporarily drops to 0.9722 (70/72) because the wider fixture set surfaces two unrelated honest LLM gaps; both become next-up targets for the open `rule_pre_accepted` shortcut and a v3 prompt rewrite.
 - Anchor: `docs/FIELD_COVERAGE.md` Phase A section; ROADMAP E1-010 Phase A.
 
-### done PLAN-llm-provider-phase-3 (2026-05-18)
-
-- Goal: ROADMAP E1-011 Phase 3. Real `collect_evidence` for `AnthropicMessagesProvider` and `GoogleGeminiProvider`. New `services/llm_provider/registry.py` replaces the if/elif chain in `fallback._provider_for_profile` with a data-driven dispatch table.
-- Outcome: every concrete LLM adapter now has a real evidence-first remote call. Anthropic posts to `/v1/messages` with the byte-stable evidence-first system prompt + JSON schema descriptor. Gemini posts to `/v1beta/models/<model>:generateContent` with `responseSchema` translated from the JSON Schema fragment via `_gemini_response_schema` (drops `additionalProperties`, folds `type: ['x', 'null']` into `nullable: true`, uppercases types per OpenAPI 3.0). Privacy boundary preserved: both adapters honor `safe_evidence_only` and degrade to `local_collect_evidence_fallback` with `remote_skipped_reason=remote_full_context_disabled`. Registry knows 4 adapter kinds with declared `llm_mode` sets. Backend tests 326 → 340 (14 new in `test_provider_phase_3.py`).
-- Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 3; AGENTS.md "Architecture Boundaries" explicit-delegation rule.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-21: PLAN-llm-provider-phase-3 (2026-05-18).
 - 2026-05-20: E1-001 evidence-first prompt rewrite (2026-05-18).
 - 2026-05-18: PLAN-llm-provider-phase-1; PLAN-llm-baseline-bootstrap; E1-005-synonym-widening; PLAN-field-coverage-and-ocr-postprocessing-research.
 - 2026-05-17: PLAN-mock-general-challenge-case; PLAN-mock-general-coverage-expansion; E1-005-clause-boundary; PLAN-mock-general-baseline; E0-008 field-extraction eval runner; PLAN-write-architecture-doc; PLAN-write-roadmap; PLAN-write-reference-projects.

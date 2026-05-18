@@ -94,3 +94,9 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Rewrote `_evidence_first_system_prompt` to teach the LLM to honor field-level `evidence_policy.implicit_negative_policy` and `allowed_codes`. Closed the 4 known LLM failures on `eval-mock-007` (`既往史：無特殊` interpreted as unknown rather than 0). LLM baseline rose from 0.9259 to 1.0 (50/54 → 54/54); token cost dropped from 72,372/18,757 to 37,792/11,170 (-47.8% input, -40.4% output). `EVIDENCE_FIRST_PROMPT_VERSION` bumped to `eyex-evidence-first-v2`. Backend tests 318 → 326.
 - Anchor: `docs/DECISIONS.md` 2026-05-18 "Evidence-first prompt promotes field-level policy above generic rules"; ROADMAP E1-001.
+
+
+### done PLAN-llm-provider-phase-3 (2026-05-18)
+
+- ROADMAP E1-011 Phase 3. Real `collect_evidence` for `AnthropicMessagesProvider` and `GoogleGeminiProvider`. New `services/llm_provider/registry.py` replaces the if/elif chain in `fallback._provider_for_profile` with a data-driven dispatch table. Every concrete LLM adapter now has a real evidence-first remote call. Privacy boundary preserved. Registry knows 4 adapter kinds with declared `llm_mode` sets. Backend tests 326 → 340.
+- Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 3; AGENTS.md "Architecture Boundaries" explicit-delegation rule.
