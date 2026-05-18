@@ -2,7 +2,7 @@
 
 This document inventories every export-template field, every schema field, and the actual coverage of the `mock_general` baseline. It is the planning ground for expanding the precision baseline beyond demographics + history + lifestyle to the full clinical extraction surface.
 
-Status as of 2026-05-20, after E1-010 Phase B close: the rule-only baseline scores `80/80 = 1.000` on 11 synthetic fixtures, covering **12 of 22 schema fields**. Phase B added `tumor_history`. The remaining 10 fields are still completely unmeasured by the precision contract.
+Status as of 2026-05-19, after E1-010 Phase C close: the rule-only baseline scores `96/96 = 1.000` on 13 synthetic fixtures, covering **14 of 22 schema fields**. Phase C added `single_multiple` and `aneurysm_location`. The remaining 8 fields are still completely unmeasured by the precision contract.
 
 ## Export Template Inventory
 
@@ -22,8 +22,8 @@ Status as of 2026-05-20, after E1-010 Phase B close: the rule-only baseline scor
 | 10 | `tumor_history` | 既往肿瘤 | history | enum | `1`, `0`, unknown | **2** |
 | 11 | `smoking_history` | 是否吸烟 | lifestyle | enum | `1`, `0`, unknown | 10 |
 | 12 | `drinking_history` | 是否饮酒 | lifestyle | enum | `1`, `0`, unknown | 10 |
-| 13 | `single_multiple` | 单发多发 | aneurysm | enum | `single`, `multiple`, unknown | **0** |
-| 14 | `aneurysm_location` | 动脉瘤位置（1颈内，2中，3前，4后循环，unknown不详） | aneurysm | enum | `1`-`4`, unknown | **0** |
+| 13 | `single_multiple` | 单发多发 | aneurysm | enum | `single`, `multiple`, unknown | 2 |
+| 14 | `aneurysm_location` | 动脉瘤位置（1颈内，2中，3前，4后循环，unknown不详） | aneurysm | enum | `1`-`4`, unknown | 2 |
 | 15 | `hh_grade` | HH分组 | score | enum | I-V, unknown | **0** |
 | 16 | `wfns_grade` | WFNS分组 | score | enum | I-V, unknown | **0** |
 | 17 | `fisher_grade` | Fisher分级 | score | enum | I-IV, unknown | **0** |
@@ -38,9 +38,9 @@ Status as of 2026-05-20, after E1-010 Phase B close: the rule-only baseline scor
 
 ## Coverage Gap Summary
 
-Currently covered: **12 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
+Currently covered: **14 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
 
-Currently uncovered: **10 of 22 schema fields**, grouped by the kind of recall path each one exercises:
+Currently uncovered: **8 of 22 schema fields**, grouped by the kind of recall path each one exercises:
 
 - **String free-text** _(closed by Phase A 2026-05-18)_: ~~`hospital`~~ ✅. Rule path matches `XX医院` substring patterns through `_extract_hospital`. Covered by `eval-mock-009` (`海安市第三人民医院`), `eval-mock-010` (`海安县中医院`), and `eval-mock-005` (unknown path).
 - **Enum derived from address-or-residence** _(closed by Phase A 2026-05-18)_: ~~`urban_residence`~~ ✅. `pre_redaction_derivations` runs before PHI redaction. Covered by `eval-mock-009` (urban: `南京市鼓楼区五一路` → `2`), `eval-mock-010` (rural: `海安县曲塘镇五星村3组` → `1`), and `eval-mock-005` (no address → unknown). Privacy boundary pinned by `test_phase_a_address_redaction_holds_in_deidentified_ir`.
@@ -67,13 +67,11 @@ Added: `hospital`, `urban_residence`. Rule-only baseline rose from 1.0 (54/54) t
 
 Added: `tumor_history`. Rule-only baseline rose from 1.0 (72/72) to 1.0 (80/80). One new fixture (`eval-mock-011` with explicit `恶性肿瘤病史` → positive) plus extended gold on `eval-mock-007` (`既往史：无特殊` implicit-negative → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80). Token cost: 26,406 input / 7,946 output. Anchor: `PLAN.md` Done "PLAN-mock-general-phase-B", ROADMAP E1-010 Phase B.
 
+#### Phase C — Imaging facts (done 2026-05-19)
+
+Added: `single_multiple`, `aneurysm_location`. Rule-only baseline rose from 1.0 (80/80) to 1.0 (96/96) on 13 fixtures. Two new fixtures: `eval-mock-012` (single aneurysm at 颈内动脉 → `single_multiple="single"`, `aneurysm_location="1"`) and `eval-mock-013` (multiple aneurysms at posterior circulation → `single_multiple="multiple"`, `aneurysm_location="4"`). Both `code_map` paths matched without recall gaps. LLM-assisted baseline also 1.0 (96/96). Coverage: 14/22 schema fields. Anchor: ROADMAP E1-010 Phase C.
+
 ### Active Phases
-
-### Phase C — Imaging facts (aneurysm group)
-
-Adds: `single_multiple`, `aneurysm_location`.
-
-Rationale: `code_map`-driven enum. Needs imaging-report excerpts to look real. Two fixtures: one single-aneurysm at 颈内动脉, one multiple-aneurysm at posterior circulation. The 后循环 case is the harder one because it tests synonym mapping (`基底动脉`, `椎动脉`, `小脑后下动脉`, `PICA`, `SCA`, `PCA`) — likely to expose at least one recall gap.
 
 ### Phase D — Score grades
 

@@ -105,7 +105,7 @@ def test_fixture_count_matches_committed_baseline():
     interpretable."""
     profile = load_evaluation_profile(PROFILE_ID)
     fixture_files = sorted(path.stem for path in FIXTURES_DIR.glob("*.txt"))
-    assert len(profile.gold_cases) == 11
+    assert len(profile.gold_cases) == 13
     assert fixture_files == [
         "eval-mock-001",
         "eval-mock-002",
@@ -118,6 +118,8 @@ def test_fixture_count_matches_committed_baseline():
         "eval-mock-009",
         "eval-mock-010",
         "eval-mock-011",
+        "eval-mock-012",
+        "eval-mock-013",
     ]
 
 

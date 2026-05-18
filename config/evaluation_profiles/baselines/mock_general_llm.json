@@ -13,66 +13,74 @@
       "max_input_tokens_per_case": 1200,
       "max_input_tokens_per_accepted_field": 500
     },
-    "gold_case_count": 11,
+    "gold_case_count": 13,
     "semantic_provider_kind": "llm"
   },
   "summary": {
-    "total_fields": 80,
-    "correct": 80,
-    "auto_accept_count": 76,
-    "auto_accept_correct": 76,
+    "total_fields": 96,
+    "correct": 96,
+    "auto_accept_count": 90,
+    "auto_accept_correct": 90,
     "unknown_misfills": 0,
     "expected_unknown": 2,
-    "predicted_non_unknown": 78,
-    "evidence_covered": 78,
-    "input_tokens": 39464,
-    "output_tokens": 11069,
+    "predicted_non_unknown": 94,
+    "evidence_covered": 94,
+    "input_tokens": 53160,
+    "output_tokens": 14381,
     "cost_usd": 0.0,
-    "case_count": 11,
-    "evaluated_case_count": 11,
+    "case_count": 13,
+    "evaluated_case_count": 13,
     "blocked_case_count": 0,
     "accuracy": 1.0,
     "auto_accept_precision": 1.0,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
-    "tokens_per_case": 3587.6363636363635,
-    "tokens_per_accepted_field": 519.2631578947369,
+    "tokens_per_case": 4089.230769230769,
+    "tokens_per_accepted_field": 590.6666666666666,
     "field_tags": {
       "demographics": {
-        "total": 28,
-        "correct": 28,
-        "auto_accept_count": 24,
-        "auto_accept_correct": 24,
+        "total": 32,
+        "correct": 32,
+        "auto_accept_count": 28,
+        "auto_accept_correct": 28,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "history": {
-        "total": 30,
-        "correct": 30,
-        "auto_accept_count": 30,
-        "auto_accept_correct": 30,
+        "total": 34,
+        "correct": 34,
+        "auto_accept_count": 34,
+        "auto_accept_correct": 34,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "chronic_disease": {
-        "total": 30,
-        "correct": 30,
-        "auto_accept_count": 30,
-        "auto_accept_correct": 30,
+        "total": 34,
+        "correct": 34,
+        "auto_accept_count": 34,
+        "auto_accept_correct": 34,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "lifestyle": {
-        "total": 22,
-        "correct": 22,
-        "auto_accept_count": 22,
-        "auto_accept_correct": 22,
+        "total": 26,
+        "correct": 26,
+        "auto_accept_count": 26,
+        "auto_accept_correct": 26,
+        "accuracy": 1.0,
+        "auto_accept_precision": 1.0
+      },
+      "aneurysm": {
+        "total": 4,
+        "correct": 4,
+        "auto_accept_count": 2,
+        "auto_accept_correct": 2,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       }
     },
     "ocr_quality_bands": {
-      "good": 11
+      "good": 13
     }
   },
   "cases": [
@@ -201,9 +209,9 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13199,
-        "output_tokens": 3597,
-        "cached_input_tokens": 13184,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -319,7 +327,7 @@
       "evidence_coverage": 1.0,
       "usage": {
         "input_tokens": 13202,
-        "output_tokens": 3718,
+        "output_tokens": 3411,
         "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
@@ -671,9 +679,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13063,
-        "output_tokens": 3754,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -938,9 +946,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 13205,
+        "output_tokens": 3413,
+        "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1174,9 +1182,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 13531,
+        "output_tokens": 3697,
+        "cached_input_tokens": 13440,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1399,6 +1407,264 @@
           "auto_accepted": true,
           "has_evidence": true,
           "review_required": false,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-012",
+      "status": "evaluated",
+      "total_fields": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "auto_accept_count": 7,
+      "auto_accept_correct": 7,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 13222,
+        "output_tokens": 3860,
+        "cached_input_tokens": 13184,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "aneurysm_single",
+        "aneurysm_location_1",
+        "history_mixed",
+        "lifestyle_negative"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 133,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "55",
+          "actual": "55",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "single_multiple",
+          "expected": "single",
+          "actual": "single",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "aneurysm_location",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-013",
+      "status": "evaluated",
+      "total_fields": 8,
+      "correct": 8,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "auto_accept_count": 7,
+      "auto_accept_correct": 7,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "aneurysm_multiple",
+        "aneurysm_location_4",
+        "history_mixed",
+        "lifestyle_negative"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 128,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "2",
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "63",
+          "actual": "63",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "single_multiple",
+          "expected": "multiple",
+          "actual": "multiple",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "aneurysm_location",
+          "expected": "4",
+          "actual": "4",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
           "error_code": null
         }
       ]

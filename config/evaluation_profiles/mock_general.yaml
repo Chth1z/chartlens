@@ -19,6 +19,8 @@ field_tags:
   tumor_history: [history, chronic_disease]
   smoking_history: [lifestyle]
   drinking_history: [lifestyle]
+  single_multiple: [aneurysm]
+  aneurysm_location: [aneurysm]
 thresholds:
   auto_accept_precision: 0.95
   evidence_coverage: 1.0
@@ -162,3 +164,32 @@ gold_cases:
       diabetes_history: "0"
       smoking_history: "1"
       drinking_history: "0"
+  - case_id: eval-mock-012
+    # Phase C coverage case: single aneurysm at internal carotid artery.
+    # Verifies that the rule path matches `单发动脉瘤` → single and
+    # `颈内动脉` → code "1" through `_extract_fact_then_code` code_map.
+    tags: [demographics, aneurysm_single, aneurysm_location_1, history_mixed, lifestyle_negative]
+    gold:
+      gender: "1"
+      age: "55"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+      single_multiple: "single"
+      aneurysm_location: "1"
+  - case_id: eval-mock-013
+    # Phase C coverage case: multiple aneurysms at posterior circulation.
+    # Verifies that the rule path matches `多发动脉瘤` → multiple and
+    # `基底动脉` / `椎动脉` → code "4" through `_extract_fact_then_code`
+    # code_map.
+    tags: [demographics, aneurysm_multiple, aneurysm_location_4, history_mixed, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "63"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+      single_multiple: "multiple"
+      aneurysm_location: "4"
