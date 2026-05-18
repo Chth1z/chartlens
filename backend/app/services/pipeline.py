@@ -300,9 +300,52 @@ def _extract_document_evidence_first(
     schema,
     trace: ProcessingTrace | None = None,
 ) -> list[ValidatedFieldResult]:
-    fields = [field for field in schema.fields if field.phase == 1]
+    phase_one_fields = [field for field in schema.fields if field.phase == 1]
+
+    # E1-005 rule_pre_accepted shortcut: when a phase-1 field belongs to a
+    # group whose `semantic_strategy == "rule_shortcut"` AND the rule path
+    # returns a candidate at confidence >= 0.95, bypass the LLM evidence-
+    # first pipeline entirely. This closes the eval-mock-003 / age LLM gap
+    # surfaced by E1-010 Phase A and reduces token cost on demographics
+    # group calls. See docs/ROADMAP.md E1-005 and docs/DECISIONS.md
+    # 2026-05-18 "rule_pre_accepted shortcut bypasses LLM".
+    rule_shortcut_candidates: dict[str, ExtractionCandidate] = {}
+    llm_fields: list = []
+    for field in phase_one_fields:
+        group = schema.group_by_key(field.field_group_key)
+        if group.semantic_strategy != "rule_shortcut":
+            llm_fields.append(field)
+            continue
+        rule_candidate = rule_shortcut_extract(field, document_ir.blocks)
+        if rule_candidate is None or rule_candidate.confidence < 0.95:
+            llm_fields.append(field)
+            continue
+        rule_shortcut_candidates[field.key] = rule_candidate.model_copy(
+            update={
+                "acceptance_reason": "rule_pre_accepted",
+                "provenance": {
+                    **rule_candidate.provenance,
+                    "source": "rule_shortcut",
+                    "skipped_llm": True,
+                    # Mirror the LLM evidence-first path's `decision_status:
+                    # PASS` so the export gate
+                    # (validation_state == "accepted" AND
+                    #  provenance.decision_status == "PASS") still admits
+                    # rule-pre-accepted candidates. Without this key the
+                    # template's `pass_decision_status: PASS` gate would
+                    # reject them and gender / age would land in the
+                    # workbook as `unknown`, regressing
+                    # test_table_cell_demographics_flow_from_layout_to_export.
+                    "decision_status": "PASS",
+                },
+            }
+        )
+
     if trace is not None:
-        with trace.step("build_document_context", {"field_count": len(fields), "block_count": len(document_ir.blocks)}):
+        with trace.step(
+            "build_document_context",
+            {"field_count": len(llm_fields), "block_count": len(document_ir.blocks)},
+        ):
             context = build_document_context(document_ir)
     else:
         context = build_document_context(document_ir)
@@ -312,15 +355,15 @@ def _extract_document_evidence_first(
 
     try:
         if trace is not None:
-            with trace.step("collect_evidence", {"field_count": len(fields)}):
+            with trace.step("collect_evidence", {"field_count": len(llm_fields)}):
                 model_started = time.perf_counter()
                 try:
-                    evidence_by_field = evidence_provider.collect_evidence(document_context=context, fields=fields)
+                    evidence_by_field = evidence_provider.collect_evidence(document_context=context, fields=llm_fields)
                 except Exception as exc:
                     trace.record_model_call(
                         stage="collect_evidence",
                         provider=evidence_provider,
-                        fields=fields,
+                        fields=llm_fields,
                         usage=getattr(evidence_provider, "last_usage", {}),
                         started_perf=model_started,
                         status="failed",
@@ -331,37 +374,37 @@ def _extract_document_evidence_first(
                 trace.record_model_call(
                     stage="collect_evidence",
                     provider=evidence_provider,
-                    fields=fields,
+                    fields=llm_fields,
                     usage=getattr(evidence_provider, "last_usage", {}),
                     started_perf=model_started,
                 )
-            with trace.step("adjudicate_fields", {"field_count": len(fields)}):
+            with trace.step("adjudicate_fields", {"field_count": len(llm_fields)}):
                 decisions_by_field = evidence_provider.adjudicate_fields(
                     document_context=context,
-                    fields=fields,
+                    fields=llm_fields,
                     evidence_by_field=evidence_by_field,
                 )
-            with trace.step("verify_against_document", {"field_count": len(fields)}):
+            with trace.step("verify_against_document", {"field_count": len(llm_fields)}):
                 decisions_by_field = evidence_provider.verify_against_document(
                     document_context=context,
-                    fields=fields,
+                    fields=llm_fields,
                     decisions_by_field=decisions_by_field,
                 )
-            with trace.step("candidate_conversion", {"field_count": len(fields)}):
-                candidates = decisions_to_extraction_candidates(fields, decisions_by_field)
+            with trace.step("candidate_conversion", {"field_count": len(llm_fields)}):
+                candidates = decisions_to_extraction_candidates(llm_fields, decisions_by_field)
         else:
-            evidence_by_field = evidence_provider.collect_evidence(document_context=context, fields=fields)
+            evidence_by_field = evidence_provider.collect_evidence(document_context=context, fields=llm_fields)
             decisions_by_field = evidence_provider.adjudicate_fields(
                 document_context=context,
-                fields=fields,
+                fields=llm_fields,
                 evidence_by_field=evidence_by_field,
             )
             decisions_by_field = evidence_provider.verify_against_document(
                 document_context=context,
-                fields=fields,
+                fields=llm_fields,
                 decisions_by_field=decisions_by_field,
             )
-            candidates = decisions_to_extraction_candidates(fields, decisions_by_field)
+            candidates = decisions_to_extraction_candidates(llm_fields, decisions_by_field)
     except Exception as exc:
         logger.exception("Evidence-first extraction failed for %s", document_ir.document_id)
         candidates = [
@@ -377,12 +420,17 @@ def _extract_document_evidence_first(
                 risk_level="high",
                 provenance={"source": "evidence_first", "route": "failed"},
             )
-            for field in fields
+            for field in llm_fields
         ]
 
     candidates_by_key = {candidate.field_key: candidate for candidate in candidates}
+    # Rule-pre-accepted candidates win because they did not pass through the
+    # LLM. This merge happens after `candidates_by_key` is constructed from
+    # the LLM stages so the bypassed fields cannot be overwritten by a stale
+    # LLM result if one ever leaks in (e.g., from a misbehaving fake).
+    candidates_by_key.update(rule_shortcut_candidates)
     all_blocks = document_ir.blocks
-    for field in fields:
+    for field in phase_one_fields:
         group = schema.group_by_key(field.field_group_key)
         candidate = candidates_by_key.get(field.key) or _missing_provider_result(field)
         candidate = candidate.model_copy(
@@ -404,7 +452,15 @@ def _extract_document_evidence_first(
                 },
             }
         )
-        results_by_key[field.key] = validate_candidate(candidate, field, document_ir)
+        validated = validate_candidate(candidate, field, document_ir)
+        # Validation may overwrite the acceptance_reason to
+        # "high_confidence_evidence_validated" when auto-acceptance fires.
+        # For rule-pre-accepted fields we want the more specific reason to
+        # survive so diagnostics surface that the LLM was skipped. The
+        # auto_accepted flag remains as validate_candidate decided.
+        if field.key in rule_shortcut_candidates:
+            validated = validated.model_copy(update={"acceptance_reason": "rule_pre_accepted"})
+        results_by_key[field.key] = validated
     return [results_by_key[field.key] for field in schema.fields if field.key in results_by_key]
 
 

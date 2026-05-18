@@ -317,3 +317,101 @@ def test_non_standard_drinking_phrasing_is_recognized():
     assert candidates[0].normalized_code == "1"
     assert candidates[0].evidence_type == "explicit_positive"
     assert "嗜酒" in (candidates[0].evidence_span or "")
+
+
+def test_rule_shortcut_high_confidence_skips_llm_collect_evidence():
+    """E1-005 rule_pre_accepted: when a phase-1 field belongs to a group
+    whose `semantic_strategy == "rule_shortcut"` AND `rule_shortcut_extract`
+    returns a candidate at confidence >= 0.95, the candidate must bypass
+    the LLM evidence-first pipeline entirely.
+
+    Concretely: for `基本信息：患者，男，72岁。` the demographics rule path
+    (`_extract_age` / `_extract_gender`) returns confidence 0.96. The LLM
+    `collect_evidence` must never see `age` or `gender` in its `fields`
+    argument, and the returned `age` ValidatedFieldResult must carry
+    `acceptance_reason='rule_pre_accepted'` plus a provenance shape that
+    surfaces the skipped-LLM decision in diagnostics.
+    """
+    from app.domain.models import EvidenceCandidate as _EvidenceCandidate
+    from app.services.llm_provider.types import (
+        SemanticExtractionProvider,
+        local_collect_evidence_fallback,
+        local_evidence_fallback_usage,
+    )
+    from app.services.pipeline import extract_document
+
+    document_ir = _document_ir(
+        [
+            DocumentIRBlock(
+                block_id="b-demo",
+                page=1,
+                reading_order=1,
+                text="基本信息：患者，男，72岁。",
+                bbox=[0, 0, 800, 60],
+                confidence=0.99,
+                block_type="paragraph",
+                section_label="基本信息",
+                source_engine="pp_ocr_v5",
+            ),
+        ],
+        metadata={"deidentification": {"online_llm_allowed": True}},
+    )
+
+    class _AssertingFakeProvider(SemanticExtractionProvider):
+        """Fake provider that asserts `age` is never in `collect_evidence` fields.
+
+        Designed for the rule_pre_accepted pinning test: the demographics
+        rule path returns `age` at confidence 0.96, so the pipeline must
+        bypass the LLM and never include `age` in the `fields` list passed
+        to `collect_evidence`. If it does, this fake raises immediately
+        instead of silently returning evidence.
+        """
+
+        name = "asserting-fake-provider"
+        route = "test-fake"
+
+        def __init__(self) -> None:
+            self.collect_evidence_calls: list[list[str]] = []
+
+        def extract_group(self, *, document_ir, group, fields, blocks):  # pragma: no cover - unused path
+            del document_ir, group, blocks
+            return []
+
+        def collect_evidence(self, *, document_context, fields):
+            field_keys = [field.key for field in fields]
+            self.collect_evidence_calls.append(field_keys)
+            if "age" in field_keys:
+                raise RuntimeError(
+                    "collect_evidence should not be called for rule-pre-accepted age"
+                )
+            self.last_usage = local_evidence_fallback_usage()
+            return local_collect_evidence_fallback(document_context, fields)
+
+    fake_provider = _AssertingFakeProvider()
+    results = extract_document(document_ir, provider=fake_provider)
+
+    age_result = next((r for r in results if r.field_key == "age"), None)
+    assert age_result is not None, "age result missing from extract_document output"
+    assert age_result.normalized_code == "72"
+    assert age_result.acceptance_reason == "rule_pre_accepted"
+    assert age_result.provenance.get("source") == "rule_shortcut"
+    assert age_result.provenance.get("skipped_llm") is True
+
+    # Provider may have been called for other LLM-tier fields (history etc.)
+    # but the `age` key must never appear.
+    for fields_seen in fake_provider.collect_evidence_calls:
+        assert "age" not in fields_seen, (
+            f"age leaked into LLM collect_evidence fields list: {fields_seen}"
+        )
+
+    # Sanity: at least one call happened (the LLM path covers history /
+    # discharge / aneurysm / surgery / score groups). If it never fired,
+    # the test would silently pass even with a regression that disables
+    # LLM extraction wholesale.
+    assert fake_provider.collect_evidence_calls, (
+        "fake provider was never called; the test cannot prove age was skipped"
+    )
+
+    # `EvidenceCandidate` import is exercised so a future refactor that
+    # renames the symbol still keeps this regression test compilable.
+    assert _EvidenceCandidate.__name__ == "EvidenceCandidate"
