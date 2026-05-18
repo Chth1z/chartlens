@@ -2,7 +2,7 @@
 
 This document inventories every export-template field, every schema field, and the actual coverage of the `mock_general` baseline. It is the planning ground for expanding the precision baseline beyond demographics + history + lifestyle to the full clinical extraction surface.
 
-Status as of 2026-05-19, after E1-010 Phase C close: the rule-only baseline scores `96/96 = 1.000` on 13 synthetic fixtures, covering **14 of 22 schema fields**. Phase C added `single_multiple` and `aneurysm_location`. The remaining 8 fields are still completely unmeasured by the precision contract.
+Status as of 2026-05-19, after E1-010 Phase D close: the rule-only baseline scores `125/126 ≈ 0.992` on 16 synthetic fixtures, covering **18 of 22 schema fields**. Phase D added `hh_grade`, `wfns_grade`, `fisher_grade`, `mrs_score`. One known rule-path limitation: `_binary_history_evidence` conflicts with score evidence on `mrs_score` eval-mock-015. The remaining 4 fields are still unmeasured.
 
 ## Export Template Inventory
 
@@ -24,13 +24,13 @@ Status as of 2026-05-19, after E1-010 Phase C close: the rule-only baseline scor
 | 12 | `drinking_history` | 是否饮酒 | lifestyle | enum | `1`, `0`, unknown | 10 |
 | 13 | `single_multiple` | 单发多发 | aneurysm | enum | `single`, `multiple`, unknown | 2 |
 | 14 | `aneurysm_location` | 动脉瘤位置（1颈内，2中，3前，4后循环，unknown不详） | aneurysm | enum | `1`-`4`, unknown | 2 |
-| 15 | `hh_grade` | HH分组 | score | enum | I-V, unknown | **0** |
-| 16 | `wfns_grade` | WFNS分组 | score | enum | I-V, unknown | **0** |
-| 17 | `fisher_grade` | Fisher分级 | score | enum | I-IV, unknown | **0** |
+| 15 | `hh_grade` | HH分组 | score | enum | I-V, unknown | 3 |
+| 16 | `wfns_grade` | WFNS分组 | score | enum | I-V, unknown | 3 |
+| 17 | `fisher_grade` | Fisher分级 | score | enum | I-IV, unknown | 3 |
 | 18 | `surgery_method` | 最终手术方式 | surgery | enum | code list, unknown | **0** |
 | 19 | `onset_to_admission_time` | 出现症状到入院前时间 | timeline | duration | `≤24h`, `>24h`, unknown | **0** |
 | 20 | `admission_to_surgery_time` | 手术距离入院时间 | timeline | duration | `≤72h`, `>72h`, unknown | **0** |
-| 21 | `mrs_score` | mRS评分 | score | enum | 0-6, unknown | **0** |
+| 21 | `mrs_score` | mRS评分 | score | enum | 0-6, unknown | 3 |
 | 22 | `in_hospital_death` | 在院死亡 | discharge | enum | `1`, `0`, unknown | **0** |
 | 23 | `transfer` | 是否转诊 | discharge | enum | `1`, `0`, unknown | **0** |
 
@@ -38,9 +38,9 @@ Status as of 2026-05-19, after E1-010 Phase C close: the rule-only baseline scor
 
 ## Coverage Gap Summary
 
-Currently covered: **14 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
+Currently covered: **18 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
 
-Currently uncovered: **8 of 22 schema fields**, grouped by the kind of recall path each one exercises:
+Currently uncovered: **4 of 22 schema fields**, grouped by the kind of recall path each one exercises:
 
 - **String free-text** _(closed by Phase A 2026-05-18)_: ~~`hospital`~~ ✅. Rule path matches `XX医院` substring patterns through `_extract_hospital`. Covered by `eval-mock-009` (`海安市第三人民医院`), `eval-mock-010` (`海安县中医院`), and `eval-mock-005` (unknown path).
 - **Enum derived from address-or-residence** _(closed by Phase A 2026-05-18)_: ~~`urban_residence`~~ ✅. `pre_redaction_derivations` runs before PHI redaction. Covered by `eval-mock-009` (urban: `南京市鼓楼区五一路` → `2`), `eval-mock-010` (rural: `海安县曲塘镇五星村3组` → `1`), and `eval-mock-005` (no address → unknown). Privacy boundary pinned by `test_phase_a_address_redaction_holds_in_deidentified_ir`.
@@ -70,6 +70,10 @@ Added: `tumor_history`. Rule-only baseline rose from 1.0 (72/72) to 1.0 (80/80).
 #### Phase C — Imaging facts (done 2026-05-19)
 
 Added: `single_multiple`, `aneurysm_location`. Rule-only baseline rose from 1.0 (80/80) to 1.0 (96/96) on 13 fixtures. Two new fixtures: `eval-mock-012` (single aneurysm at 颈内动脉 → `single_multiple="single"`, `aneurysm_location="1"`) and `eval-mock-013` (multiple aneurysms at posterior circulation → `single_multiple="multiple"`, `aneurysm_location="4"`). Both `code_map` paths matched without recall gaps. LLM-assisted baseline also 1.0 (96/96). Coverage: 14/22 schema fields. Anchor: ROADMAP E1-010 Phase C.
+
+#### Phase D — Score grades (done 2026-05-19)
+
+Added: `hh_grade`, `wfns_grade`, `fisher_grade`, `mrs_score`. Three new fixtures: `eval-mock-014` (clean scores: Hunt-Hess Ⅱ, WFNS Ⅱ, Fisher 3, mRS 1), `eval-mock-015` (Roman numerals: HH Ⅲ, WFNS Ⅲ, Fisher 4, mRS 4), `eval-mock-016` (no scores present → all unknown). Rule-only baseline: 125/126 ≈ 0.992 on 16 fixtures. One known gap: `mrs_score` on eval-mock-015 conflicts because `_binary_history_evidence` produces a spurious `code=1` candidate from the `mRS` synonym that conflicts with the correct `code=4` from `_recorded_or_derived_score_evidence`. LLM-assisted baseline also 125/126. Fix tracked as a follow-up to exclude `computed_from_facts` fields from `_binary_history_evidence`. Coverage: 18/22 schema fields. Anchor: ROADMAP E1-010 Phase D.
 
 ### Active Phases
 

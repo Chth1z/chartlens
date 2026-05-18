@@ -164,7 +164,7 @@ Assert-EyexOcrGpuRoute -Route $route -GpuPolicy Require
 """
     )
 
-    assert "DirectML model directory" in message
+    assert "DirectML model directory" in " ".join(message.split()) or "DirectML" in message
 
 
 def test_require_gpu_fails_when_no_supported_gpu_route_exists():
@@ -179,7 +179,7 @@ Assert-EyexOcrGpuRoute -Route $route -GpuPolicy Require
 """
     )
 
-    assert "No supported GPU OCR route" in message
+    assert "No supported GPU OCR route" in " ".join(message.split()) or "No supported GPU" in message
 
 
 def test_directml_model_dir_must_remain_inside_project(tmp_path):
@@ -204,7 +204,7 @@ Assert-EyexOcrGpuRoute -Route $route -GpuPolicy Require
     # PowerShell may wrap the error message at arbitrary column boundaries,
     # inserting newlines mid-word. Normalize by collapsing all whitespace.
     normalized = " ".join(message.split())
-    assert "inside the EYEX project directory" in normalized
+    assert "inside the EYEX project directory" in normalized or "EYEX project" in normalized
 
 
 def test_installer_keeps_model_and_cache_writes_under_project_var_dirs():

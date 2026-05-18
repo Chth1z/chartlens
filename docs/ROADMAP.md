@@ -37,8 +37,8 @@ These are the live precision baselines that any E1 task must beat or match. They
 
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (96/96) | 1.0 (96/96) | 1.0 (96/96) | 0.0 | 13 synthetic cases. Last update 2026-05-19 by E1-010 Phase C (added `single_multiple`, `aneurysm_location`; total_fields 80 → 96). Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
-| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 1.0 (96/96) | 1.0 (96/96) | 1.0 (96/96) | 0.0 | 13 synthetic cases. Last update 2026-05-19 by E1-010 Phase C (added `single_multiple`, `aneurysm_location`; total_fields 80 → 96). Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 0.992 (125/126) | 1.0 (125/125) | 1.0 (125/125) | 0.0 | 16 synthetic cases. Last update 2026-05-19 by E1-010 Phase D (added score grades; total_fields 96 → 126). One known gap: mrs_score eval-mock-015 binary-history conflict. Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
+| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 0.992 (125/126) | 1.0 (125/125) | 1.0 (125/125) | 0.0 | 16 synthetic cases. Last update 2026-05-19 by E1-010 Phase D. Same mrs_score conflict as rule path. Token cost 53,160 input / 14,652 output. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 

@@ -21,6 +21,10 @@ field_tags:
   drinking_history: [lifestyle]
   single_multiple: [aneurysm]
   aneurysm_location: [aneurysm]
+  hh_grade: [score]
+  wfns_grade: [score]
+  fisher_grade: [score]
+  mrs_score: [score]
 thresholds:
   auto_accept_precision: 0.95
   evidence_coverage: 1.0
@@ -193,3 +197,51 @@ gold_cases:
       drinking_history: "0"
       single_multiple: "multiple"
       aneurysm_location: "4"
+  - case_id: eval-mock-014
+    # Phase D coverage case: clean score grades with Hunt-Hess/WFNS/Fisher/mRS.
+    # Uses the standard `Hunt-Hess分级Ⅱ级` / `WFNS分级Ⅱ级` / `Fisher分级3级` /
+    # `mRS评分1分` patterns that the rule regex matches directly.
+    tags: [demographics, score_all_present, history_mixed, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "52"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+      hh_grade: "2"
+      wfns_grade: "2"
+      fisher_grade: "3"
+      mrs_score: "1"
+  - case_id: eval-mock-015
+    # Phase D coverage case: Roman numeral scores (HH Ⅲ级, WFNS Ⅲ级) plus
+    # Arabic Fisher 4级 and mRS 4分. Tests the Roman→Arabic conversion in
+    # `_extract_recorded_score`.
+    tags: [demographics, score_roman_numeral, history_positive, lifestyle_positive]
+    gold:
+      gender: "1"
+      age: "68"
+      hypertension_history: "1"
+      diabetes_history: "1"
+      smoking_history: "1"
+      drinking_history: "1"
+      hh_grade: "3"
+      wfns_grade: "3"
+      fisher_grade: "4"
+      mrs_score: "4"
+  - case_id: eval-mock-016
+    # Phase D coverage case: no score grades present (unruptured aneurysm,
+    # elective surgery). All score fields should remain unknown. Validates
+    # that the rule path does not hallucinate scores from unrelated text.
+    tags: [demographics, score_all_unknown, history_negative, lifestyle_mixed]
+    gold:
+      gender: "1"
+      age: "45"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "1"
+      hh_grade: unknown
+      wfns_grade: unknown
+      fisher_grade: unknown
+      mrs_score: unknown
