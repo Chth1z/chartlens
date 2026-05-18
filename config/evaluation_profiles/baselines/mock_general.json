@@ -19,8 +19,8 @@
   "summary": {
     "total_fields": 159,
     "correct": 153,
-    "auto_accept_count": 139,
-    "auto_accept_correct": 139,
+    "auto_accept_count": 141,
+    "auto_accept_correct": 141,
     "unknown_misfills": 0,
     "expected_unknown": 7,
     "predicted_non_unknown": 146,
@@ -41,8 +41,8 @@
       "demographics": {
         "total": 44,
         "correct": 44,
-        "auto_accept_count": 40,
-        "auto_accept_correct": 40,
+        "auto_accept_count": 42,
+        "auto_accept_correct": 42,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
@@ -1075,8 +1075,8 @@
       "accuracy": 1.0,
       "precision": 1.0,
       "recall": 1.0,
-      "auto_accept_count": 7,
-      "auto_accept_correct": 7,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
@@ -1149,9 +1149,9 @@
           "expected": "2",
           "actual": "2",
           "correct": true,
-          "auto_accepted": false,
+          "auto_accepted": true,
           "has_evidence": true,
-          "review_required": true,
+          "review_required": false,
           "error_code": null
         },
         {
@@ -1204,8 +1204,8 @@
       "accuracy": 1.0,
       "precision": 1.0,
       "recall": 1.0,
-      "auto_accept_count": 7,
-      "auto_accept_correct": 7,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
@@ -1278,9 +1278,9 @@
           "expected": "1",
           "actual": "1",
           "correct": true,
-          "auto_accepted": false,
+          "auto_accepted": true,
           "has_evidence": true,
-          "review_required": true,
+          "review_required": false,
           "error_code": null
         },
         {

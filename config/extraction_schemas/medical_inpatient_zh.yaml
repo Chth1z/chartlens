@@ -167,7 +167,7 @@ fields:
         summary: 显式城乡类型命中
       - pattern: '是否城市判定[:：](非城市|城市)'
         code_map: {非城市: "1", 城市: "2"}
-        confidence: 0.93
+        confidence: 0.96
         summary: 脱敏前本地地址派生命中
     pre_redaction_derivations:
       - normalized_code: "1"
@@ -176,7 +176,7 @@ fields:
         source_terms: [农村户籍, 农村居民, 农村]
         safe_text: 是否城市判定：非城市
         safe_evidence_span: 是否城市判定：非城市
-        confidence: 0.93
+        confidence: 0.96
         summary: 本地地址线索指向非城市
       - normalized_code: "2"
         source_patterns:
@@ -185,7 +185,7 @@ fields:
         source_terms: [城市户籍, 城镇户籍, 城镇居民]
         safe_text: 是否城市判定：城市
         safe_evidence_span: 是否城市判定：城市
-        confidence: 0.93
+        confidence: 0.96
         summary: 本地地址线索指向城市
     llm:
       enabled: false

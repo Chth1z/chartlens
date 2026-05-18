@@ -18,48 +18,48 @@
   },
   "summary": {
     "total_fields": 159,
-    "correct": 153,
-    "auto_accept_count": 142,
-    "auto_accept_correct": 141,
+    "correct": 151,
+    "auto_accept_count": 139,
+    "auto_accept_correct": 139,
     "unknown_misfills": 0,
     "expected_unknown": 7,
-    "predicted_non_unknown": 147,
-    "evidence_covered": 147,
-    "input_tokens": 252146,
-    "output_tokens": 24745,
+    "predicted_non_unknown": 144,
+    "evidence_covered": 144,
+    "input_tokens": 13180,
+    "output_tokens": 1097,
     "cost_usd": 0.0,
     "case_count": 19,
     "evaluated_case_count": 19,
     "blocked_case_count": 0,
-    "accuracy": 0.9622641509433962,
-    "auto_accept_precision": 0.9929577464788732,
+    "accuracy": 0.949685534591195,
+    "auto_accept_precision": 1.0,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
-    "tokens_per_case": 13270.842105263158,
-    "tokens_per_accepted_field": 1775.6760563380283,
+    "tokens_per_case": 693.6842105263158,
+    "tokens_per_accepted_field": 94.82014388489209,
     "field_tags": {
       "demographics": {
         "total": 44,
-        "correct": 42,
-        "auto_accept_count": 40,
-        "auto_accept_correct": 40,
-        "accuracy": 0.9545454545454546,
+        "correct": 44,
+        "auto_accept_count": 42,
+        "auto_accept_correct": 42,
+        "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "history": {
         "total": 46,
-        "correct": 46,
-        "auto_accept_count": 46,
-        "auto_accept_correct": 46,
-        "accuracy": 1.0,
+        "correct": 42,
+        "auto_accept_count": 42,
+        "auto_accept_correct": 42,
+        "accuracy": 0.9130434782608695,
         "auto_accept_precision": 1.0
       },
       "chronic_disease": {
         "total": 46,
-        "correct": 46,
-        "auto_accept_count": 46,
-        "auto_accept_correct": 46,
-        "accuracy": 1.0,
+        "correct": 42,
+        "auto_accept_count": 42,
+        "auto_accept_correct": 42,
+        "accuracy": 0.9130434782608695,
         "auto_accept_precision": 1.0
       },
       "lifestyle": {
@@ -97,10 +97,10 @@
       "timeline": {
         "total": 6,
         "correct": 4,
-        "auto_accept_count": 4,
+        "auto_accept_count": 3,
         "auto_accept_correct": 3,
         "accuracy": 0.6666666666666666,
-        "auto_accept_precision": 0.75
+        "auto_accept_precision": 1.0
       },
       "discharge": {
         "total": 6,
@@ -134,8 +134,8 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13154,
-        "output_tokens": 1111,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
@@ -241,8 +241,8 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13156,
-        "output_tokens": 950,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
@@ -358,9 +358,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13502,
-        "output_tokens": 1295,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -465,9 +465,9 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13170,
-        "output_tokens": 1514,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -582,9 +582,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13506,
-        "output_tokens": 1064,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -711,9 +711,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13027,
-        "output_tokens": 1420,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -826,23 +826,23 @@
       "case_id": "eval-mock-007",
       "status": "evaluated",
       "total_fields": 9,
-      "correct": 9,
-      "accuracy": 1.0,
+      "correct": 5,
+      "accuracy": 0.5555555555555556,
       "precision": 1.0,
-      "recall": 1.0,
-      "auto_accept_count": 9,
-      "auto_accept_correct": 9,
+      "recall": 0.5555555555555556,
+      "auto_accept_count": 5,
+      "auto_accept_correct": 5,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 9,
-      "evidence_covered": 9,
+      "predicted_non_unknown": 5,
+      "evidence_covered": 5,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13309,
-        "output_tokens": 1571,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -901,42 +901,42 @@
         {
           "field_key": "diabetes_history",
           "expected": "0",
-          "actual": "0",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "heart_disease_history",
           "expected": "0",
-          "actual": "0",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "stroke_history",
           "expected": "0",
-          "actual": "0",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "tumor_history",
           "expected": "0",
-          "actual": "0",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "smoking_history",
@@ -964,23 +964,23 @@
       "case_id": "eval-mock-008",
       "status": "evaluated",
       "total_fields": 6,
-      "correct": 6,
-      "accuracy": 1.0,
+      "correct": 5,
+      "accuracy": 0.8333333333333334,
       "precision": 1.0,
-      "recall": 1.0,
-      "auto_accept_count": 6,
-      "auto_accept_correct": 6,
+      "recall": 0.8333333333333334,
+      "auto_accept_count": 5,
+      "auto_accept_correct": 5,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 6,
-      "evidence_covered": 6,
+      "predicted_non_unknown": 5,
+      "evidence_covered": 5,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13158,
-        "output_tokens": 978,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1048,12 +1048,12 @@
         {
           "field_key": "smoking_history",
           "expected": "0",
-          "actual": "0",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "drinking_history",
@@ -1071,23 +1071,23 @@
       "case_id": "eval-mock-009",
       "status": "evaluated",
       "total_fields": 8,
-      "correct": 7,
-      "accuracy": 0.875,
+      "correct": 8,
+      "accuracy": 1.0,
       "precision": 1.0,
-      "recall": 0.875,
-      "auto_accept_count": 7,
-      "auto_accept_correct": 7,
+      "recall": 1.0,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 7,
-      "evidence_covered": 7,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13475,
-        "output_tokens": 1230,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1147,12 +1147,12 @@
         {
           "field_key": "urban_residence",
           "expected": "2",
-          "actual": "unknown",
-          "correct": false,
-          "auto_accepted": false,
-          "has_evidence": false,
-          "review_required": true,
-          "error_code": "NOT_MENTIONED"
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
         },
         {
           "field_key": "hypertension_history",
@@ -1200,23 +1200,23 @@
       "case_id": "eval-mock-010",
       "status": "evaluated",
       "total_fields": 8,
-      "correct": 7,
-      "accuracy": 0.875,
+      "correct": 8,
+      "accuracy": 1.0,
       "precision": 1.0,
-      "recall": 0.875,
-      "auto_accept_count": 7,
-      "auto_accept_correct": 7,
+      "recall": 1.0,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 7,
-      "evidence_covered": 7,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13463,
-        "output_tokens": 1246,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1276,12 +1276,12 @@
         {
           "field_key": "urban_residence",
           "expected": "1",
-          "actual": "unknown",
-          "correct": false,
-          "auto_accepted": false,
-          "has_evidence": false,
-          "review_required": true,
-          "error_code": "NOT_MENTIONED"
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
         },
         {
           "field_key": "hypertension_history",
@@ -1343,8 +1343,8 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13193,
-        "output_tokens": 1214,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
@@ -1461,9 +1461,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13187,
-        "output_tokens": 1089,
-        "cached_input_tokens": 1792,
+        "input_tokens": 13180,
+        "output_tokens": 1097,
+        "cached_input_tokens": 13056,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1590,9 +1590,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13175,
-        "output_tokens": 1579,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1719,9 +1719,9 @@
       "evidence_covered": 10,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13304,
-        "output_tokens": 1468,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1867,9 +1867,9 @@
       "evidence_covered": 10,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13297,
-        "output_tokens": 1373,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2015,9 +2015,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13162,
-        "output_tokens": 1129,
-        "cached_input_tokens": 12544,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2163,9 +2163,9 @@
       "evidence_covered": 11,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13315,
-        "output_tokens": 1879,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2311,21 +2311,21 @@
       "total_fields": 11,
       "correct": 9,
       "accuracy": 0.8181818181818182,
-      "precision": 0.9,
+      "precision": 1.0,
       "recall": 0.8181818181818182,
-      "auto_accept_count": 9,
+      "auto_accept_count": 8,
       "auto_accept_correct": 8,
-      "auto_accept_precision": 0.8888888888888888,
+      "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 10,
-      "evidence_covered": 10,
+      "predicted_non_unknown": 9,
+      "evidence_covered": 9,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13297,
-        "output_tokens": 1391,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2426,18 +2426,18 @@
         {
           "field_key": "onset_to_admission_time",
           "expected": "2天",
-          "actual": "2天",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "admission_to_surgery_time",
           "expected": "3天",
-          "actual": "第3天",
-          "correct": false,
+          "actual": "3天",
+          "correct": true,
           "auto_accepted": true,
           "has_evidence": true,
           "review_required": false,
@@ -2469,23 +2469,23 @@
       "case_id": "eval-mock-019",
       "status": "evaluated",
       "total_fields": 11,
-      "correct": 9,
-      "accuracy": 0.8181818181818182,
+      "correct": 10,
+      "accuracy": 0.9090909090909091,
       "precision": 1.0,
-      "recall": 0.8,
-      "auto_accept_count": 7,
-      "auto_accept_correct": 7,
+      "recall": 0.9,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 1,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 8,
-      "evidence_covered": 8,
+      "predicted_non_unknown": 9,
+      "evidence_covered": 9,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13296,
-        "output_tokens": 1244,
-        "cached_input_tokens": 1792,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2566,12 +2566,12 @@
         {
           "field_key": "drinking_history",
           "expected": "0",
-          "actual": "unknown",
-          "correct": false,
-          "auto_accepted": false,
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
           "has_evidence": true,
-          "review_required": true,
-          "error_code": "EVIDENCE_SPAN_NOT_FOUND"
+          "review_required": false,
+          "error_code": null
         },
         {
           "field_key": "surgery_method",
