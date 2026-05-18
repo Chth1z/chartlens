@@ -202,6 +202,20 @@ def _rule_pattern_evidence(field: FieldDefinition, blocks: list[DocumentIRBlock]
 def _binary_history_evidence(field: FieldDefinition, blocks: list[DocumentIRBlock]) -> list[EvidenceCandidate]:
     if not {"1", "0"}.issubset(set(field.allowed_codes)):
         return []
+    # Score and imaging fields have their own dedicated evidence path
+    # (_fact_then_code_evidence → _recorded_or_derived_score_evidence).
+    # Running binary-history matching on them produces spurious candidates
+    # (e.g., 'mRS' synonym triggers code=1 that conflicts with the correct
+    # score value). Skip them here.
+    if field.extract_mode in {"computed_from_facts", "fact_then_code"}:
+        return []
+    # Discharge-outcome fields (in_hospital_death, transfer) have inverted
+    # negation semantics: their synonyms include both positive indicators
+    # (死亡, 转院) and outcome-negation indicators (好转, 未转诊) that the
+    # simple positive/negative synonym matching cannot handle correctly.
+    # These fields are designed for LLM extraction; skip binary-history here.
+    if field.field_group_key == "discharge_group":
+        return []
     candidates: list[EvidenceCandidate] = []
     positive_terms = [term for term in field.synonyms if term and term not in {"男", "女"}]
     if not positive_terms:

@@ -19,12 +19,12 @@
   "summary": {
     "total_fields": 159,
     "correct": 153,
-    "auto_accept_count": 142,
+    "auto_accept_count": 139,
     "auto_accept_correct": 139,
     "unknown_misfills": 0,
     "expected_unknown": 7,
-    "predicted_non_unknown": 149,
-    "evidence_covered": 149,
+    "predicted_non_unknown": 146,
+    "evidence_covered": 146,
     "input_tokens": 0,
     "output_tokens": 0,
     "cost_usd": 0.0,
@@ -32,7 +32,7 @@
     "evaluated_case_count": 19,
     "blocked_case_count": 0,
     "accuracy": 0.9622641509433962,
-    "auto_accept_precision": 0.9788732394366197,
+    "auto_accept_precision": 1.0,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
     "tokens_per_case": 0.0,
@@ -80,10 +80,10 @@
       },
       "score": {
         "total": 12,
-        "correct": 11,
-        "auto_accept_count": 7,
-        "auto_accept_correct": 7,
-        "accuracy": 0.9166666666666666,
+        "correct": 12,
+        "auto_accept_count": 8,
+        "auto_accept_correct": 8,
+        "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "surgery": {
@@ -104,11 +104,11 @@
       },
       "discharge": {
         "total": 6,
-        "correct": 1,
-        "auto_accept_count": 4,
-        "auto_accept_correct": 1,
-        "accuracy": 0.16666666666666666,
-        "auto_accept_precision": 0.25
+        "correct": 0,
+        "auto_accept_count": 0,
+        "auto_accept_correct": 0,
+        "accuracy": 0.0,
+        "auto_accept_precision": 0.0
       }
     },
     "ocr_quality_bands": {
@@ -1853,18 +1853,18 @@
       "case_id": "eval-mock-015",
       "status": "evaluated",
       "total_fields": 10,
-      "correct": 9,
-      "accuracy": 0.9,
+      "correct": 10,
+      "accuracy": 1.0,
       "precision": 1.0,
-      "recall": 0.9,
-      "auto_accept_count": 9,
-      "auto_accept_correct": 9,
+      "recall": 1.0,
+      "auto_accept_count": 10,
+      "auto_accept_correct": 10,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 9,
-      "evidence_covered": 9,
+      "predicted_non_unknown": 10,
+      "evidence_covered": 10,
       "evidence_coverage": 1.0,
       "usage": {
         "input_tokens": 0,
@@ -1988,12 +1988,12 @@
         {
           "field_key": "mrs_score",
           "expected": "4",
-          "actual": "unknown",
-          "correct": false,
-          "auto_accepted": false,
-          "has_evidence": false,
-          "review_required": true,
-          "error_code": "CONFLICT"
+          "actual": "4",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
         }
       ]
     },
@@ -2151,16 +2151,16 @@
       "total_fields": 11,
       "correct": 9,
       "accuracy": 0.8181818181818182,
-      "precision": 0.8181818181818182,
+      "precision": 1.0,
       "recall": 0.8181818181818182,
-      "auto_accept_count": 10,
+      "auto_accept_count": 8,
       "auto_accept_correct": 8,
-      "auto_accept_precision": 0.8,
+      "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 11,
-      "evidence_covered": 11,
+      "predicted_non_unknown": 9,
+      "evidence_covered": 9,
       "evidence_coverage": 1.0,
       "usage": {
         "input_tokens": 0,
@@ -2286,22 +2286,22 @@
         {
           "field_key": "in_hospital_death",
           "expected": "0",
-          "actual": "1",
+          "actual": "unknown",
           "correct": false,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "transfer",
           "expected": "0",
-          "actual": "1",
+          "actual": "unknown",
           "correct": false,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         }
       ]
     },
@@ -2451,7 +2451,7 @@
           "auto_accepted": false,
           "has_evidence": false,
           "review_required": true,
-          "error_code": "CONFLICT"
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "transfer",
@@ -2469,18 +2469,18 @@
       "case_id": "eval-mock-019",
       "status": "evaluated",
       "total_fields": 11,
-      "correct": 10,
-      "accuracy": 0.9090909090909091,
-      "precision": 0.9,
-      "recall": 0.9,
-      "auto_accept_count": 9,
-      "auto_accept_correct": 8,
-      "auto_accept_precision": 0.8888888888888888,
+      "correct": 9,
+      "accuracy": 0.8181818181818182,
+      "precision": 1.0,
+      "recall": 0.8,
+      "auto_accept_count": 7,
+      "auto_accept_correct": 7,
+      "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 1,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 10,
-      "evidence_covered": 10,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
         "input_tokens": 0,
@@ -2606,22 +2606,22 @@
         {
           "field_key": "in_hospital_death",
           "expected": "0",
-          "actual": "1",
+          "actual": "unknown",
           "correct": false,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "transfer",
           "expected": "1",
-          "actual": "1",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         }
       ]
     }
