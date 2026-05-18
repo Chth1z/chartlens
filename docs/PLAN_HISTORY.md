@@ -143,3 +143,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Reduced the 659-line `backend/app/services/model_providers.py` to a focused subpackage with each module ≤ 300 lines: `types.py` (45), `catalog.py` (200), `settings_store.py` (45), `discovery.py` (121), `api.py` (282), `__init__.py` (29). `__init__.py` re-exports the public API plus `httpx`, `explicit_api_keys_for_profile`, and `_fetch_models` for monkey-patch backward compatibility (used by `test_model_profiles.py` and `test_security_hardening.py`); `_provider_state` and `fetch_provider_models` resolve those names via the package namespace at call time so test patches still take effect. Pure refactor with no behavior change; all 344 backend tests passed; rule baseline 0.9623 (153/159) unchanged; frontend tests and build passed; governance scan cleared.
 - Anchor: AGENTS.md 500-line soft trigger rule; ROADMAP `E0-006`.
+
+### done PLAN-split-routes (2026-05-19)
+
+- Split the 780-line `backend/app/api/routes.py` into `backend/app/api/routes/` (`__init__.py` 32 re-exports `router` plus the legacy `_pdf_source_render_scale` helper used by `test_api_smoke.py`; `_helpers.py` 229; `health.py` 131; `models.py` 78; `cases.py` 188; `diagnostics.py` 23; `system.py` 197; `evaluations.py` 74). Governance scan now walks the entire `backend/app/api/` tree for `@router.<method>(...)` decorators missing `response_model=`. Two tests that monkey-patched `app.api.routes.{enqueue_case, build_runtime_services}` were rewired to the actual sub-modules. Pure refactor: all 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; total `app.routes` count 40 unchanged; frontend tests (9) and build pass; governance scan cleared.
+- Anchor: AGENTS.md 500-line soft trigger rule.

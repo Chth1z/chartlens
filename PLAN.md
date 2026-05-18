@@ -43,15 +43,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: After Alembic migration baseline lands (depends on durable schema changes).
 - Done condition: A startup recovery routine exists, has unit tests, and is documented in `docs/DECISIONS.md` if the recovery contract changes.
 
-### todo Split EvidencePanel.tsx into transcript / source / overlay
-
-- Goal: Reduce 2017-line `frontend/src/features/cases/EvidencePanel.tsx` to ≤ 500 lines per file by splitting into `EvidencePanel.tsx` (container + view-mode switch), `TranscriptView.tsx`, `SourceImageView.tsx`, `useEvidenceSelection.ts`, and `evidenceGrouping.ts` (pure functions).
-- Out of scope: No visual change. No new evidence rendering feature.
-- Acceptance commands: `cd frontend; npm test; npm run build`. Manual smoke: open a processed case, verify transcript view and source view both still highlight the active field result and scroll the active block into view.
-- Risk: Selection state and image-retry state are tangled; missing dependency in extracted hooks can break highlight/scroll behavior.
-- Trigger: Already triggered by the 500-line ceiling; no other prerequisite.
-- Done condition: Each new file ≤ 500 lines, existing 9 frontend tests pass, `caseId`-driven image cache invalidation still works.
-
 ### todo Replace hand-written API validators with zod or valibot
 
 - Goal: Cut `frontend/src/shared/api/client.ts` (531 lines) plus the matching contract validators in `shared/types/api.ts` from ~1162 lines combined to ~600 lines by introducing a single runtime schema definition. `client.ts` only assembles fetch and translates errors; types come from `z.infer` (or valibot equivalent).
@@ -100,6 +91,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-chartlens-app (2026-05-19)
+
+- Goal: Reduce the 703-line `frontend/src/features/app/ChartLensApp.tsx` (above the AGENTS.md 500-line soft trigger) to a focused module set where each file ≤ 500 lines, with no visual or functional change.
+- Outcome: Pure structural refactor, no behavior change. Lifted every state hook, ref, derived `useMemo`, every `useEffect` (bootstrap, route sync, diagnostics-on-case-switch, selectedField rebinding, reviewCode rebinding) and every async handler (`refreshAuthStatus`, `bootstrap`, `loadRuntimeSettings`, `loadProjectConfig`, `loadFieldDictionary`, `refresh`, `loadDiagnostics`, `onUpload`, `submitReprocess`, `approveVisionFallback`, `submitExport`, `submitReview`, `removeCase`, `clearLocalCases`) into a single custom hook `frontend/src/features/app/useChartLensState.ts` (486 lines). The hook returns one flat object so `ChartLensApp.tsx` (336 lines) destructures it and stays render-only; `ChartLensState` is exposed as `ReturnType<typeof useChartLensState>` so the JSX consumer keeps full type safety without a hand-maintained interface mirror. Moved the two small fallback components (`SettingsPanelFallback`, `CaseDetailLoading`) to `frontend/src/features/app/components.tsx` (20 lines). Moved `mergeCaseRecord` next to its existing peers in `frontend/src/features/app/caseSwitching.ts` (25 lines, was 18) since it composes with the same `CaseRecord` shape; the existing `caseSwitching.test.ts` keeps passing because no exported symbol is removed. The `useCasePolling({ refresh, loadDiagnostics })` wiring stays unchanged so the hook's polling behavior, the `diagnosticsRequestSeq` race guard, the `Suspense` boundary around the lazy `SettingsPanel`, and the empty-state JSX paths are byte-equivalent. Frontend tests (9) pass; `npm run build` succeeds with the same bundle layout (`SettingsPanel-*.js` chunk preserved); governance scan passes with no large-file warnings on any of the four files (336 / 486 / 25 / 20).
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-split-ocr (2026-05-19)
 
 - Goal: Reduce the 532-line `backend/app/services/ocr.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 300 lines.
@@ -124,16 +121,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/layout_normalizer/`: `__init__.py` (4) re-exports `normalize_document_layout` plus `LAYOUT_NORMALIZER_VERSION`; `sections.py` (44) owns `_detect_section`, `_standalone_key_label`, `_is_section_title_like`, `_compact_text`, `_section_id`, `_sections_from_blocks`, `_renumber_blocks`; `block_merging.py` (200) owns same-line and paragraph-wrap merging plus geometry helpers and `_is_screen_chrome` (kept here because `_can_merge_wrapped_paragraph` calls it directly); `classification.py` (118) owns `_classify_blocks`, `_split_patient_header_block_ids`, `_document_region`, `_region_rule_matches`, `_safe_search`, `_is_patient_header`, and the `LAYOUT_NORMALIZER_VERSION` constant; `key_value_derivation.py` (390) owns the full `_derive_*` family plus `_extract_key_values`, `_estimated_span_bbox`, table-cell helpers; `orchestrator.py` (61) owns the public `normalize_document_layout`. Dependency direction is acyclic (`sections` → `block_merging` → `classification`/`key_value_derivation` → `orchestrator`). All 344 backend tests pass; rule baseline 0.9623 (153/159) byte-identical; frontend tests (9) and build pass; governance scan passes with no large-file warnings on any new file.
 - Anchor: AGENTS.md 500-line soft trigger rule.
 
-### done PLAN-split-routes (2026-05-19)
-
-- Goal: Reduce the 780-line `backend/app/api/routes.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
-- Outcome: Pure structural refactor, no API contract change. Replaced the monolithic file with `backend/app/api/routes/`: `__init__.py` (32) re-exports the unified `router` plus the legacy `_pdf_source_render_scale` helper that `test_api_smoke.py` imports; `_helpers.py` (229) holds every private helper function; `health.py` (131) owns health/config/auth-status/field-dictionary; `models.py` (78) owns model profile and provider routes plus `ModelSelectionPayload` / `ActiveProviderModelPayload`; `cases.py` (188) owns the case CRUD plus `VisionFallbackRequestPayload`; `diagnostics.py` (23) owns `/cases/{case_id}/diagnostics`; `system.py` (197) owns project-config / system / runtime / maintenance routes; `evaluations.py` (74) owns the eval routes plus `BatchEvaluationCasePayload` / `BatchEvaluationPayload`. The governance scan was updated to walk the entire `backend/app/api/` tree for `@router.<method>(...)` decorators missing `response_model=` instead of hardcoding `routes.py`. Two tests that monkey-patched `app.api.routes.{enqueue_case, build_runtime_services}` now patch the actual sub-modules (`routes.cases`, `routes.system`). All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; total `app.routes` count 40 unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings.
-- Anchor: AGENTS.md 500-line soft trigger rule.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-30: PLAN-split-routes (2026-05-19).
 - 2026-05-29: E0-006 Split model_providers.py (2026-05-19).
 - 2026-05-28: E0-004 Split llm_provider adapters and payloads (2026-05-19).
 - 2026-05-27: PLAN-split-styles-css (2026-05-22).
