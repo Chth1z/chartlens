@@ -34,15 +34,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
 - Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
 
-### todo Decide application/ vs services/ flat layout
-
-- Goal: Resolve the dev-vs-main divergence. Either restore the `backend/app/application/` layer that exists on `main`, or formalize `backend/app/services/` subpackages with hard size limits in AGENTS.md. The chosen direction is recorded in `docs/DECISIONS.md` before any code in `services/` or `application/` is reorganized.
-- Out of scope: No business behavior change. No new feature in this task.
-- Acceptance commands: `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
-- Risk: Without a recorded decision, future split tasks (provider, pipeline, OCR boundary) keep blocked by an absent layer; pipeline.py keeps mixing orchestration, error formatting, worker pool, quality summary.
-- Trigger: Future split tasks (provider, pipeline, OCR boundary) keep waiting on this layout decision; pipeline.py crossed the 500-line soft trigger on 2026-05-18 and must split as part of its next-touching task.
-- Done condition: `docs/DECISIONS.md` has a dated decision; `pipeline.py` either no longer mixes orchestration with formatting/worker/quality, or has a follow-up task in PLAN to split it under the chosen layout.
-
 ### todo Add database migration baseline before schema expansion
 
 - Goal: Replace the manual `Base.metadata.create_all(...)` plus ad hoc `_ensure_sqlite_columns` `ALTER TABLE` path with an Alembic migration baseline. Startup runs `alembic upgrade head`. Fresh DB and existing DB go through the same path.
@@ -136,6 +127,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done Decide application/ vs services/ flat layout (2026-05-19)
+
+- Goal: Resolve the pending architecture decision. Either restore `backend/app/application/` or formalize `backend/app/services/` subpackages.
+- Outcome: Decision recorded in `docs/DECISIONS.md` 2026-05-19: formalize `services/` subpackages as the canonical backend layout. No `application/` layer. Complex subsystems get subpackage directories (`llm_provider/`, `ocr_engine/`); simpler modules use flat-file-with-prefix pattern (`pipeline_*.py`). Hard size limits from AGENTS.md apply. This unblocks E0-004 (provider split), E0-005 (OCR boundary), E0-006 (model_providers split).
+- Anchor: `docs/DECISIONS.md` 2026-05-19 "Formalize services/ subpackages as the canonical backend layout".
+
 ### done PLAN-split-pipeline.py (2026-05-21)
 
 - Goal: Split `backend/app/services/pipeline.py` (526 lines) into smaller modules to satisfy the AGENTS.md 500-line soft trigger.
@@ -160,16 +157,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: implemented as a partition step at the top of `_extract_document_evidence_first`. `rule_shortcut_candidates` collects pre-accepted hits via `rule_candidate.model_copy(update=...)`; `llm_fields` is what gets passed to `evidence_provider.collect_evidence` and downstream stages. After LLM stages, `rule_shortcut_candidates` is merged in (rule wins). Export gate preserved by stamping `provenance.decision_status="PASS"` on rule candidates. Backend tests rise 342 → 343. LLM-assisted `mock_general` baseline rises from 0.9722 (70/72) to 0.9861 (71/72) on the chosen baseline run; across 5 cache-cleared runs the spread is 70-72/72 with `age` deterministically PASS in every run. Token cost on the chosen run is 73,037 input / 19,743 output.
 - Anchor: `docs/DECISIONS.md` 2026-05-18 "rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups"; AGENTS.md "Architecture Boundaries".
 
-### done PLAN-mock-general-phase-A (2026-05-18)
-
-- Goal: ROADMAP E1-010 Phase A. Extend the `mock_general` baseline to cover `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Add one urban-address fixture, one rural-address fixture, anchor the unknown path by extending an existing fixture's gold.
-- Outcome: rule-only baseline rises from 1.0/54 to 1.0/72 on 10 fixtures. New `eval-mock-009` (urban: `南京市鼓楼区五一路` → `urban_residence=2`, `海安市第三人民医院`) and `eval-mock-010` (rural: `海安县曲塘镇五星村3组` → `urban_residence=1`, `海安县中医院`); `eval-mock-005` gold extended to anchor the unknown path. Privacy boundary verified by new parametrized test `test_phase_a_address_redaction_holds_in_deidentified_ir`: original `家庭住址` lines collapse to `[REDACTED]`; only the safe `是否城市判定` derivation block carries forward. The LLM-assisted baseline temporarily drops to 0.9722 (70/72) because the wider fixture set surfaces two unrelated honest LLM gaps; both become next-up targets for the open `rule_pre_accepted` shortcut and a v3 prompt rewrite.
-- Anchor: `docs/FIELD_COVERAGE.md` Phase A section; ROADMAP E1-010 Phase A.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-19: PLAN-mock-general-phase-A (2026-05-18).
 - 2026-05-21: PLAN-llm-provider-phase-3 (2026-05-18).
 - 2026-05-20: E1-001 evidence-first prompt rewrite (2026-05-18).
 - 2026-05-18: PLAN-llm-provider-phase-1; PLAN-llm-baseline-bootstrap; E1-005-synonym-widening; PLAN-field-coverage-and-ocr-postprocessing-research.

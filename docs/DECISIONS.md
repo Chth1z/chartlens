@@ -16,6 +16,7 @@ Listed in reverse chronological order. Click through to the dated heading for th
 
 ### Architecture and workflow
 
+- 2026-05-19 — Formalize services/ subpackages as the canonical backend layout (closes pending application/ vs services/ decision)
 - 2026-05-18 — rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups
 - 2026-05-18 — Evidence-first prompt promotes field-level policy above generic rules (`EVIDENCE_FIRST_PROMPT_VERSION = eyex-evidence-first-v2`)
 - 2026-05-17 — Architecture and roadmap formalized (`docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/REFERENCE_PROJECTS.md`)
@@ -81,7 +82,7 @@ Listed in reverse chronological order. Click through to the dated heading for th
 
 ### Pending decisions
 
-- 2026-05-17 — application/ vs services/ flat layout (`codex/architecture-decision`, blocks pipeline split, provider split, OCR boundary split)
+(none currently pending)
 
 ### Promotion records (informational)
 
@@ -459,6 +460,14 @@ Listed in reverse chronological order. Click through to the dated heading for th
 - Why: This project is single-developer with Codex assistance. The previous "every change must go through a `codex/` branch" rule produced empty branch shells, frequent merge ceremony, and a backlog of branches that drifted from `dev`. Letting routine commits land on `dev` directly while still gating `main` keeps the audit trail and the promotion checkpoint without the branch-per-task overhead.
 - Rejected: Merging every change into `main` directly (no integration buffer), maintaining one long-running `codex/<goal>` branch per subsystem (drift), squashing `dev` history before promoting to `main` (loses task-level rollback granularity).
 - Revisit when: A second contributor joins, or a release/deployment cadence emerges that needs explicit release branches off `main`.
+
+## 2026-05-19 - Formalize services/ subpackages as the canonical backend layout
+
+- Decision: `backend/app/services/` is the canonical home for all business logic. There is no `application/` orchestration layer. Complex subsystems get their own subpackage directory (currently `llm_provider/` and `ocr_engine/`); simpler modules use a flat-file-with-prefix pattern (e.g. `pipeline.py`, `pipeline_evidence_first.py`, `pipeline_quality.py`, `pipeline_errors.py`). Hard size limits from AGENTS.md apply: 500-line soft trigger, 800-line hard governance warning. When a flat file crosses 500 lines, the next task touching it must split it into either a subpackage directory or a prefix-grouped set of files. The choice between subpackage vs prefix-group is made per-subsystem based on whether the subsystem has internal shared state (subpackage) or is a pure function decomposition (prefix-group).
+- Why: The `application/` layer was never implemented on any branch. Both `main` and `dev` use `services/` exclusively. The pipeline split (2026-05-19) proved the prefix-group pattern works without introducing circular imports or extra abstraction. Adding an `application/` layer would create a third import level (`api/ → application/ → services/`) with no measurable benefit for a single-developer project. The existing subpackage pattern (`llm_provider/`, `ocr_engine/`) already handles complex subsystems that need internal shared state.
+- Rejected: Introducing `backend/app/application/` as a thin orchestration layer between `api/` and `services/`. The overhead of maintaining a separate layer that only delegates is not justified when `pipeline.py` already serves as the orchestrator and the API routers are intentionally thin.
+- Status: active
+- Revisit when: A second developer joins and needs clearer ownership boundaries between orchestration and domain logic; or the project grows beyond 30 service modules and the flat listing becomes hard to navigate; or a real use case emerges where the same orchestration logic needs to be called from both the API layer and a CLI/worker without code duplication.
 
 ## 2026-05-18 - rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups
 

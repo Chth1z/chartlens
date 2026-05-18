@@ -44,12 +44,13 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 
 ## E0 — Governance and Structural Prerequisites
 
-### E0-001 — Decide application/ vs services/ flat layout
+### E0-001 — Decide application/ vs services/ flat layout (done 2026-05-19)
 
 - Goal: resolve whether `backend/app/` adopts an `application/` orchestration layer or formalizes `services/` subpackages with hard size limits. Record the decision in `docs/DECISIONS.md` before any code reorganization. Already tracked as a `PLAN.md` task; this entry holds the roadmap context.
 - Acceptance: `docs/DECISIONS.md` has a dated decision; no code change in this task.
 - Prerequisites: none.
 - Reference: none. Internal architecture decision.
+- Outcome: formalized `services/` subpackages. Complex subsystems get subpackage directories; simpler modules use flat-file-with-prefix pattern. No `application/` layer. Anchor: `docs/DECISIONS.md` 2026-05-19.
 
 ### E0-002 — Alembic migration baseline
 

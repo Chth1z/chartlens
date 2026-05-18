@@ -100,3 +100,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - ROADMAP E1-011 Phase 3. Real `collect_evidence` for `AnthropicMessagesProvider` and `GoogleGeminiProvider`. New `services/llm_provider/registry.py` replaces the if/elif chain in `fallback._provider_for_profile` with a data-driven dispatch table. Every concrete LLM adapter now has a real evidence-first remote call. Privacy boundary preserved. Registry knows 4 adapter kinds with declared `llm_mode` sets. Backend tests 326 → 340.
 - Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 3; AGENTS.md "Architecture Boundaries" explicit-delegation rule.
+
+### done PLAN-mock-general-phase-A (2026-05-18)
+
+- Extended `mock_general` to cover `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Rule-only baseline rose from 1.0/54 to 1.0/72 on 10 fixtures. New `eval-mock-009` (urban) and `eval-mock-010` (rural) plus extended gold on `eval-mock-005` for the unknown path. Privacy boundary pinned by `test_phase_a_address_redaction_holds_in_deidentified_ir`.
+- Anchor: `docs/FIELD_COVERAGE.md` Phase A section; ROADMAP E1-010 Phase A.
