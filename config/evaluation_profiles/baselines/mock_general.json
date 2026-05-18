@@ -13,60 +13,60 @@
       "max_input_tokens_per_case": 1200,
       "max_input_tokens_per_accepted_field": 500
     },
-    "gold_case_count": 16,
+    "gold_case_count": 19,
     "semantic_provider_kind": "rule"
   },
   "summary": {
-    "total_fields": 126,
-    "correct": 125,
-    "auto_accept_count": 115,
-    "auto_accept_correct": 115,
+    "total_fields": 159,
+    "correct": 153,
+    "auto_accept_count": 142,
+    "auto_accept_correct": 139,
     "unknown_misfills": 0,
-    "expected_unknown": 6,
-    "predicted_non_unknown": 119,
-    "evidence_covered": 119,
+    "expected_unknown": 7,
+    "predicted_non_unknown": 149,
+    "evidence_covered": 149,
     "input_tokens": 0,
     "output_tokens": 0,
     "cost_usd": 0.0,
-    "case_count": 16,
-    "evaluated_case_count": 16,
+    "case_count": 19,
+    "evaluated_case_count": 19,
     "blocked_case_count": 0,
-    "accuracy": 0.9920634920634921,
-    "auto_accept_precision": 1.0,
+    "accuracy": 0.9622641509433962,
+    "auto_accept_precision": 0.9788732394366197,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
     "tokens_per_case": 0.0,
     "tokens_per_accepted_field": 0.0,
     "field_tags": {
       "demographics": {
-        "total": 38,
-        "correct": 38,
-        "auto_accept_count": 34,
-        "auto_accept_correct": 34,
+        "total": 44,
+        "correct": 44,
+        "auto_accept_count": 40,
+        "auto_accept_correct": 40,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "history": {
-        "total": 40,
-        "correct": 40,
-        "auto_accept_count": 40,
-        "auto_accept_correct": 40,
+        "total": 46,
+        "correct": 46,
+        "auto_accept_count": 46,
+        "auto_accept_correct": 46,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "chronic_disease": {
-        "total": 40,
-        "correct": 40,
-        "auto_accept_count": 40,
-        "auto_accept_correct": 40,
+        "total": 46,
+        "correct": 46,
+        "auto_accept_count": 46,
+        "auto_accept_correct": 46,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
       "lifestyle": {
-        "total": 32,
-        "correct": 32,
-        "auto_accept_count": 32,
-        "auto_accept_correct": 32,
+        "total": 38,
+        "correct": 38,
+        "auto_accept_count": 38,
+        "auto_accept_correct": 38,
         "accuracy": 1.0,
         "auto_accept_precision": 1.0
       },
@@ -85,10 +85,34 @@
         "auto_accept_correct": 7,
         "accuracy": 0.9166666666666666,
         "auto_accept_precision": 1.0
+      },
+      "surgery": {
+        "total": 3,
+        "correct": 3,
+        "auto_accept_count": 0,
+        "auto_accept_correct": 0,
+        "accuracy": 1.0,
+        "auto_accept_precision": 0.0
+      },
+      "timeline": {
+        "total": 6,
+        "correct": 6,
+        "auto_accept_count": 5,
+        "auto_accept_correct": 5,
+        "accuracy": 1.0,
+        "auto_accept_precision": 1.0
+      },
+      "discharge": {
+        "total": 6,
+        "correct": 1,
+        "auto_accept_count": 4,
+        "auto_accept_correct": 1,
+        "accuracy": 0.16666666666666666,
+        "auto_accept_precision": 0.25
       }
     },
     "ocr_quality_bands": {
-      "good": 16
+      "good": 19
     }
   },
   "cases": [
@@ -2118,6 +2142,486 @@
           "has_evidence": false,
           "review_required": true,
           "error_code": "NOT_MENTIONED"
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-017",
+      "status": "evaluated",
+      "total_fields": 11,
+      "correct": 9,
+      "accuracy": 0.8181818181818182,
+      "precision": 0.8181818181818182,
+      "recall": 0.8181818181818182,
+      "auto_accept_count": 10,
+      "auto_accept_correct": 8,
+      "auto_accept_precision": 0.8,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 11,
+      "evidence_covered": 11,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "surgery_present",
+        "timeline_present",
+        "discharge_alive",
+        "history_mixed",
+        "lifestyle_negative"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 137,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "2",
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "58",
+          "actual": "58",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "surgery_method",
+          "expected": "介入栓塞术",
+          "actual": "介入栓塞术",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": null
+        },
+        {
+          "field_key": "onset_to_admission_time",
+          "expected": "3小时",
+          "actual": "3小时",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "admission_to_surgery_time",
+          "expected": "2天",
+          "actual": "2天",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "in_hospital_death",
+          "expected": "0",
+          "actual": "1",
+          "correct": false,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "transfer",
+          "expected": "0",
+          "actual": "1",
+          "correct": false,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-018",
+      "status": "evaluated",
+      "total_fields": 11,
+      "correct": 9,
+      "accuracy": 0.8181818181818182,
+      "precision": 1.0,
+      "recall": 0.8181818181818182,
+      "auto_accept_count": 8,
+      "auto_accept_correct": 8,
+      "auto_accept_precision": 1.0,
+      "unknown_misfills": 0,
+      "expected_unknown": 0,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 9,
+      "evidence_covered": 9,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "surgery_present",
+        "timeline_present",
+        "discharge_death",
+        "history_positive",
+        "lifestyle_positive"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 126,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "72",
+          "actual": "72",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "surgery_method",
+          "expected": "开颅夹闭术",
+          "actual": "开颅夹闭术",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": null
+        },
+        {
+          "field_key": "onset_to_admission_time",
+          "expected": "2天",
+          "actual": "2天",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "admission_to_surgery_time",
+          "expected": "3天",
+          "actual": "3天",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "in_hospital_death",
+          "expected": "1",
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "CONFLICT"
+        },
+        {
+          "field_key": "transfer",
+          "expected": "0",
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
+        }
+      ]
+    },
+    {
+      "case_id": "eval-mock-019",
+      "status": "evaluated",
+      "total_fields": 11,
+      "correct": 10,
+      "accuracy": 0.9090909090909091,
+      "precision": 0.9,
+      "recall": 0.9,
+      "auto_accept_count": 9,
+      "auto_accept_correct": 8,
+      "auto_accept_precision": 0.8888888888888888,
+      "unknown_misfills": 0,
+      "expected_unknown": 1,
+      "unknown_misfill_rate": 0.0,
+      "predicted_non_unknown": 10,
+      "evidence_covered": 10,
+      "evidence_coverage": 1.0,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cost_usd": 0.0
+      },
+      "tags": [
+        "demographics",
+        "surgery_conservative",
+        "timeline_present",
+        "discharge_transfer",
+        "history_negative",
+        "lifestyle_negative"
+      ],
+      "ocr_quality": {
+        "quality_band": "good",
+        "page_quality": [
+          {
+            "page": 1,
+            "kind": "plain_text",
+            "char_count": 119,
+            "avg_confidence": 0.98,
+            "quality_band": "good",
+            "cache_status": "not_applicable",
+            "engine": "plain_text"
+          }
+        ],
+        "ocr_engine": null,
+        "ocr_cache_status": null
+      },
+      "fields": [
+        {
+          "field_key": "gender",
+          "expected": "2",
+          "actual": "2",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "age",
+          "expected": "65",
+          "actual": "65",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "hypertension_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "diabetes_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "smoking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "drinking_history",
+          "expected": "0",
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "surgery_method",
+          "expected": "保守治疗",
+          "actual": "保守治疗",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": true,
+          "review_required": true,
+          "error_code": null
+        },
+        {
+          "field_key": "onset_to_admission_time",
+          "expected": "1周",
+          "actual": "1周",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "admission_to_surgery_time",
+          "expected": "unknown",
+          "actual": "unknown",
+          "correct": true,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
+        },
+        {
+          "field_key": "in_hospital_death",
+          "expected": "0",
+          "actual": "1",
+          "correct": false,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
+        },
+        {
+          "field_key": "transfer",
+          "expected": "1",
+          "actual": "1",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
         }
       ]
     }

@@ -25,6 +25,11 @@ field_tags:
   wfns_grade: [score]
   fisher_grade: [score]
   mrs_score: [score]
+  surgery_method: [surgery]
+  onset_to_admission_time: [timeline]
+  admission_to_surgery_time: [timeline]
+  in_hospital_death: [discharge]
+  transfer: [discharge]
 thresholds:
   auto_accept_precision: 0.95
   evidence_coverage: 1.0
@@ -245,3 +250,52 @@ gold_cases:
       wfns_grade: unknown
       fisher_grade: unknown
       mrs_score: unknown
+  - case_id: eval-mock-017
+    # Phase E+F+G coverage case: surgery (介入栓塞术), onset-to-admission
+    # (3小时), admission-to-surgery (2天), discharge (好转, 未转诊).
+    tags: [demographics, surgery_present, timeline_present, discharge_alive, history_mixed, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "58"
+      hypertension_history: "1"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+      surgery_method: "介入栓塞术"
+      onset_to_admission_time: "3小时"
+      admission_to_surgery_time: "2天"
+      in_hospital_death: "0"
+      transfer: "0"
+  - case_id: eval-mock-018
+    # Phase E+F+G coverage case: surgery (开颅夹闭术), onset-to-admission
+    # (2天), admission-to-surgery (3天), discharge (死亡).
+    tags: [demographics, surgery_present, timeline_present, discharge_death, history_positive, lifestyle_positive]
+    gold:
+      gender: "1"
+      age: "72"
+      hypertension_history: "1"
+      diabetes_history: "1"
+      smoking_history: "1"
+      drinking_history: "1"
+      surgery_method: "开颅夹闭术"
+      onset_to_admission_time: "2天"
+      admission_to_surgery_time: "3天"
+      in_hospital_death: "1"
+      transfer: "0"
+  - case_id: eval-mock-019
+    # Phase E+F+G coverage case: conservative treatment (保守治疗),
+    # onset-to-admission (1周), no surgery (admission_to_surgery unknown),
+    # discharge (好转, 转上级医院).
+    tags: [demographics, surgery_conservative, timeline_present, discharge_transfer, history_negative, lifestyle_negative]
+    gold:
+      gender: "2"
+      age: "65"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      smoking_history: "0"
+      drinking_history: "0"
+      surgery_method: "保守治疗"
+      onset_to_admission_time: "1周"
+      admission_to_surgery_time: unknown
+      in_hospital_death: "0"
+      transfer: "1"

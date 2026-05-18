@@ -37,8 +37,8 @@ These are the live precision baselines that any E1 task must beat or match. They
 
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 0.992 (125/126) | 1.0 (125/125) | 1.0 (125/125) | 0.0 | 16 synthetic cases. Last update 2026-05-19 by E1-010 Phase D (added score grades; total_fields 96 → 126). One known gap: mrs_score eval-mock-015 binary-history conflict. Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
-| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 0.992 (125/126) | 1.0 (125/125) | 1.0 (125/125) | 0.0 | 16 synthetic cases. Last update 2026-05-19 by E1-010 Phase D. Same mrs_score conflict as rule path. Token cost 53,160 input / 14,652 output. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 0.962 (153/159) | 0.979 | 1.0 | 0.0 | 19 synthetic cases. Last update 2026-05-19 by E1-010 Phase E+F+G (added surgery_method, timeline, discharge; total_fields 126 → 159). 6 known rule-path gaps on llm_semantic and computed_from_facts fields. Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
+| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 0.962 (153/159) | 1.0 | 1.0 | 0.0 | 19 synthetic cases. Last update 2026-05-19 by E1-010 Phase E+F+G. Different failure pattern from rule (timeline uses rules only; urban_residence derivation regression). Token cost 251,835 input / 23,898 output. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 
