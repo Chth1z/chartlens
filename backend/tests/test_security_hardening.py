@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.api import routes
+from app.api.routes import cases as routes
 from app.core import database
 from app.core.database import CaseRecord, FieldResultRecord, SessionLocal, json_loads
 from app.core.settings import settings

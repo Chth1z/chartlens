@@ -38,25 +38,32 @@ function Get-SourceFiles([string[]]$Roots, [string[]]$Includes) {
 
 # Backend API contract: frontend-facing JSON endpoints must expose response_model.
 # Streaming/file endpoints are intentionally excluded because they do not return JSON contracts.
-$routesPath = Join-Path $RepoRoot "backend\app\api\routes.py"
+# The router is split across modules under backend/app/api/routes/, so scan every
+# Python file in backend/app/api/ for @router.<method>(...) decorators.
+$apiRoot = Join-Path $RepoRoot "backend\app\api"
 $streamingRouteAllowlist = @(
     '"/cases/{case_id}/source-pages/{page}"',
     '"/cases/{case_id}/export"'
 )
-if (Test-Path -LiteralPath $routesPath) {
-    $lines = Get-Content -LiteralPath $routesPath
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i].Trim()
-        if ($line -match '^@router\.(get|post|patch|delete|put)\(' -and $line -notmatch 'response_model=') {
-            $isAllowed = $false
-            foreach ($allowed in $streamingRouteAllowlist) {
-                if ($line.Contains($allowed)) {
-                    $isAllowed = $true
-                    break
+if (Test-Path -LiteralPath $apiRoot) {
+    $apiPyFiles = Get-ChildItem -LiteralPath $apiRoot -Recurse -File -Filter "*.py" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\__pycache__\\' }
+    foreach ($apiFile in $apiPyFiles) {
+        $lines = @(Get-Content -LiteralPath $apiFile.FullName)
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($null -eq $lines[$i]) { continue }
+            $line = $lines[$i].Trim()
+            if ($line -match '^@router\.(get|post|patch|delete|put)\(' -and $line -notmatch 'response_model=') {
+                $isAllowed = $false
+                foreach ($allowed in $streamingRouteAllowlist) {
+                    if ($line.Contains($allowed)) {
+                        $isAllowed = $true
+                        break
+                    }
                 }
-            }
-            if (-not $isAllowed) {
-                Add-Violation ("backend/app/api/routes.py:{0}: route decorator missing response_model: {1}" -f ($i + 1), $line)
+                if (-not $isAllowed) {
+                    Add-Violation ("{0}:{1}: route decorator missing response_model: {2}" -f (Relative-Path $apiFile.FullName), ($i + 1), $line)
+                }
             }
         }
     }

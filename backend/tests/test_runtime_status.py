@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import settings
 from app.main import app
-from app.api import routes as api_routes
+from app.api.routes import system as api_routes
 from app.services.runtime_status import build_ocr_runtime_status, sidecar_health_url
 
 

@@ -120,3 +120,7 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - ROADMAP E1-010 Phase B. Extended `mock_general` to cover `tumor_history`. Rule-only baseline rose from 1.0 (72/72) to 1.0 (80/80) on 11 fixtures. New `eval-mock-011` (explicit positive: `恶性肿瘤病史3年` → `tumor_history="1"`) plus extended gold on `eval-mock-007` (implicit-negative: `既往史：无特殊` → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80); token cost 26,406 input / 7,946 output. `mock_general.yaml` `field_tags` includes `tumor_history`; `test_eval_fixtures.py` fixture count updated to 11. Coverage: 12/22 schema fields.
 - Anchor: `docs/FIELD_COVERAGE.md` Phase B; ROADMAP E1-010 Phase B.
+### done PLAN-split-pipeline.py (2026-05-21)
+
+- Split `backend/app/services/pipeline.py` (526 lines) into `pipeline.py` (300, orchestrator), `pipeline_evidence_first.py` (235, evidence-first extraction flow), `pipeline_quality.py` (58, quality summary helpers), and `pipeline_errors.py` (17, error formatting). Pure refactor with no behavior change; all 344 backend tests passed; rule and LLM `mock_general` baselines stayed at 1.0 (80/80); frontend tests and build passed; governance scan cleared the soft-trigger warning for every pipeline file.
+- Anchor: AGENTS.md 500-line soft trigger rule.

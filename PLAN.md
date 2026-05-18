@@ -109,6 +109,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-routes (2026-05-19)
+
+- Goal: Reduce the 780-line `backend/app/api/routes.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
+- Outcome: Pure structural refactor, no API contract change. Replaced the monolithic file with `backend/app/api/routes/`: `__init__.py` (32) re-exports the unified `router` plus the legacy `_pdf_source_render_scale` helper that `test_api_smoke.py` imports; `_helpers.py` (229) holds every private helper function; `health.py` (131) owns health/config/auth-status/field-dictionary; `models.py` (78) owns model profile and provider routes plus `ModelSelectionPayload` / `ActiveProviderModelPayload`; `cases.py` (188) owns the case CRUD plus `VisionFallbackRequestPayload`; `diagnostics.py` (23) owns `/cases/{case_id}/diagnostics`; `system.py` (197) owns project-config / system / runtime / maintenance routes; `evaluations.py` (74) owns the eval routes plus `BatchEvaluationCasePayload` / `BatchEvaluationPayload`. The governance scan was updated to walk the entire `backend/app/api/` tree for `@router.<method>(...)` decorators missing `response_model=` instead of hardcoding `routes.py`. Two tests that monkey-patched `app.api.routes.{enqueue_case, build_runtime_services}` now patch the actual sub-modules (`routes.cases`, `routes.system`). All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; total `app.routes` count 40 unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done E0-006 Split model_providers.py (2026-05-19)
 
 - Goal: Reduce the 659-line `backend/app/services/model_providers.py` to a focused subpackage with each module ≤ 300 lines.
@@ -133,16 +139,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Decision recorded in `docs/DECISIONS.md` 2026-05-19: formalize `services/` subpackages as the canonical backend layout. No `application/` layer. Complex subsystems get subpackage directories (`llm_provider/`, `ocr_engine/`); simpler modules use flat-file-with-prefix pattern (`pipeline_*.py`). Hard size limits from AGENTS.md apply. This unblocks E0-004 (provider split), E0-005 (OCR boundary), E0-006 (model_providers split).
 - Anchor: `docs/DECISIONS.md` 2026-05-19 "Formalize services/ subpackages as the canonical backend layout".
 
-### done PLAN-split-pipeline.py (2026-05-21)
-
-- Goal: Split `backend/app/services/pipeline.py` (526 lines) into smaller modules to satisfy the AGENTS.md 500-line soft trigger.
-- Outcome: Pure refactor, no behavior change. Split into `pipeline.py` (300 lines, orchestrator), `pipeline_evidence_first.py` (235 lines, evidence-first extraction flow), `pipeline_quality.py` (58 lines, quality summary helpers), `pipeline_errors.py` (17 lines, error formatting). All 344 backend tests pass; rule baseline 1.0 (80/80); LLM baseline 1.0 (80/80); frontend tests and build pass; governance scan passes (no large-file warning for any pipeline file).
-- Anchor: AGENTS.md 500-line soft trigger rule.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-25: PLAN-split-pipeline.py (2026-05-21).
 - 2026-05-24: PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20).
 - 2026-05-23: PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19).
 - 2026-05-22: E1-005 rule_pre_accepted shortcut (2026-05-18).
