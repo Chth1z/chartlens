@@ -176,7 +176,7 @@ assert(
   "source image metrics and failed preview state must reset when a case is reprocessed with new OCR DPI or bboxes"
 );
 
-const styles = readFileSync("src/styles.css", "utf-8");
+const styles = readFileSync("src/styles/document.css", "utf-8");
 const ocrImageBoxRule = styles.match(/\.ocr-image-box\s*\{(?<body>[\s\S]*?)\n\}/)?.groups?.body ?? "";
 assert(
   ocrImageBoxRule.includes("background: transparent"),

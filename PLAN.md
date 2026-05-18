@@ -25,14 +25,14 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo PLAN-split-styles-css
+### todo Add database migration baseline before schema expansion
 
-- Goal: Split `frontend/src/styles.css` (currently 3211 lines) into feature-scoped stylesheets that match the `frontend/src/features/` layout. Aim for ≤ 800 lines per file. Suggested split: a base/reset module, an evidence panel module, a settings module, a diagnostics module, and a review module. Use CSS imports or component-level imports, not a runtime concatenation step.
-- Out of scope: No visual change. No design-system or Tailwind migration in this task.
-- Acceptance commands: `cd frontend; npm test; npm run build`. Manual smoke: open the app, walk through cases, settings, diagnostics, and review and confirm visuals are unchanged.
-- Risk: Selectors that depend on rule order can break when split across files; verify by running the build and a smoke pass.
-- Trigger: AGENTS.md soft trigger at 500 lines plus hard governance warning at 800 lines; the file is currently the largest in the repository.
-- Done condition: Each new stylesheet ≤ 800 lines, the governance scan reports no large-file warning for `frontend/src/styles.css`, and the existing 9 frontend tests pass.
+- Goal: Replace the manual `Base.metadata.create_all(...)` plus ad hoc `_ensure_sqlite_columns` `ALTER TABLE` path with an Alembic migration baseline. Startup runs `alembic upgrade head`. Fresh DB and existing DB go through the same path.
+- Out of scope: No move to Postgres. No schema additions in this task.
+- Acceptance commands: `python -m pytest backend\tests`; manually verify a fresh `var/storage/eyex.sqlite3` is created on first run and an existing one upgrades without manual SQL.
+- Risk: Manual `create_all` and ad hoc `ALTER` will become unsafe as review, eval, and job history grow.
+- Trigger: Before adding the next persistent table or non-null column.
+- Done condition: `alembic` is in `requirements.txt`, baseline migration captures all 7 current tables, startup runs migrations, and the manual `_ensure_sqlite_columns` shim is deleted.
 
 ### todo Add database migration baseline before schema expansion
 
@@ -127,6 +127,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-styles-css (2026-05-22)
+
+- Goal: Split `frontend/src/styles.css` (3726 lines) into feature-scoped stylesheets ≤ 800 lines each.
+- Outcome: Pure structural refactor, no visual change. Split into 10 files under `frontend/src/styles/`: `base.css` (109), `layout.css` (428), `cases.css` (182), `evidence.css` (256), `document.css` (785), `review.css` (429), `settings.css` (592), `providers.css` (269), `diagnostics.css` (253), `components.css` (422). Original `styles.css` replaced with a 10-line barrel using CSS `@import`. Updated `ocrSourceDebug.test.ts` to read from the correct split file. All 9 frontend tests pass; build succeeds; governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500/800-line ceiling rule.
+
 ### done Decide application/ vs services/ flat layout (2026-05-19)
 
 - Goal: Resolve the pending architecture decision. Either restore `backend/app/application/` or formalize `backend/app/services/` subpackages.
@@ -151,16 +157,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Two new prompt sections added to the cacheable prefix: "evidence_text 必须为引用 block 的连续子串" (with the `否认高血压病、糖尿病、冠心病等病史` verbatim-clause example) and "normalized_code 不是类型占位符" (with hospital/numeric concrete examples). JSON schema `evidence_text` and `normalized_code` fields gain `description` strings mirroring the rules. LLM-assisted `mock_general` baseline rises from 0.9861 (71/72) to 1.0 (72/72) deterministically — 3/3 cache-cleared runs hit 1.0. Token cost on the committed run: 52,674 input / 12,985 output (vs. prior 73,037/19,743 on the E1-005 chosen run; -28% input, -34% output). Backend tests 343 → 344 (new `test_v3_prompt_requires_substring_evidence_text`). Cacheable prefix byte-stability preserved (test passes).
 - Anchor: ROADMAP E1-001 outcome line updated; `docs/FIELD_COVERAGE.md` Phase A note updated.
 
-### done E1-005 rule_pre_accepted shortcut (2026-05-18)
-
-- Goal: ROADMAP E1-005. Wire the long-open `rule_pre_accepted` shortcut in `_extract_document_evidence_first` so phase-1 fields whose group has `semantic_strategy: rule_shortcut` AND `rule_shortcut_extract` returns confidence >= 0.95 bypass the LLM evidence-first chain entirely. Tag bypassed candidates with `acceptance_reason="rule_pre_accepted"`, `provenance.source="rule_shortcut"`, `provenance.skipped_llm=True`, `provenance.decision_status="PASS"`. Close the `eval-mock-003 / age` LLM gap surfaced by E1-010 Phase A.
-- Outcome: implemented as a partition step at the top of `_extract_document_evidence_first`. `rule_shortcut_candidates` collects pre-accepted hits via `rule_candidate.model_copy(update=...)`; `llm_fields` is what gets passed to `evidence_provider.collect_evidence` and downstream stages. After LLM stages, `rule_shortcut_candidates` is merged in (rule wins). Export gate preserved by stamping `provenance.decision_status="PASS"` on rule candidates. Backend tests rise 342 → 343. LLM-assisted `mock_general` baseline rises from 0.9722 (70/72) to 0.9861 (71/72) on the chosen baseline run; across 5 cache-cleared runs the spread is 70-72/72 with `age` deterministically PASS in every run. Token cost on the chosen run is 73,037 input / 19,743 output.
-- Anchor: `docs/DECISIONS.md` 2026-05-18 "rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups"; AGENTS.md "Architecture Boundaries".
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-22: E1-005 rule_pre_accepted shortcut (2026-05-18).
 - 2026-05-19: PLAN-mock-general-phase-A (2026-05-18).
 - 2026-05-21: PLAN-llm-provider-phase-3 (2026-05-18).
 - 2026-05-20: E1-001 evidence-first prompt rewrite (2026-05-18).

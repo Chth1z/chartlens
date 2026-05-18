@@ -105,3 +105,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Extended `mock_general` to cover `hospital` (string free-text) and `urban_residence` (enum derived from address pre-redaction). Rule-only baseline rose from 1.0/54 to 1.0/72 on 10 fixtures. New `eval-mock-009` (urban) and `eval-mock-010` (rural) plus extended gold on `eval-mock-005` for the unknown path. Privacy boundary pinned by `test_phase_a_address_redaction_holds_in_deidentified_ir`.
 - Anchor: `docs/FIELD_COVERAGE.md` Phase A section; ROADMAP E1-010 Phase A.
+
+### done E1-005 rule_pre_accepted shortcut (2026-05-18)
+
+- Wired the `rule_pre_accepted` shortcut in `_extract_document_evidence_first` so phase-1 fields whose group has `semantic_strategy: rule_shortcut` AND `rule_shortcut_extract` returns confidence >= 0.95 bypass the LLM evidence-first chain entirely. Bypassed candidates carry `acceptance_reason="rule_pre_accepted"`, `provenance.source="rule_shortcut"`, `provenance.skipped_llm=True`, `provenance.decision_status="PASS"`. Backend tests 342 → 343. LLM-assisted `mock_general` baseline rose from 0.9722 (70/72) to 0.9861 (71/72).
+- Anchor: `docs/DECISIONS.md` 2026-05-18 "rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups"; AGENTS.md "Architecture Boundaries".

@@ -1,0 +1,109 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  color: var(--text-strong);
+  background: var(--canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  --canvas: #f1f5f3;
+  --canvas-subtle: #e4ece8;
+  --surface: #fffefa;
+  --surface-soft: #f6faf8;
+  --surface-strong: #f0f6f3;
+  --surface-inset: #eaf1ee;
+  --border: #d5e1dc;
+  --border-strong: #b8ccc5;
+  --text-strong: #14211e;
+  --text: #263833;
+  --text-muted: #657670;
+  --text-faint: #7b8a85;
+  --brand: #0c5f58;
+  --brand-strong: #084d48;
+  --brand-soft: #dcefe9;
+  --brand-muted: #edf8f5;
+  --accent: #b87912;
+  --accent-soft: #fff3d8;
+  --success: #0f684a;
+  --success-soft: #e6f5ed;
+  --warning: #8a5d07;
+  --warning-soft: #fff4d7;
+  --danger: #9a3d32;
+  --danger-soft: #fff0ed;
+  --focus: #176f8a;
+  --shadow-soft: 0 1px 2px rgba(20, 33, 30, 0.05), 0 10px 24px rgba(20, 33, 30, 0.04);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --control: 44px;
+  --sidebar-width: 304px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--canvas);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--canvas);
+  overflow-x: hidden;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus) 70%, transparent);
+  outline-offset: 2px;
+}
+
+button:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+svg {
+  flex: 0 0 auto;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
