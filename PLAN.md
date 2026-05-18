@@ -100,6 +100,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-ocr (2026-05-19)
+
+- Goal: Reduce the 532-line `backend/app/services/ocr.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 300 lines.
+- Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/ocr/`: `__init__.py` (13) re-exports the public API (`build_document_ir`, `file_sha256`) plus the test-monkeypatch surface (`extract_with_intelligent_ocr`, `_extract_pdf_text_pages`, `_ocr_cache_path`, `_ocr_extractor_cache_fingerprint`, `_extract_blocks`, `_extract_pdf_blocks`, `_extract_pdf_ocr_pages`, `_call_intelligent_ocr`); `blocks.py` (93) owns block construction and section detection (`_blocks_from_text_pages`, `_make_text_block`, `_renumber_blocks`, `_detect_section`, `_sections_from_blocks`, `_section_id`, `SECTION_SPLIT`); `cache.py` (117) owns cache I/O and fingerprinting (`_read_ocr_cache`, `_write_ocr_cache`, `_ocr_cache_path`, `_route_cache_engine_id`, `_active_ocr_cache_dimensions`, `_ocr_profile_options_fingerprint`, `_ocr_extractor_cache_fingerprint`, `_with_cache_status`, `_combined_cache_status`); `quality.py` (142) owns block annotation and per-page quality metrics plus the OCR debug metadata constants (`_annotate_ocr_blocks`, `_page_quality_from_blocks`, `_text_page_quality`, `_quality_band`, `_merge_ocr_debug_metadata`, `_ocr_unavailable_message`); `builder.py` (223) owns the public API and extraction orchestrator (`build_document_ir`, `file_sha256`, `_extract_blocks`, `_extract_pdf_blocks`, `_extract_pdf_ocr_pages`, `_extract_pdf_text_pages`, `_call_intelligent_ocr`). Dependency direction is acyclic (`blocks` and `cache` have no internal deps; `quality` is leaf; `builder` imports from all three; `__init__` imports from `builder` and `cache`). `_call_intelligent_ocr` and `_extract_pdf_blocks` look up `extract_with_intelligent_ocr` and `_extract_pdf_text_pages` via `app.services.ocr` at call time so existing test monkey-patches (`monkeypatch.setattr(ocr, "extract_with_intelligent_ocr", ...)` in `test_intelligent_ocr.py`, `test_core_business_optimization.py`, `test_next_step_optimization.py`) keep working without test changes; same trick on `_ocr_extractor_cache_fingerprint` so the fingerprint reflects the patched function. All 344 backend tests pass; rule baseline 0.9623 (153/159) reproduces byte-identically (`git diff` empty on the baseline JSON); frontend tests (9) and build pass; governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-split-evidence-first (2026-05-19)
 
 - Goal: Reduce the 571-line `backend/app/services/evidence_first.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
@@ -124,16 +130,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no API contract change. Replaced the monolithic file with `backend/app/api/routes/`: `__init__.py` (32) re-exports the unified `router` plus the legacy `_pdf_source_render_scale` helper that `test_api_smoke.py` imports; `_helpers.py` (229) holds every private helper function; `health.py` (131) owns health/config/auth-status/field-dictionary; `models.py` (78) owns model profile and provider routes plus `ModelSelectionPayload` / `ActiveProviderModelPayload`; `cases.py` (188) owns the case CRUD plus `VisionFallbackRequestPayload`; `diagnostics.py` (23) owns `/cases/{case_id}/diagnostics`; `system.py` (197) owns project-config / system / runtime / maintenance routes; `evaluations.py` (74) owns the eval routes plus `BatchEvaluationCasePayload` / `BatchEvaluationPayload`. The governance scan was updated to walk the entire `backend/app/api/` tree for `@router.<method>(...)` decorators missing `response_model=` instead of hardcoding `routes.py`. Two tests that monkey-patched `app.api.routes.{enqueue_case, build_runtime_services}` now patch the actual sub-modules (`routes.cases`, `routes.system`). All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; total `app.routes` count 40 unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings.
 - Anchor: AGENTS.md 500-line soft trigger rule.
 
-### done E0-006 Split model_providers.py (2026-05-19)
-
-- Goal: Reduce the 659-line `backend/app/services/model_providers.py` to a focused subpackage with each module ≤ 300 lines.
-- Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/model_providers/`: `types.py` (45), `catalog.py` (200), `settings_store.py` (45), `discovery.py` (121), `api.py` (282), `__init__.py` (29). `__init__.py` re-exports the public API plus `httpx`, `explicit_api_keys_for_profile`, and `_fetch_models` for monkey-patch backward compatibility (used by `test_model_profiles.py` and `test_security_hardening.py`). `_provider_state` and `fetch_provider_models` resolve those names via the package namespace at call time so test patches still take effect. All 344 backend tests pass; rule baseline 0.9623 (153/159) unchanged; frontend tests (9) and build pass; governance scan passes with no large-file warnings.
-- Anchor: AGENTS.md 500-line soft trigger rule; ROADMAP `E0-006`.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-29: E0-006 Split model_providers.py (2026-05-19).
 - 2026-05-28: E0-004 Split llm_provider adapters and payloads (2026-05-19).
 - 2026-05-27: PLAN-split-styles-css (2026-05-22).
 - 2026-05-26: Decide application/ vs services/ flat layout (2026-05-19).

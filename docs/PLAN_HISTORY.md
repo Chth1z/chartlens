@@ -139,3 +139,7 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Reduced `backend/app/services/llm_provider/adapters.py` (760 lines) and `payloads.py` (691 lines) below the AGENTS.md 500-line soft trigger. Replaced `adapters.py` with `adapters/` subpackage (openai_responses 143, openai_compatible 253, anthropic 202, gemini 197, __init__ 28). Extracted evidence-first payload helpers to `payloads_evidence_first.py` (380); kept `payloads.py` (335) for legacy/shared helpers with backward-compat re-exports. Pure refactor; rule baseline 0.9623 (153/159) unchanged; LLM baseline 0.9748 (155/159).
 - Anchor: AGENTS.md 500-line soft trigger rule.
+### done E0-006 Split model_providers.py (2026-05-19)
+
+- Reduced the 659-line `backend/app/services/model_providers.py` to a focused subpackage with each module ≤ 300 lines: `types.py` (45), `catalog.py` (200), `settings_store.py` (45), `discovery.py` (121), `api.py` (282), `__init__.py` (29). `__init__.py` re-exports the public API plus `httpx`, `explicit_api_keys_for_profile`, and `_fetch_models` for monkey-patch backward compatibility (used by `test_model_profiles.py` and `test_security_hardening.py`); `_provider_state` and `fetch_provider_models` resolve those names via the package namespace at call time so test patches still take effect. Pure refactor with no behavior change; all 344 backend tests passed; rule baseline 0.9623 (153/159) unchanged; frontend tests and build passed; governance scan cleared.
+- Anchor: AGENTS.md 500-line soft trigger rule; ROADMAP `E0-006`.
