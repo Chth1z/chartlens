@@ -25,15 +25,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo PLAN-llm-evidence-text-substring (E1-001 v3)
-
-- Goal: Tighten `_evidence_first_system_prompt` and the evidence-first JSON schema so that the LLM's `evidence_text` field MUST be a contiguous substring of the cited block's text. Closes the two LLM gaps surfaced by Phase A: `eval-mock-009 / hospital` returns `'text'` (LLM echoing the schema's `allowed_codes=[text, unknown]` placeholder) and `eval-mock-010 / diabetes_history` paraphrases `否认糖尿病` from the verbatim `否认高血压病、糖尿病、冠心病等病史`. Bump `EVIDENCE_FIRST_PROMPT_VERSION` to `v3` so cached results from v2 are auto-invalidated.
-- Out of scope: No change to `allowed_codes` schema literals. No retry loop (E1-003 territory). No prompt-cache prefix migration (E1-002 territory) — keep the cacheable prefix byte-stable so DeepSeek prompt-cache still hits.
-- Acceptance commands: `Remove-Item var\storage\llm_cache -Recurse -Force; python scripts\bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --unsafe-eval-allow-remote-context --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
-- Risk: Medium. A prompt rewrite could regress already-passing fields. Mitigations: Phase A privacy-redaction tests still run; the byte-stability test in `test_evidence_first_prompt.py` catches per-case leaks; the rule-only baseline 1.0/72 is the floor.
-- Trigger: ROADMAP E1-001 follow-up surfaced 2026-05-18; mock_general LLM baseline currently 0.9861 (71/72); the single failure pattern is the same family of placeholder-echo bug for both `hospital` and the `diabetes_history` paraphrase.
-- Done condition: prompt v3 explicitly requires `evidence_text` contiguous-substring of `text`; for string-type fields (`hospital`, free-text), prompt teaches that `normalized_code` must be the actual extracted value, not the type-class placeholder; new regression test `test_v3_prompt_requires_substring_evidence_text` pins the rule; LLM baseline reaches 1.0 (72/72) on at least 3 of 5 cache-cleared runs (i.e. variance shifts from "deterministic single failure" to "occasional variance"); `EVIDENCE_FIRST_PROMPT_VERSION = "eyex-evidence-first-v3"`; ROADMAP E1-001 outcome line dated 2026-05-19 (or whenever this lands) records the new baseline; DECISIONS.md gains a v3 entry only if a structural prompt-shape change beyond text-tightening lands.
-
 ### todo PLAN-mock-general-phase-B (tumor_history)
 
 - Goal: ROADMAP E1-010 Phase B. Extend `mock_general` to cover `tumor_history`. Reuse `eval-mock-007` (already has `既往史：无特殊` implicit-negative pattern) by adding `tumor_history: "0"` to its gold; add one new fixture (`eval-mock-011`) with explicit `恶性肿瘤史` for the positive path; optionally add `tumor_history: "0"` to `eval-mock-001` / `eval-mock-002` for explicit-negative coverage if their `否认...病史` clauses include it.
@@ -47,7 +38,7 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 - Goal: Split `backend/app/services/pipeline.py` (currently 526 lines, over the AGENTS.md 500-line soft trigger) along behavior boundaries. Suggested split: keep `pipeline.py` as the orchestrator (`process_case` + group dispatch); extract `pipeline_evidence_first.py` (the `_extract_document_evidence_first` flow including the 2026-05-18 `rule_pre_accepted` partition), `pipeline_quality.py` (page-quality summary, OCR-quality lookup), and `pipeline_errors.py` (formatting helpers like `_format_provider_failure`).
 - Out of scope: No business behavior change. No new field, no schema change. The export gate contract (`provenance.decision_status="PASS"`) and the `rule_pre_accepted` shortcut behavior must be preserved exactly.
-- Acceptance commands: `python -m pytest backend\tests` (343 must still pass); `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Both rule and LLM `mock_general` baselines must reproduce exactly (`accuracy=1.0` rule, `accuracy=0.9861` LLM on the chosen run).
+- Acceptance commands: `python -m pytest backend\tests` (344 must still pass); `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`. Both rule and LLM `mock_general` baselines must reproduce exactly (`accuracy=1.0` rule, `accuracy=1.0` LLM on the chosen run).
 - Risk: Medium. The pipeline composes several long-lived contracts (trace recording, provider call boundaries, the export gate). Module boundary changes can introduce circular imports or accidentally drop a `model_copy(update=...)` call. Mitigation: every behavior path covered by the existing 343 tests; baseline reproduction is the hard contract.
 - Trigger: AGENTS.md "the next task touching this file must include a split" — `pipeline.py` crossed 500 lines on 2026-05-18 with E1-005 rule_pre_accepted. Any further pipeline-touching feature work must do the split first.
 - Done condition: each new file ≤ 500 lines; `pipeline.py` itself ≤ 500 lines; governance scan reports no large-file warning for any of the new files; backend and frontend tests both pass; both `mock_general` baselines reproduce identically.
@@ -163,6 +154,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19)
+
+- Goal: Tighten `_evidence_first_system_prompt` and the evidence-first JSON schema so that `evidence_text` MUST be a contiguous substring of the cited block's text, and `normalized_code` for free-text/numeric fields MUST be the actual extracted value, never a type-class placeholder like `'text'` or `'integer'`. Bump `EVIDENCE_FIRST_PROMPT_VERSION` to `eyex-evidence-first-v3`.
+- Outcome: Two new prompt sections added to the cacheable prefix: "evidence_text 必须为引用 block 的连续子串" (with the `否认高血压病、糖尿病、冠心病等病史` verbatim-clause example) and "normalized_code 不是类型占位符" (with hospital/numeric concrete examples). JSON schema `evidence_text` and `normalized_code` fields gain `description` strings mirroring the rules. LLM-assisted `mock_general` baseline rises from 0.9861 (71/72) to 1.0 (72/72) deterministically — 3/3 cache-cleared runs hit 1.0. Token cost on the committed run: 52,674 input / 12,985 output (vs. prior 73,037/19,743 on the E1-005 chosen run; -28% input, -34% output). Backend tests 343 → 344 (new `test_v3_prompt_requires_substring_evidence_text`). Cacheable prefix byte-stability preserved (test passes).
+- Anchor: ROADMAP E1-001 outcome line updated; `docs/FIELD_COVERAGE.md` Phase A note updated.
+
 ### done E1-005 rule_pre_accepted shortcut (2026-05-18)
 
 - Goal: ROADMAP E1-005. Wire the long-open `rule_pre_accepted` shortcut in `_extract_document_evidence_first` so phase-1 fields whose group has `semantic_strategy: rule_shortcut` AND `rule_shortcut_extract` returns confidence >= 0.95 bypass the LLM evidence-first chain entirely. Tag bypassed candidates with `acceptance_reason="rule_pre_accepted"`, `provenance.source="rule_shortcut"`, `provenance.skipped_llm=True`, `provenance.decision_status="PASS"`. Close the `eval-mock-003 / age` LLM gap surfaced by E1-010 Phase A.
@@ -186,12 +183,6 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Goal: Rewrite `_evidence_first_system_prompt` so it teaches the LLM to honor field-level `evidence_policy.implicit_negative_policy` and `allowed_codes` instead of falling back to a generic "missing means unknown" default. Close the 4 known LLM failures on `eval-mock-007` (`既往史：无特殊` interpreted as unknown rather than 0).
 - Outcome: mock_general LLM baseline rises from 0.9259 to 1.0 (50/54 → 54/54) AND token cost drops from 72372/18757 to 37792/11170 (-47.8% input, -40.4% output). Cacheable prefix is byte-stable; `EVIDENCE_FIRST_PROMPT_VERSION` bumped from `eyex-evidence-first-v1` to `eyex-evidence-first-v2` so cached results from the old prompt auto-invalidate. New `backend/tests/test_evidence_first_prompt.py` (8 tests). Backend tests 318 → 326. Open follow-up: 2026-05-18 E1-010 Phase A surfaced an `evidence_text` paraphrase gap that v3 must close (tracked in active todo `PLAN-llm-evidence-text-substring`).
 - Anchor: `docs/DECISIONS.md` 2026-05-18 "Evidence-first prompt promotes field-level policy above generic rules"; ROADMAP E1-001.
-
-### done PLAN-llm-provider-phase-2 (2026-05-18)
-
-- Goal: ROADMAP E1-011 Phase 2. Implement `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom call `/chat/completions` with `response_format: json_object` and the evidence-first JSON schema.
-- Outcome: real implementation lands. New `_chat_completions_evidence_first_payload` helper in `services/llm_provider/payloads.py` with byte-stable cacheable prefix. Adapter degrades gracefully to `local_collect_evidence_fallback` on permanent error, missing response, or malformed JSON; rate-limit / timeout enters per-key cooldown. Process-local exposure-policy override (`set_runtime_exposure_policy_override`) added so the eval bootstrap can opt into full-context exposure for synthetic fixtures via the new `--unsafe-eval-allow-remote-context` flag without modifying the medical schema's `safe_evidence_only` default. New `mock_general_llm.json` baseline at `accuracy=0.9259` (50/54), `input_tokens=72372`, `output_tokens=18757` against DeepSeek v4-flash. The 4 failures cluster on `eval-mock-007` implicit-negative — the E1-001 prompt-rewrite target.
-- Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 2; ROADMAP E1-011.
 
 ## Older Done Entries
 

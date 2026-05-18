@@ -38,7 +38,7 @@ These are the live precision baselines that any E1 task must beat or match. They
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (72/72) | 1.0 (72/72) | 1.0 (72/72) | 0.0 | 10 synthetic cases. Last update 2026-05-18 by E1-010 Phase A (added `hospital`, `urban_residence`; total_fields 54 → 72). Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
-| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 0.9861 (71/72) | 1.0 (67/67) | 1.0 (67/67) | 0.0 | 10 synthetic cases. Last update 2026-05-18 by E1-005 `rule_pre_accepted` (closed the `eval-mock-003 / age` LLM gap deterministically; baseline 0.9722 → 0.9861). Residual single failure is `eval-mock-009 / hospital` paraphrase, the v3 prompt-rewrite target. Token cost 73,037 input / 19,743 output on the chosen run. Anchor: `docs/DECISIONS.md` 2026-05-18 "rule_pre_accepted shortcut bypasses LLM". |
+| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 1.0 (72/72) | 1.0 (68/68) | 1.0 (70/70) | 0.0 | 10 synthetic cases. Last update 2026-05-19 by E1-001 v3 prompt rewrite (closed `eval-mock-009 / hospital` placeholder echo and `eval-mock-010 / diabetes_history` paraphrase; baseline 0.9861 → 1.0 deterministically, 3/3 cache-cleared runs). Token cost 52,674 input / 12,985 output on the committed run (-28% input vs. prior). Anchor: `PLAN.md` Done "PLAN-llm-evidence-text-substring". |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 
@@ -111,6 +111,7 @@ The mock profile uses rule-only extraction so the baseline is deterministic and 
 - Reference: olmOCR 2 unit-test verifier pattern; biomedical IE arxiv 2408.12249 finding that CoT degrades clinical extraction; DeepSeek context-caching docs (90% cost cut on cached prefixes). See `docs/REFERENCE_PROJECTS.md`.
 - Outcome: mock_general LLM baseline 0.9259 → 1.0 (50/54 → 54/54); input tokens -47.8%, output -40.4%; `EVIDENCE_FIRST_PROMPT_VERSION` bumped to `eyex-evidence-first-v2`. Anchor: `docs/DECISIONS.md` 2026-05-18 "Evidence-first prompt promotes field-level policy above generic rules"; `PLAN.md` Done.
 - Open follow-up: E1-010 Phase A surfaced an `evidence_text` paraphrase gap that the v2 prompt does not enforce as contiguous-substring; v3 work is tracked as the active todo `PLAN-llm-evidence-text-substring` in `PLAN.md`.
+- v3 outcome (2026-05-19): `EVIDENCE_FIRST_PROMPT_VERSION` bumped to `eyex-evidence-first-v3`. Two new prompt sections (contiguous-substring rule + placeholder-not-value rule) close both residual failures deterministically (3/3 cache-cleared runs at 1.0 (72/72)). Token cost 52,674 input / 12,985 output on committed run. Anchor: `PLAN.md` Done "PLAN-llm-evidence-text-substring".
 
 ### E1-002 — DeepSeek prompt-cache prefix discipline
 

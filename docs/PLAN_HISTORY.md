@@ -84,3 +84,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 ### done Add personal CI and frontend test entrypoint (2026-04-30)
 
 - Backend tests, frontend tests, and frontend build are now repeatable locally and in CI through `.github/workflows/ci.yml` and `npm test`.
+
+### done PLAN-llm-provider-phase-2 (2026-05-18)
+
+- Implemented `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom call `/chat/completions` with `response_format: json_object` and the evidence-first JSON schema. Adapter degrades gracefully to `local_collect_evidence_fallback` on permanent error. Process-local exposure-policy override (`set_runtime_exposure_policy_override`) added for eval bootstrap. Initial `mock_general_llm.json` baseline at `accuracy=0.9259` (50/54) against DeepSeek v4-flash; the 4 failures cluster on `eval-mock-007` implicit-negative (closed by E1-001 prompt rewrite).
+- Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 2; ROADMAP E1-011.

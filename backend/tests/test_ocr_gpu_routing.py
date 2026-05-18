@@ -201,7 +201,10 @@ Assert-EyexOcrGpuRoute -Route $route -GpuPolicy Require
 """
     )
 
-    assert "inside the EYEX project directory" in message
+    # PowerShell may wrap the error message at arbitrary column boundaries,
+    # inserting newlines mid-word. Normalize by collapsing all whitespace.
+    normalized = " ".join(message.split())
+    assert "inside the EYEX project directory" in normalized
 
 
 def test_installer_keeps_model_and_cache_writes_under_project_var_dirs():

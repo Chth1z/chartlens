@@ -61,7 +61,7 @@ Each phase below is one PLAN task. Phases are ordered by the cost of authoring c
 
 #### Phase A — Demographics completion (done 2026-05-18)
 
-Added: `hospital`, `urban_residence`. Rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline temporarily dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps; the `eval-mock-003 / age` half closed on the same day via E1-005 `rule_pre_accepted`, the remaining `evidence_text` paraphrase gap is the v3 prompt-rewrite target tracked as the active todo `PLAN-llm-evidence-text-substring`. Anchor: `docs/PLAN_HISTORY.md`, ROADMAP E1-010 Phase A.
+Added: `hospital`, `urban_residence`. Rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline temporarily dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps; the `eval-mock-003 / age` half closed on the same day via E1-005 `rule_pre_accepted`; the remaining `evidence_text` paraphrase gap closed on 2026-05-19 by E1-001 v3 prompt rewrite (LLM baseline now 1.0 (72/72) deterministically). Anchor: `docs/PLAN_HISTORY.md`, ROADMAP E1-010 Phase A.
 
 ### Active Phases
 

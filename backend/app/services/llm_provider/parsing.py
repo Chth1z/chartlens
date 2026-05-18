@@ -112,8 +112,29 @@ def _evidence_candidate_response_schema() -> dict[str, Any]:
         "properties": {
             "field_key": {"type": "string"},
             "candidate_value": {"type": ["string", "null"]},
-            "normalized_code": {"type": ["string", "null"]},
-            "evidence_text": {"type": "string"},
+            "normalized_code": {
+                "type": ["string", "null"],
+                "description": (
+                    "Actual extracted value, never a type-class placeholder. "
+                    "When fields[].allowed_codes contains 'text' / 'integer' / 'float' / "
+                    "'string' / 'number' / 'enum', that literal is a TYPE marker, not a "
+                    "valid normalized_code. For free-text fields (e.g. hospital), set "
+                    "normalized_code to the actual extracted string (e.g. '海安县中医院'). "
+                    "For numeric fields, set normalized_code to the digit string (e.g. '72'). "
+                    "If the document has no concrete value, return no candidate for this field."
+                ),
+            },
+            "evidence_text": {
+                "type": "string",
+                "description": (
+                    "Must be a contiguous, character-level substring of the cited block's "
+                    "text field (the block whose block_id matches this candidate's block_id). "
+                    "No paraphrasing, no reordering, no ellipsis, no synonym swap, no merging "
+                    "across blocks. When a clause lists multiple items with 顿号 / 等 / 及 "
+                    "(e.g. '否认高血压病、糖尿病、冠心病等病史'), quote the entire clause verbatim, "
+                    "do not synthesize a per-item version such as '否认糖尿病'."
+                ),
+            },
             "field_label_seen": {"type": ["string", "null"]},
             "source_type": {"type": "string"},
             "document_region": {"type": ["string", "null"]},

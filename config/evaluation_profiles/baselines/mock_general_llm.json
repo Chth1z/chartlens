@@ -18,33 +18,33 @@
   },
   "summary": {
     "total_fields": 72,
-    "correct": 71,
+    "correct": 72,
     "auto_accept_count": 68,
-    "auto_accept_correct": 67,
+    "auto_accept_correct": 68,
     "unknown_misfills": 0,
     "expected_unknown": 2,
     "predicted_non_unknown": 70,
     "evidence_covered": 70,
-    "input_tokens": 73037,
-    "output_tokens": 19743,
+    "input_tokens": 52674,
+    "output_tokens": 12985,
     "cost_usd": 0.0,
     "case_count": 10,
     "evaluated_case_count": 10,
     "blocked_case_count": 0,
-    "accuracy": 0.9861111111111112,
-    "auto_accept_precision": 0.9852941176470589,
+    "accuracy": 1.0,
+    "auto_accept_precision": 1.0,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
-    "tokens_per_case": 7303.7,
-    "tokens_per_accepted_field": 1074.0735294117646,
+    "tokens_per_case": 5267.4,
+    "tokens_per_accepted_field": 774.6176470588235,
     "field_tags": {
       "demographics": {
         "total": 26,
-        "correct": 25,
+        "correct": 26,
         "auto_accept_count": 22,
-        "auto_accept_correct": 21,
-        "accuracy": 0.9615384615384616,
-        "auto_accept_precision": 0.9545454545454546
+        "auto_accept_correct": 22,
+        "accuracy": 1.0,
+        "auto_accept_precision": 1.0
       },
       "history": {
         "total": 26,
@@ -94,9 +94,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12115,
-        "output_tokens": 3895,
-        "cached_input_tokens": 12032,
+        "input_tokens": 13201,
+        "output_tokens": 1891,
+        "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
       "tags": [
@@ -201,9 +201,9 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12113,
-        "output_tokens": 2825,
-        "cached_input_tokens": 12032,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -318,9 +318,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12116,
-        "output_tokens": 1964,
-        "cached_input_tokens": 12032,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -542,9 +542,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12119,
-        "output_tokens": 3807,
-        "cached_input_tokens": 12032,
+        "input_tokens": 13205,
+        "output_tokens": 3312,
+        "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
       "tags": [
@@ -671,9 +671,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cached_input_tokens": 0,
+        "input_tokens": 13063,
+        "output_tokens": 3695,
+        "cached_input_tokens": 13056,
         "cost_usd": 0.0
       },
       "tags": [
@@ -928,9 +928,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12119,
-        "output_tokens": 3603,
-        "cached_input_tokens": 12032,
+        "input_tokens": 13205,
+        "output_tokens": 4087,
+        "cached_input_tokens": 13184,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1021,13 +1021,13 @@
       "case_id": "eval-mock-009",
       "status": "evaluated",
       "total_fields": 8,
-      "correct": 7,
-      "accuracy": 0.875,
-      "precision": 0.875,
-      "recall": 0.875,
+      "correct": 8,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
       "auto_accept_count": 7,
-      "auto_accept_correct": 6,
-      "auto_accept_precision": 0.8571428571428571,
+      "auto_accept_correct": 7,
+      "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
@@ -1035,9 +1035,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12455,
-        "output_tokens": 3649,
-        "cached_input_tokens": 12416,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1087,8 +1087,8 @@
         {
           "field_key": "hospital",
           "expected": "海安市第三人民医院",
-          "actual": "text",
-          "correct": false,
+          "actual": "海安市第三人民医院",
+          "correct": true,
           "auto_accepted": true,
           "has_evidence": true,
           "review_required": false,
