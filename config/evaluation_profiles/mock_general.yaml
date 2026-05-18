@@ -16,6 +16,7 @@ field_tags:
   hyperlipidemia_history: [history, chronic_disease]
   heart_disease_history: [history, chronic_disease]
   stroke_history: [history, chronic_disease]
+  tumor_history: [history, chronic_disease]
   smoking_history: [lifestyle]
   drinking_history: [lifestyle]
 thresholds:
@@ -95,6 +96,7 @@ gold_cases:
       diabetes_history: "0"
       heart_disease_history: "0"
       stroke_history: "0"
+      tumor_history: "0"
       smoking_history: "0"
       drinking_history: "0"
   - case_id: eval-mock-008
@@ -145,4 +147,18 @@ gold_cases:
       hypertension_history: "0"
       diabetes_history: "0"
       smoking_history: "0"
+      drinking_history: "0"
+  - case_id: eval-mock-011
+    # Phase B coverage case: explicit positive tumor history (`恶性肿瘤病史`).
+    # Verifies that the rule path matches the `肿瘤` synonym in the
+    # `既往史` section and produces `tumor_history="1"`. Also exercises
+    # explicit-negative hypertension/diabetes via `否认...病史` clause.
+    tags: [demographics, tumor_history_positive, history_mixed, lifestyle_mixed]
+    gold:
+      gender: "1"
+      age: "58"
+      tumor_history: "1"
+      hypertension_history: "0"
+      diabetes_history: "0"
+      smoking_history: "1"
       drinking_history: "0"

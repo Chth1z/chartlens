@@ -37,8 +37,8 @@ These are the live precision baselines that any E1 task must beat or match. They
 
 | Profile | Provider | accuracy | auto_accept_precision | evidence_coverage | unknown_misfill_rate | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (72/72) | 1.0 (72/72) | 1.0 (72/72) | 0.0 | 10 synthetic cases. Last update 2026-05-18 by E1-010 Phase A (added `hospital`, `urban_residence`; total_fields 54 → 72). Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
-| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 1.0 (72/72) | 1.0 (68/68) | 1.0 (70/70) | 0.0 | 10 synthetic cases. Last update 2026-05-19 by E1-001 v3 prompt rewrite (closed `eval-mock-009 / hospital` placeholder echo and `eval-mock-010 / diabetes_history` paraphrase; baseline 0.9861 → 1.0 deterministically, 3/3 cache-cleared runs). Token cost 52,674 input / 12,985 output on the committed run (-28% input vs. prior). Anchor: `PLAN.md` Done "PLAN-llm-evidence-text-substring". |
+| `mock_general` (extraction) | `ConservativeLocalProvider` (rule-only) | 1.0 (80/80) | 1.0 (80/80) | 1.0 (80/80) | 0.0 | 11 synthetic cases. Last update 2026-05-20 by E1-010 Phase B (added `tumor_history`; total_fields 72 → 80). Floor for any precision change. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
+| `mock_general` (extraction, LLM-assisted) | `OpenAICompatibleChatProvider` -> DeepSeek v4-flash | 1.0 (80/80) | 1.0 (76/76) | 1.0 (78/78) | 0.0 | 11 synthetic cases. Last update 2026-05-20 by E1-010 Phase B (added `tumor_history`; total_fields 72 → 80). Token cost 26,406 input / 7,946 output on the committed run. Anchor: `docs/FIELD_COVERAGE.md` Completed Phases. |
 
 The mock profile uses rule-only extraction so the baseline is deterministic and CI-safe. E1 tasks that introduce LLM calls should record both the rule-only baseline and the LLM-assisted run for the same profile so the cost and the precision contributions can be split.
 

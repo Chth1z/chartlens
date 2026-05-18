@@ -89,3 +89,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Implemented `OpenAICompatibleChatProvider.collect_evidence` so DeepSeek / OpenRouter / Moonshot / Qwen / Z.AI / Azure / Custom call `/chat/completions` with `response_format: json_object` and the evidence-first JSON schema. Adapter degrades gracefully to `local_collect_evidence_fallback` on permanent error. Process-local exposure-policy override (`set_runtime_exposure_policy_override`) added for eval bootstrap. Initial `mock_general_llm.json` baseline at `accuracy=0.9259` (50/54) against DeepSeek v4-flash; the 4 failures cluster on `eval-mock-007` implicit-negative (closed by E1-001 prompt rewrite).
 - Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 2; ROADMAP E1-011.
+
+### done E1-001 evidence-first prompt rewrite (2026-05-18)
+
+- Rewrote `_evidence_first_system_prompt` to teach the LLM to honor field-level `evidence_policy.implicit_negative_policy` and `allowed_codes`. Closed the 4 known LLM failures on `eval-mock-007` (`既往史：無特殊` interpreted as unknown rather than 0). LLM baseline rose from 0.9259 to 1.0 (50/54 → 54/54); token cost dropped from 72,372/18,757 to 37,792/11,170 (-47.8% input, -40.4% output). `EVIDENCE_FIRST_PROMPT_VERSION` bumped to `eyex-evidence-first-v2`. Backend tests 318 → 326.
+- Anchor: `docs/DECISIONS.md` 2026-05-18 "Evidence-first prompt promotes field-level policy above generic rules"; ROADMAP E1-001.

@@ -25,15 +25,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo PLAN-mock-general-phase-B (tumor_history)
-
-- Goal: ROADMAP E1-010 Phase B. Extend `mock_general` to cover `tumor_history`. Reuse `eval-mock-007` (already has `既往史：无特殊` implicit-negative pattern) by adding `tumor_history: "0"` to its gold; add one new fixture (`eval-mock-011`) with explicit `恶性肿瘤史` for the positive path; optionally add `tumor_history: "0"` to `eval-mock-001` / `eval-mock-002` for explicit-negative coverage if their `否认...病史` clauses include it.
-- Out of scope: No schema synonym change unless a recall gap appears. No phase C-G work. No new field beyond `tumor_history`.
-- Acceptance commands: `python scripts/bootstrap-eval-fixtures.py --profile-id mock_general --baseline`; `Remove-Item var\storage\llm_cache -Recurse -Force; python scripts\bootstrap-eval-fixtures.py --profile-id mock_general --provider llm --unsafe-eval-allow-remote-context --baseline`; `python -m pytest backend\tests`; `cd frontend; npm test; npm run build`; `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\project-governance-check.ps1`.
-- Risk: Low. Same rule shape as the existing diabetes / heart-disease history fields; the schema's `implicit_negative_policy: section_complete_only` already covers the negative path.
-- Trigger: ROADMAP E1-010 Phase A is done (2026-05-18); phase ordering in `docs/FIELD_COVERAGE.md`.
-- Done condition: at least one fixture asserts `tumor_history="1"` (positive path); at least one fixture asserts `tumor_history="0"` (explicit-negative or section-complete-implicit-negative); `mock_general.yaml` `field_tags` includes `tumor_history`; rule-only baseline regenerated; LLM-assisted baseline regenerated; `test_eval_fixtures.py::test_fixture_count_matches_committed_baseline` updated; `docs/ROADMAP.md` Active Baselines row updated; `docs/FIELD_COVERAGE.md` Phase B status moved from todo to done.
-
 ### todo PLAN-split-pipeline.py
 
 - Goal: Split `backend/app/services/pipeline.py` (currently 526 lines, over the AGENTS.md 500-line soft trigger) along behavior boundaries. Suggested split: keep `pipeline.py` as the orchestrator (`process_case` + group dispatch); extract `pipeline_evidence_first.py` (the `_extract_document_evidence_first` flow including the 2026-05-18 `rule_pre_accepted` partition), `pipeline_quality.py` (page-quality summary, OCR-quality lookup), and `pipeline_errors.py` (formatting helpers like `_format_provider_failure`).
@@ -154,6 +145,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20)
+
+- Goal: ROADMAP E1-010 Phase B. Extend `mock_general` to cover `tumor_history`.
+- Outcome: Rule-only baseline rises from 1.0 (72/72) to 1.0 (80/80) on 11 fixtures. New `eval-mock-011` (explicit positive: `恶性肿瘤病史3年` → `tumor_history="1"`) plus extended gold on `eval-mock-007` (implicit-negative: `既往史：无特殊` → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80); token cost 26,406 input / 7,946 output. `mock_general.yaml` `field_tags` includes `tumor_history`; `test_eval_fixtures.py` fixture count updated to 11. Coverage: 12/22 schema fields.
+- Anchor: `docs/FIELD_COVERAGE.md` Phase B; ROADMAP E1-010 Phase B.
+
 ### done PLAN-llm-evidence-text-substring (E1-001 v3, 2026-05-19)
 
 - Goal: Tighten `_evidence_first_system_prompt` and the evidence-first JSON schema so that `evidence_text` MUST be a contiguous substring of the cited block's text, and `normalized_code` for free-text/numeric fields MUST be the actual extracted value, never a type-class placeholder like `'text'` or `'integer'`. Bump `EVIDENCE_FIRST_PROMPT_VERSION` to `eyex-evidence-first-v3`.
@@ -178,16 +175,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: every concrete LLM adapter now has a real evidence-first remote call. Anthropic posts to `/v1/messages` with the byte-stable evidence-first system prompt + JSON schema descriptor. Gemini posts to `/v1beta/models/<model>:generateContent` with `responseSchema` translated from the JSON Schema fragment via `_gemini_response_schema` (drops `additionalProperties`, folds `type: ['x', 'null']` into `nullable: true`, uppercases types per OpenAPI 3.0). Privacy boundary preserved: both adapters honor `safe_evidence_only` and degrade to `local_collect_evidence_fallback` with `remote_skipped_reason=remote_full_context_disabled`. Registry knows 4 adapter kinds with declared `llm_mode` sets. Backend tests 326 → 340 (14 new in `test_provider_phase_3.py`).
 - Anchor: `docs/LLM_PROVIDER_REFACTOR.md` Phase 3; AGENTS.md "Architecture Boundaries" explicit-delegation rule.
 
-### done E1-001 evidence-first prompt rewrite (2026-05-18)
-
-- Goal: Rewrite `_evidence_first_system_prompt` so it teaches the LLM to honor field-level `evidence_policy.implicit_negative_policy` and `allowed_codes` instead of falling back to a generic "missing means unknown" default. Close the 4 known LLM failures on `eval-mock-007` (`既往史：无特殊` interpreted as unknown rather than 0).
-- Outcome: mock_general LLM baseline rises from 0.9259 to 1.0 (50/54 → 54/54) AND token cost drops from 72372/18757 to 37792/11170 (-47.8% input, -40.4% output). Cacheable prefix is byte-stable; `EVIDENCE_FIRST_PROMPT_VERSION` bumped from `eyex-evidence-first-v1` to `eyex-evidence-first-v2` so cached results from the old prompt auto-invalidate. New `backend/tests/test_evidence_first_prompt.py` (8 tests). Backend tests 318 → 326. Open follow-up: 2026-05-18 E1-010 Phase A surfaced an `evidence_text` paraphrase gap that v3 must close (tracked in active todo `PLAN-llm-evidence-text-substring`).
-- Anchor: `docs/DECISIONS.md` 2026-05-18 "Evidence-first prompt promotes field-level policy above generic rules"; ROADMAP E1-001.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-20: E1-001 evidence-first prompt rewrite (2026-05-18).
 - 2026-05-18: PLAN-llm-provider-phase-1; PLAN-llm-baseline-bootstrap; E1-005-synonym-widening; PLAN-field-coverage-and-ocr-postprocessing-research.
 - 2026-05-17: PLAN-mock-general-challenge-case; PLAN-mock-general-coverage-expansion; E1-005-clause-boundary; PLAN-mock-general-baseline; E0-008 field-extraction eval runner; PLAN-write-architecture-doc; PLAN-write-roadmap; PLAN-write-reference-projects.
 - 2026-04-30: ChartLens upgrade triage; dev branch workflow; OCR runtime engine override removal; CI and frontend test entrypoint.

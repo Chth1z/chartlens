@@ -2,7 +2,7 @@
 
 This document inventories every export-template field, every schema field, and the actual coverage of the `mock_general` baseline. It is the planning ground for expanding the precision baseline beyond demographics + history + lifestyle to the full clinical extraction surface.
 
-Status as of 2026-05-18, after E1-010 Phase A and E1-005 close: the rule-only baseline scores `72/72 = 1.000` on 10 synthetic fixtures, covering **11 of 22 schema fields**. Phase A added `hospital` and `urban_residence`. The remaining 11 fields are still completely unmeasured by the precision contract.
+Status as of 2026-05-20, after E1-010 Phase B close: the rule-only baseline scores `80/80 = 1.000` on 11 synthetic fixtures, covering **12 of 22 schema fields**. Phase B added `tumor_history`. The remaining 10 fields are still completely unmeasured by the precision contract.
 
 ## Export Template Inventory
 
@@ -19,7 +19,7 @@ Status as of 2026-05-18, after E1-010 Phase A and E1-005 close: the rule-only ba
 | 7 | `hyperlipidemia_history` | 高血脂病史（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 4 |
 | 8 | `heart_disease_history` | 既往心脏疾病分组 | history | enum | `1`, `0`, unknown | 2 |
 | 9 | `stroke_history` | 卒中分组（有1，无0，不详unknown） | history | enum | `1`, `0`, unknown | 2 |
-| 10 | `tumor_history` | 既往肿瘤 | history | enum | `1`, `0`, unknown | **0** |
+| 10 | `tumor_history` | 既往肿瘤 | history | enum | `1`, `0`, unknown | **2** |
 | 11 | `smoking_history` | 是否吸烟 | lifestyle | enum | `1`, `0`, unknown | 10 |
 | 12 | `drinking_history` | 是否饮酒 | lifestyle | enum | `1`, `0`, unknown | 10 |
 | 13 | `single_multiple` | 单发多发 | aneurysm | enum | `single`, `multiple`, unknown | **0** |
@@ -38,13 +38,13 @@ Status as of 2026-05-18, after E1-010 Phase A and E1-005 close: the rule-only ba
 
 ## Coverage Gap Summary
 
-Currently covered: **11 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
+Currently covered: **12 of 22 schema fields** (the 23rd export column maps to the same `aneurysm_location` field that the schema lists once).
 
-Currently uncovered: **11 of 22 schema fields**, grouped by the kind of recall path each one exercises:
+Currently uncovered: **10 of 22 schema fields**, grouped by the kind of recall path each one exercises:
 
 - **String free-text** _(closed by Phase A 2026-05-18)_: ~~`hospital`~~ ✅. Rule path matches `XX医院` substring patterns through `_extract_hospital`. Covered by `eval-mock-009` (`海安市第三人民医院`), `eval-mock-010` (`海安县中医院`), and `eval-mock-005` (unknown path).
 - **Enum derived from address-or-residence** _(closed by Phase A 2026-05-18)_: ~~`urban_residence`~~ ✅. `pre_redaction_derivations` runs before PHI redaction. Covered by `eval-mock-009` (urban: `南京市鼓楼区五一路` → `2`), `eval-mock-010` (rural: `海安县曲塘镇五星村3组` → `1`), and `eval-mock-005` (no address → unknown). Privacy boundary pinned by `test_phase_a_address_redaction_holds_in_deidentified_ir`.
-- **Negative-history binary**: `tumor_history`. Same shape as the existing diabetes/heart-disease tests; one positive (`恶性肿瘤史`) and one explicit-negative (`否认肿瘤史`) fixture should cover the rule path.
+- **Negative-history binary** _(closed by Phase B 2026-05-20)_: ~~`tumor_history`~~ ✅. Same shape as existing diabetes/heart-disease tests. Covered by `eval-mock-011` (positive: `恶性肿瘤病史` → `1`) and `eval-mock-007` (implicit-negative: `既往史：无特殊` → `0`).
 - **Imaging-fact enums**: `single_multiple`, `aneurysm_location`. Source sections are `辅助检查 / 影像报告 / CTA / DSA`. Fixtures need short imaging-report paragraphs with terms like `单发动脉瘤`, `右侧后交通动脉动脉瘤`, `多发动脉瘤`. The rule path is `_fact_then_code_evidence` plus `synonyms / code_map`.
 - **Score grades**: `hh_grade`, `wfns_grade`, `fisher_grade`, `mrs_score`. Source sections are `入院记录 / 评分 / 体格检查`. Fixtures need lines like `Hunt-Hess II级`, `Fisher 3级`, `WFNS Ⅲ级`, `mRS 1分`. Most rule-only paths look for the synonym followed by a Roman/Arabic numeral; a fixture without an explicit grade must remain unknown to verify the path does not hallucinate.
 - **Surgery method enum**: `surgery_method`. Source sections include `手术记录 / 出院诊断 / 医嘱`. Fixtures with `开颅夹闭术`, `介入栓塞`, `保守治疗` directly hit `code_map`.
@@ -63,13 +63,11 @@ Each phase below is one PLAN task. Phases are ordered by the cost of authoring c
 
 Added: `hospital`, `urban_residence`. Rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline temporarily dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps; the `eval-mock-003 / age` half closed on the same day via E1-005 `rule_pre_accepted`; the remaining `evidence_text` paraphrase gap closed on 2026-05-19 by E1-001 v3 prompt rewrite (LLM baseline now 1.0 (72/72) deterministically). Anchor: `docs/PLAN_HISTORY.md`, ROADMAP E1-010 Phase A.
 
+#### Phase B — History completion (done 2026-05-20)
+
+Added: `tumor_history`. Rule-only baseline rose from 1.0 (72/72) to 1.0 (80/80). One new fixture (`eval-mock-011` with explicit `恶性肿瘤病史` → positive) plus extended gold on `eval-mock-007` (`既往史：无特殊` implicit-negative → `tumor_history="0"`). LLM-assisted baseline also 1.0 (80/80). Token cost: 26,406 input / 7,946 output. Anchor: `PLAN.md` Done "PLAN-mock-general-phase-B", ROADMAP E1-010 Phase B.
+
 ### Active Phases
-
-### Phase B — History completion (todo, tracked as `PLAN-mock-general-phase-B`)
-
-Adds: `tumor_history`.
-
-Rationale: same shape as existing chronic-disease history. One positive fixture (`恶性肿瘤史`), one explicit-negative fixture (`否认肿瘤史`), and one implicit-negative reuse (extend an existing fixture's `既往史: 无特殊` to also assert `tumor_history=0`). Two new fixtures plus three gold updates. Expected baseline change: total_fields rises, accuracy stays near current.
 
 ### Phase C — Imaging facts (aneurysm group)
 
