@@ -129,3 +129,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Resolved the pending architecture decision: formalize `backend/app/services/` subpackages as the canonical backend layout. No `application/` layer. Complex subsystems get subpackage directories (`llm_provider/`, `ocr_engine/`); simpler modules use flat-file-with-prefix pattern (`pipeline_*.py`). Hard size limits from AGENTS.md apply. Unblocked E0-004 (provider split), E0-005 (OCR boundary), and E0-006 (model_providers split).
 - Anchor: `docs/DECISIONS.md` 2026-05-19 "Formalize services/ subpackages as the canonical backend layout".
+
+### done PLAN-split-styles-css (2026-05-22)
+
+- Split `frontend/src/styles.css` (3726 lines) into 10 feature-scoped stylesheets under `frontend/src/styles/` (`base.css` 109, `layout.css` 428, `cases.css` 182, `evidence.css` 256, `document.css` 785, `review.css` 429, `settings.css` 592, `providers.css` 269, `diagnostics.css` 253, `components.css` 422). Original `styles.css` reduced to a 10-line barrel using CSS `@import`. `ocrSourceDebug.test.ts` rewired to read the correct split file. All 9 frontend tests pass; build succeeds; governance scan passes with no large-file warnings.
+- Anchor: AGENTS.md 500/800-line ceiling rule.

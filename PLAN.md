@@ -100,6 +100,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done PLAN-split-diagnostics (2026-05-19)
+
+- Goal: Reduce the 633-line `backend/app/services/diagnostics.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
+- Outcome: Pure structural refactor, no behavior change. Replaced the monolithic file with `backend/app/services/diagnostics/`: `__init__.py` (13) re-exports the public API (`build_case_diagnostics`, `quality_summary`, `frontend_evidence_config`, `processing_run`); `case_summary.py` (166) owns `build_case_diagnostics`, `_snapshot_model_calls`, `quality_summary`, `frontend_evidence_config`; `ocr_debug.py` (182) owns `_ocr_debug_summary` plus the fragmentation/duplicate/tile/table/low-quality check helpers and their geometry/text utilities (`_safe_int`, `_bbox_mid_y`, `_bbox_x1`, `_same_visual_line`, `_normalize_ocr_text`, `_recommended_ocr_debug_profiles`); `processing_run.py` (258) owns `processing_run`, `_run_record_payload`, `_step_timings`, the `_trace_*` family, and the `_model_call_payload` / `_event_payload` / `_vision_request_payload` builders that `case_summary` reuses; `ocr_availability.py` (56) owns the five `_extract_*` / `_default_ocr_unavailable_reason` helpers. `case_summary.py` imports payload builders from `processing_run.py` so the existing-runs branch keeps using shared payload shapes. `processing_run()` itself uses a function-local lazy import of `quality_summary` to keep module-level dependencies acyclic. All 344 backend tests pass; rule baseline 0.9623 (153/159) byte-identical; frontend tests (9) and build pass; governance scan passes with no large-file warnings on any new file.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
 ### done PLAN-split-layout-normalizer (2026-05-19)
 
 - Goal: Reduce the 767-line `backend/app/services/layout_normalizer.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 400 lines.
@@ -124,16 +130,13 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no behavior change. `adapters.py` deleted; replaced by `adapters/` subpackage with `openai_responses.py` (143), `openai_compatible.py` (253), `anthropic.py` (202), `gemini.py` (197) plus an `__init__.py` (28) that re-exports the four provider classes and the names tests monkey-patch. Evidence-first payload helpers extracted to `payloads_evidence_first.py` (380); `payloads.py` (335) keeps the legacy/shared helpers and re-exports the evidence-first symbols for backward compatibility. All previously-passing 343 backend tests still pass (1 pre-existing OCR PowerShell GPU test fails identically on clean dev). Rule baseline 0.9623 (153/159) unchanged. LLM baseline 0.9748 (155/159), well above the 0.94 floor. Frontend tests (9) and build pass. Governance scan passes with no large-file warnings.
 - Anchor: AGENTS.md 500-line soft trigger rule.
 
-### done PLAN-split-styles-css (2026-05-22)
-
-- Goal: Split `frontend/src/styles.css` (3726 lines) into feature-scoped stylesheets ≤ 800 lines each.
-- Outcome: Pure structural refactor, no visual change. Split into 10 files under `frontend/src/styles/`: `base.css` (109), `layout.css` (428), `cases.css` (182), `evidence.css` (256), `document.css` (785), `review.css` (429), `settings.css` (592), `providers.css` (269), `diagnostics.css` (253), `components.css` (422). Original `styles.css` replaced with a 10-line barrel using CSS `@import`. Updated `ocrSourceDebug.test.ts` to read from the correct split file. All 9 frontend tests pass; build succeeds; governance scan passes with no large-file warnings.
-- Anchor: AGENTS.md 500/800-line ceiling rule.
+- Anchor: AGENTS.md 500-line soft trigger rule.
 
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-05-27: PLAN-split-styles-css (2026-05-22).
 - 2026-05-26: Decide application/ vs services/ flat layout (2026-05-19).
 - 2026-05-25: PLAN-split-pipeline.py (2026-05-21).
 - 2026-05-24: PLAN-mock-general-phase-B (tumor_history, E1-010, 2026-05-20).
