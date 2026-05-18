@@ -1,5 +1,7 @@
 # LLM Provider 对标与改造方案
 
+> Status: 历史背景文档。本文写于 2026-04-30，记录 EYEX 当时如何对照 OpenClaw / Cline / Continue / LiteLLM 等开源项目梳理 provider 层。其中"建议架构"和"已落地的第一批改动"两节，部分已被 2026-05-18 的 `docs/LLM_PROVIDER_REFACTOR.md`（E1-011 三个 phase）取代——例如建议中的 `services/llm_gateway/`、`services/credential_store/`、`services/model_router.py` 目录命名最终落到了 `services/llm_provider/`，并通过 `services/llm_provider/registry.py` 完成多 provider dispatch。今天读 EYEX 的 LLM provider 行为时，应以 `docs/LLM_PROVIDER_REFACTOR.md`、`docs/DECISIONS.md` 2026-05-18 条目和 `AGENTS.md` "Architecture Boundaries" 为准；本文保留下来用于回顾选型动机。
+
 调研日期：2026-04-30。
 
 ## 目标

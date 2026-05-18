@@ -2,7 +2,7 @@
 
 This document inventories every export-template field, every schema field, and the actual coverage of the `mock_general` baseline. It is the planning ground for expanding the precision baseline beyond demographics + history + lifestyle to the full clinical extraction surface.
 
-Status as of 2026-05-18 (`dev` HEAD `9dedc7c` + Phase A): the rule-only baseline scores `72/72 = 1.000` on 10 synthetic fixtures, covering **11 of 22 schema fields**. Phase A added `hospital` and `urban_residence`. The remaining 11 fields are still completely unmeasured by the precision contract.
+Status as of 2026-05-18, after E1-010 Phase A and E1-005 close: the rule-only baseline scores `72/72 = 1.000` on 10 synthetic fixtures, covering **11 of 22 schema fields**. Phase A added `hospital` and `urban_residence`. The remaining 11 fields are still completely unmeasured by the precision contract.
 
 ## Export Template Inventory
 
@@ -57,11 +57,13 @@ The current 8-case set was chosen to exercise the rule paths actually used by de
 
 Each phase below is one PLAN task. Phases are ordered by the cost of authoring credible synthetic fixtures plus the risk of bugs they would expose.
 
-### Phase A — Demographics completion (done 2026-05-18)
+### Completed Phases
 
-Adds: `hospital`, `urban_residence`.
+#### Phase A — Demographics completion (done 2026-05-18)
 
-Outcome: rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps (eval-mock-003 / age and eval-mock-010 / diabetes_history) that are independent of Phase A's address-derivation work; both become next-up targets for the open `rule_pre_accepted` shortcut and a v3 prompt rewrite.
+Added: `hospital`, `urban_residence`. Rule-only baseline rose from 1.0 (54/54) to 1.0 (72/72). Two new fixtures (`eval-mock-009` urban + `eval-mock-010` rural) plus extended gold on `eval-mock-005` to anchor the unknown path. Privacy boundary pinned: `家庭住址` lines redact to `[REDACTED]`; only the safe `是否城市判定` derivation block carries into the de-identified DocumentIR. The LLM-assisted baseline temporarily dropped from 1.0 to 0.9722 (70/72) on two unrelated LLM gaps; the `eval-mock-003 / age` half closed on the same day via E1-005 `rule_pre_accepted`, the remaining `evidence_text` paraphrase gap is the v3 prompt-rewrite target tracked as the active todo `PLAN-llm-evidence-text-substring`. Anchor: `docs/PLAN_HISTORY.md`, ROADMAP E1-010 Phase A.
+
+### Active Phases
 
 ### Phase B — History completion (todo, tracked as `PLAN-mock-general-phase-B`)
 

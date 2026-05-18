@@ -2,7 +2,7 @@
 
 This document is the deep analysis behind ROADMAP `E1-011` (the gap surfaced when the `--provider llm` baseline against DeepSeek recorded `input_tokens=0`). It expands `E1-011` from a one-line task into a phased refactor anchored on real code, real open-source patterns, and a reproducible verification ladder.
 
-Status as of 2026-05-18 (`dev` HEAD `124d9bf`).
+Status: all three phases closed on 2026-05-18 (Phase 1 / Phase 2 / Phase 3 commits land in the order described in section 6 below). The architectural rule the refactor establishes lives in `docs/DECISIONS.md` 2026-05-18 "Default-inheritance shim for collect_evidence is forbidden" and in `AGENTS.md` "Architecture Boundaries". Section text below reads as a historical RFC; the "Phase X" subsections each carry a "Closed" line summarizing the actual landed change.
 
 ## 1. Symptom
 
@@ -147,6 +147,8 @@ The refactor is split so each phase is one PLAN task, each commits independently
 
 ### Phase 1 — Make the gap a hard error (no behavior change)
 
+**Closed 2026-05-18.** `SemanticExtractionProvider.collect_evidence` and `extract_group` are both `@abstractmethod`; every concrete adapter declares an explicit override. `OpenAICompatibleChatProvider`, `AnthropicMessagesProvider`, and `GoogleGeminiProvider` initially landed as `return local_collect_evidence_fallback(...)` shims; Phases 2 and 3 replaced those shims with real upstream calls. New `backend/tests/test_provider_contracts.py` (15 tests) pins the rule. AGENTS.md "Architecture Boundaries" gained the explicit-delegation rule. `docs/DECISIONS.md` records "Default-inheritance shim for collect_evidence is forbidden".
+
 **Goal.** Force every adapter to declare its `collect_evidence` strategy. Today the default shim is a footgun; tomorrow there will be no default.
 
 **Changes.**
@@ -164,6 +166,8 @@ The refactor is split so each phase is one PLAN task, each commits independently
 **Risk.** Very low. This is a refactor that names an existing behavior.
 
 ### Phase 2 — OpenAI-compatible chat collect_evidence
+
+**Closed 2026-05-18.** `OpenAICompatibleChatProvider.collect_evidence` calls `client.chat.completions.create` with `response_format={"type": "json_object"}` and the evidence-first JSON schema. New helper `_chat_completions_evidence_first_payload` keeps the cacheable prefix byte-stable. Permanent error / missing response / malformed JSON degrade to `local_collect_evidence_fallback`; rate-limit / timeout enters per-key cooldown. New `--unsafe-eval-allow-remote-context` flag on `bootstrap-eval-fixtures.py` activates a process-local override so synthetic fixtures can opt into full-context exposure. `mock_general_llm.json` baseline lands at `accuracy=0.9259` (50/54), `input_tokens=72372`, `output_tokens=18757` against DeepSeek v4-flash. The 4 failures cluster on `eval-mock-007` implicit-negative — the E1-001 prompt-rewrite target.
 
 **Goal.** Make `OpenAICompatibleChatProvider.collect_evidence` actually call DeepSeek (or any OpenAI-compatible chat endpoint) and return parsed `EvidenceCandidate` objects. After this phase, the mock_general LLM baseline records non-zero `input_tokens` and the WARN line goes away.
 
@@ -196,6 +200,8 @@ The refactor is split so each phase is one PLAN task, each commits independently
 **Risk.** Medium. The phase exercises a real network round trip on every fixture during the baseline regenerate. Rate limits are possible. Mitigation: bootstrap uses `_api_keys_for_attempts` cooldown, and the cache layer kicks in after the first run; a third run should be entirely cache-hit.
 
 ### Phase 3 — Anthropic and Gemini collect_evidence; router cleanup
+
+**Closed 2026-05-18.** `AnthropicMessagesProvider.collect_evidence` posts to `/v1/messages` with the byte-stable evidence-first system prompt + JSON schema descriptor in the cacheable `system` field. `GoogleGeminiProvider.collect_evidence` posts to `/v1beta/models/<model>:generateContent` with `responseMimeType=application/json` and a translated `responseSchema` (drops `additionalProperties`, folds `type: ['x', 'null']` into `nullable: true`, uppercases types per OpenAPI 3.0). New `services/llm_provider/registry.py` replaces the if/elif chain with a data-driven `(adapter factory, allowed llm_modes)` table; `fallback._provider_for_profile` is now a thin delegating shim. Both new adapters honor `safe_evidence_only` and degrade to `local_collect_evidence_fallback` with `remote_skipped_reason=remote_full_context_disabled` when the schema disallows full context. New `test_provider_phase_3.py` (14 tests) pins payload byte-stability, real-implementation references, registry coverage, `llm_mode` gating, and the privacy fallback path. Backend tests rise from 326 to 340. Two design choices intentionally deferred (and documented in section 4): the `Router.with_retries()` / `Router.with_fallbacks()` LiteLLM class extraction (`ModelFallbackProvider` already separates fallback iteration from per-adapter retry/cooldown, so the structural goal is already met), and removal of the legacy `extract_group` path (every adapter still implements it because the medical schema's `aneurysm_group`, `surgery_group`, `score_group`, `discharge_group`, and `history_group` actively select `llm_semantic` / `llm_facts_then_compute` strategies that route through `extract_group`).
 
 **Goal.** Make every LLM adapter complete; retire dead-code paths surfaced in section 4.
 

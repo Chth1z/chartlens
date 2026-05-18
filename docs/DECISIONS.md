@@ -2,6 +2,93 @@
 
 Use this file only for decisions that affect architecture, data contracts, security/privacy, OCR/LLM behavior, project workflow, or deletion/compatibility policy. Keep entries short.
 
+Every entry carries a `Status:` line with one of:
+
+- `active` — the decision still governs current behavior.
+- `superseded by <YYYY-MM-DD title>` — replaced by a later entry; the new entry must be referenced by date and title and must update this entry's Status in the same commit.
+- `archived (<reason>, <date>)` — historical only; not enforced today.
+
+The "Active Index" below is the fast-lookup view. Maintain it whenever an entry is added, superseded, or archived (per `AGENTS.md` "Documentation Maintenance").
+
+## Active Index
+
+Listed in reverse chronological order. Click through to the dated heading for the full text.
+
+### Architecture and workflow
+
+- 2026-05-18 — rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups
+- 2026-05-18 — Evidence-first prompt promotes field-level policy above generic rules (`EVIDENCE_FIRST_PROMPT_VERSION = eyex-evidence-first-v2`)
+- 2026-05-17 — Architecture and roadmap formalized (`docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/REFERENCE_PROJECTS.md`)
+- 2026-05-17 — Governance foundation refresh (constitution rewrite)
+- 2026-05-17 — Governance baseline tightened: complexity ceiling, dependency rules, perf baselines
+- 2026-05-17 — Domain plugin registry stays retired (supersedes parts of 2026-04-30 entries)
+- 2026-05-17 — dev is the default integration target; main is promoted in batches (supersedes 2026-04-30 GitHub branches entry)
+- 2026-04-30 — Personal Codex governance over team process
+- 2026-04-30 — Delete stale compatibility by default
+
+### Data contracts and observability
+
+- 2026-04-30 — Processing observability is a first-class database ledger (`processing_runs` / `processing_events` / `model_calls`)
+- 2026-05-01 — Manual review overrides are auditable export values
+- 2026-05-01 — Case deletion means archive, not purge
+- 2026-05-01 — Unknown export code is literal `unknown`
+- 2026-05-06 — Source OCR and model schemas preserve table evidence
+- 2026-05-05 — Provider API responses are contract-validated at the frontend boundary
+
+### Privacy and remote routing
+
+- 2026-04-30 — Address-derived fields use safe local derivations
+- 2026-05-01 — Remote medical extraction is safe-evidence-only by default
+- 2026-05-05 — Remote browser access is token-gated and CORS-aligned
+
+### OCR routing and layout
+
+- 2026-04-30 — OCR engine order is profile-driven
+- 2026-04-30 — Medical extraction uses evidence-first document context
+- 2026-04-30 — Stitch tiled OCR line fragments before evidence display
+- 2026-04-30 — Evidence UI folds same-line OCR alternatives
+- 2026-04-30 — Screen-capture noise and non-patient context are not evidence
+- 2026-05-01 — OCR layout normalization separates raw OCR from extraction IR
+- 2026-05-01 — Split header labels are rebuilt locally as key-value evidence
+- 2026-05-01 — Medical export requires PASS or manual review
+- 2026-05-01 — Source OCR preview uses materialized page images
+- 2026-05-01 — Strong OCR is layout-led canonical merging
+- 2026-05-01 — Runtime readiness is a backend API contract
+- 2026-05-01 — Installer owns Docker Desktop bootstrap
+- 2026-05-01 — PaddleOCR-VL is parked outside the default OCR route (supersedes the same-day "Radeon OCR defaults are GPU-guarded" and "PaddleOCR-VL AMD GPU means official ROCm sidecar" entries)
+- 2026-05-05 — OCR overlay and canonical merge are layer-safe
+- 2026-05-05 — OCR merge policy v2 uses visual order before raw reading order
+- 2026-05-05 — Modular OCR engine split (`intelligent_ocr.py` -> `ocr_engine/`)
+- 2026-05-05 — Model singleton pool adopted for all OCR engines
+- 2026-05-05 — Retry with exponential backoff added to engine orchestration
+- 2026-05-05 — Graceful degradation: partial results returned when no engine meets threshold
+- 2026-05-05 — MinerU-style bbox containment added to dedup alongside IoU
+- 2026-05-05 — OCR engine import order resolves Windows DLL load conflicts (WinError 127)
+- 2026-05-05 — Sidecar OCR route is config-only, not env-overridable
+- 2026-05-05 — OCR orchestration now enforces timeouts and emits structured traces
+- 2026-05-05 — OCR regression profiles are versioned config, not ad hoc notes
+- 2026-05-05 — OCR failures and latency must be diagnosable end-to-end
+- 2026-05-06 — NVIDIA OCR uses the same canonical layout pipeline as Radeon
+- 2026-05-06 — Table cells remain atomic through extraction and export
+- 2026-05-06 — Hardware OCR evals are blocked unless real corpus and GPU route exist
+- 2026-05-06 — OCR eval reports include hardware readiness evidence
+- 2026-05-06 — OCR regression scores layout/table truth, not text alone
+- 2026-05-06 — Stale OCR sidecars must fail with restart instructions
+
+### LLM provider routing
+
+- 2026-05-18 — Default-inheritance shim for `collect_evidence` is forbidden (E1-011 Phase 1; closed by Phases 2 and 3)
+
+### Pending decisions
+
+- 2026-05-17 — application/ vs services/ flat layout (`codex/architecture-decision`, blocks pipeline split, provider split, OCR boundary split)
+
+### Promotion records (informational)
+
+- 2026-05-18 — Seventh batched dev to main promotion
+- 2026-05-18 — Sixth batched dev to main promotion
+- 2026-05-18 — Fifth, Fourth, Third, Second, First batched dev to main promotions
+
 ## Template
 
 ```markdown
@@ -10,6 +97,7 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Decision:
 - Why:
 - Rejected:
+- Status: active
 - Revisit when:
 ```
 
@@ -59,6 +147,7 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Decision: Keep `main` stable, use `dev` as the personal integration branch for the full ChartLens upgrade, and use `codex/<goal>` branches from `dev` for focused future tasks.
 - Why: This repository is being upgraded substantially from the previous ChartLens baseline. A named `dev` branch communicates that it is the active integration line, while task branches still keep Codex sessions bounded.
 - Rejected: Direct pushes to `main`, one-off import branch names for the long-lived upgrade line, and large mixed-purpose task branches.
+- Status: superseded by 2026-05-17 "dev is the default integration target; main is promoted in batches".
 - Revisit when: More contributors start changing the repository or the project needs release branches.
 
 ## 2026-04-30 - Address-derived fields use safe local derivations
@@ -157,6 +246,7 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Decision: `windows_radeon_balanced` requires local PP-OCRv5 server ONNX on DirectML and treats PaddleOCR-VL as an optional remote AMD/ROCm sidecar stage through `EYEX_OCR_PADDLEOCR_VL_URL`. The no-argument installer and probe read that URL from project `.env`; DirectML runtime failures are surfaced in health diagnostics. Local CPU PaddleOCR-VL, PP-StructureV3, and Docling are not default runtime stages or DirectML install warmups.
 - Why: On RX 6600-class Windows machines, PP-OCRv5 can run through ONNX Runtime DirectML, but local PaddleOCR-VL/Structure/Docling load CPU-heavy model stacks and can exhaust memory. Accuracy should improve through GPU paths, not by silently falling back to CPU stages that freeze the workstation.
 - Rejected: Running PaddleOCR-VL locally on CPU when AMD GPU execution is unavailable, using the backend-to-local-sidecar `EYEX_OCR_DOCUMENT_AI_URL` as the remote VL URL, and making PP-OCRv5 fall back to CPU Paddle when DirectML is missing.
+- Status: superseded by 2026-05-01 "PaddleOCR-VL is parked outside the default OCR route".
 - Revisit when: A tested local AMD GPU backend for PaddleOCR-VL is available on the target Radeon stack, or the user provisions a stable ROCm host that can run the VL sidecar continuously.
 
 ## 2026-05-01 - PaddleOCR-VL AMD GPU means official ROCm sidecar, not local CPU fallback
@@ -164,6 +254,7 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Decision: The installer now automatically probes and prepares a project-local official AMD GPU PaddleOCR-VL Docker sidecar using the official `latest-amd-gpu` PaddleOCR images, writing only under `var/`. EYEX consumes both its own `/extract` sidecar shape and the official PaddleOCR-VL `/layout-parsing` API. The `rocm_remote_vl` profile is remote-only and has no local CPU heavy fallbacks.
 - Why: PaddleOCR documents AMD GPU support through Docker/ROCm services, while the target RX 6600 Windows setup lacks a ready local ROCm/Paddle runtime. Keeping the VL path sidecar-only prevents another memory-saturating CPU run and gives a concrete GPU route when Docker/ROCm is available.
 - Rejected: Asking the user to manually wire the official service URL, using the local `EYEX_OCR_DOCUMENT_AI_URL` as a hidden VL proxy, and retaining CPU PaddleOCR-VL/PP-StructureV3/Docling fallback engines in the ROCm profile.
+- Status: superseded by 2026-05-01 "PaddleOCR-VL is parked outside the default OCR route".
 - Revisit when: Docker/ROCm is installed and a real PaddleOCR-VL sidecar health check and OCR eval run are available on the target machine.
 
 ## 2026-05-01 - Source OCR preview uses materialized page images
@@ -499,3 +590,12 @@ Use this file only for decisions that affect architecture, data contracts, secur
 - Skipped intentionally: test_ocr_engine_modules::test_trace_stage_timing was Windows-flaky on time.monotonic resolution and was fixed in 81e8889 (perf_counter); no other test was waived.
 - Residual risk: 298 files / +37 104 / -11 010 is a large state jump for `main` viewed from any tooling that anchors on it. No third-party CI / deployment is anchored on `main` today, so blast radius is limited to local clones; the next clone of `main` will see the upgraded ChartLens shape directly.
 - Revisit when: Either a release/deployment cadence emerges that needs explicit release branches, or a second contributor joins, or a future promotion fails fast-forward (which would mean someone bypassed the rule and pushed to `main` directly).
+
+
+## 2026-05-18 - Documentation maintenance contract
+
+- Decision: AGENTS.md gains a "Documentation Maintenance" section that codifies four rules: (1) one outcome narrative per task lives in exactly one file (DECISIONS.md when the change records a decision, otherwise PLAN.md Done); ROADMAP.md and PLAN.md Done are summaries plus an anchor link; (2) commit hashes do not appear in markdown — work is referenced by ISO date plus task ID; (3) every DECISIONS.md entry carries a `Status: active | superseded by <YYYY-MM-DD title> | archived (<reason>, <date>)` line and the supersedence pointer is bidirectional in the same commit; (4) the markdown 800-line soft ceiling triggers a split or archive rotation, and a quarterly stale-content sweep covers HEAD references, missing DECISIONS anchors, pending decisions, license re-verification, and `PLAN.md` Done rotation into `docs/PLAN_HISTORY.md`. Same commit also adds an "Active Index" header to DECISIONS.md so active entries are findable without scrolling, marks the two same-day-superseded PaddleOCR-VL entries (2026-05-01 "Radeon OCR defaults are GPU-guarded" and "PaddleOCR-VL AMD GPU means official ROCm sidecar") with explicit Status lines pointing at the surviving 2026-05-01 "PaddleOCR-VL is parked outside the default OCR route", marks the 2026-04-30 "GitHub branches are the personal Codex control boundary" superseded by 2026-05-17 "dev is the default integration target", and rotates 14 older `PLAN.md` Done entries to the new `docs/PLAN_HISTORY.md`.
+- Why: the constitution had drifted into three failure modes that this rule set targets directly. (1) The same outcome narrative was being maintained in three files (PLAN.md Done, ROADMAP.md Outcome, DECISIONS.md), so two of the three drifted out of date on every promotion; defining one single source plus pointers fixes the maintenance cost. (2) Several docs embedded commit hashes (`Status as of 2026-05-18 (HEAD 124d9bf)` in `docs/LLM_PROVIDER_REFACTOR.md`, `dev HEAD 9dedc7c` in `docs/FIELD_COVERAGE.md`); those hashes were already stale at the time this rule landed because `dev` had advanced. Replacing hashes with date + task-ID stops the bit rot at the source. (3) Two same-day decisions about PaddleOCR-VL contradicted each other and the third one explicitly superseded both — but neither superseded entry carried any visible "this is no longer in force" marker, so a new session reading top-down would happily implement the wrong thing. The Status line + Active Index makes superseded content visible.
+- Rejected: deleting superseded entries outright (loses the supersedence audit trail and the "why we changed our mind" rationale); auto-generating the Active Index from headings (the index needs hand-curated grouping by topic and explicit notes on what supersedes what; an alphabetical or chronological dump would not catch supersedence pairs); rotating all done entries to PLAN_HISTORY.md immediately (loses the recent-context "this is what just landed" benefit; keeping the latest 5 in PLAN.md preserves session-level continuity); waiting until the next quarterly sweep to apply this set of changes (the 14 already-rotatable Done entries plus the embedded HEAD hashes were causing concrete confusion in this session).
+- Status: active.
+- Revisit when: the documentation surface grows enough that a second writer needs the rules expressed differently (e.g., per-doc CODEOWNERS, automatic stale-link CI); or when a precision task in `dev` produces an outcome that does not fit the "one source per task" model (e.g., a multi-week experiment that legitimately needs a separate `docs/experiments/<id>.md` file); or when DECISIONS.md crosses the 800-line ceiling and the OCR sub-section needs to be archived to `docs/archive/ocr_decisions_2026q2.md`.

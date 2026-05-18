@@ -50,7 +50,7 @@ Today's `backend/app/services/` is intentionally flat. The application/services 
 
 | Module | Role |
 | --- | --- |
-| `pipeline.py` | Top-level orchestration: case state machine, stage timing, error formatting, persistence. Currently mixes orchestration with quality summary and worker glue (split task pending). |
+| `pipeline.py` | Top-level orchestration: case state machine, stage timing, error formatting, persistence. Owns the `_extract_document_evidence_first` rule_pre_accepted partition (high-confidence `rule_shortcut` fields skip the LLM router; see `docs/DECISIONS.md` 2026-05-18). Currently mixes orchestration with quality summary and worker glue (split task `PLAN-split-pipeline.py` pending). |
 | `ocr.py` | OCR entry point. Routes to native PDF text extraction, page-level OCR cache, or HTTP sidecar. |
 | `ocr_engine/` | Pluggable OCR engines and canonical merge. Each engine emits `IntelligentOcrBlock`s; `canonicalize.py` merges multi-engine candidates into canonical reading order. |
 | `ocr_engine/engines/` | One file per engine: PaddleOCR-VL, PP-StructureV3, PP-OCRv5 DirectML, PP-OCRv5 Paddle, OpenAI vision, HTTP DocumentAI sidecar, Docling, hybrid pipeline. |
@@ -195,16 +195,19 @@ The following targets come from `AGENTS.md`. They are evidence-driven, not asser
 
 These are real, currently in `PLAN.md` or `docs/DECISIONS.md`. Listed here so new sessions do not redesign them blind:
 
-- `application/` vs flat `services/` layout — open decision; `pipeline.py` mixes orchestration with quality summary and worker glue.
-- `ocr_engine/canonicalize.py` does some same-line merging that the target boundary places in `layout_normalizer.py`.
-- No Alembic baseline yet; database evolves via `Base.metadata.create_all` plus an ad hoc `_ensure_sqlite_columns` shim.
-- In-memory thread-pool queue with no durable recovery on process restart; in-flight runs can stick in `extracting` / `ocr`.
-- `frontend/src/styles.css` is 3211 lines; split task is in `PLAN.md`.
-- Provider stack is one large `model_providers.py` plus `llm_provider/`; further split into `protocols/`, `router.py`, `credentials.py` is planned but not done.
+- `application/` vs flat `services/` layout — open decision (`docs/DECISIONS.md` 2026-05-17 PENDING entry); `pipeline.py` mixes orchestration with quality summary and worker glue. Closing this is the prerequisite for the provider, pipeline, and OCR-boundary splits below.
+- `pipeline.py` crossed the 500-line ceiling on 2026-05-18 with E1-005 rule_pre_accepted. Split tracked as `PLAN-split-pipeline.py`; the next task touching `pipeline.py` must split it.
+- `ocr_engine/canonicalize.py` does some same-line merging that the target boundary places in `layout_normalizer.py`. Tracked as "Clarify ocr_engine vs layout_normalizer boundary" in `PLAN.md`.
+- No Alembic baseline yet; database evolves via `Base.metadata.create_all` plus an ad hoc `_ensure_sqlite_columns` shim. Tracked in `PLAN.md`.
+- In-memory thread-pool queue with no durable recovery on process restart; in-flight runs can stick in `extracting` / `ocr`. Tracked in `PLAN.md`.
+- `frontend/src/styles.css` is 3211 lines; split tracked as `PLAN-split-styles-css`.
+- `frontend/src/features/cases/EvidencePanel.tsx` is 2017 lines; split tracked in `PLAN.md`.
+- `model_providers.py` is 659 lines; split tracked in `PLAN.md` and is sequenced after the `llm_provider/` split below.
+- Further split of `services/llm_provider/` into `protocols/`, `router.py`, `credentials.py` is planned but not done; the registry layer in `services/llm_provider/registry.py` already covers provider dispatch (E1-011 Phase 3, 2026-05-18) but the protocol-vs-router-vs-credentials separation still lives inside `adapters.py` and `fallback.py`.
 
 ## Decision Anchors
 
-When extending or changing any of the above, anchor to the relevant decision in `docs/DECISIONS.md`:
+When extending or changing any of the above, anchor to the relevant decision in `docs/DECISIONS.md`. The fast-lookup view is the "Active Index" at the top of that file; the entries below are the most load-bearing for code that crosses the listed boundaries.
 
 - OCR engine order is profile-driven (2026-04-30).
 - Evidence-first multimodal extraction is the default medical strategy (2026-04-30).
@@ -216,5 +219,11 @@ When extending or changing any of the above, anchor to the relevant decision in 
 - OCR merge policy v2 (now v3) uses visual order before raw reading order (2026-05-05).
 - Provider API responses are contract-validated at the frontend boundary (2026-05-05).
 - Domain plugin registry stays retired (2026-05-17).
+- Governance baseline tightened: complexity ceiling, dependency rules, perf baselines (2026-05-17).
+- dev is the default integration target; main is promoted in batches (2026-05-17, supersedes 2026-04-30 GitHub branches entry).
+- Default-inheritance shim for `collect_evidence` is forbidden (2026-05-18, E1-011 Phase 1; closed by Phases 2 and 3 the same day).
+- Evidence-first prompt promotes field-level policy above generic rules (2026-05-18, `EVIDENCE_FIRST_PROMPT_VERSION = eyex-evidence-first-v2`).
+- rule_pre_accepted shortcut bypasses LLM for high-confidence rule_shortcut groups (2026-05-18).
+- Documentation maintenance contract (2026-05-18, AGENTS.md "Documentation Maintenance" + DECISIONS.md "Active Index").
 
 When this document and a decision entry disagree, the decision entry wins; this file is updated to match.
