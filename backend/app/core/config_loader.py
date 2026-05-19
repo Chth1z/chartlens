@@ -254,3 +254,22 @@ def _has_complete_truth_tables(tables: list[dict]) -> bool:
             if not isinstance(cell.get("col"), int) or cell["col"] < 1:
                 return False
     return True
+
+
+def invalidate_config_cache() -> int:
+    """Clear all config lru_cache entries. Returns number of caches cleared.
+
+    Call this after modifying YAML files in config/ to pick up changes
+    without restarting the server.
+    """
+    caches = [
+        load_document_profile,
+        load_extraction_schema,
+        load_export_template,
+        load_model_profile,
+        load_ocr_profile,
+        load_ocr_evaluation_profile,
+    ]
+    for cache_fn in caches:
+        cache_fn.cache_clear()
+    return len(caches)

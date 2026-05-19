@@ -86,6 +86,9 @@ def create_app() -> FastAPI:
     from app.core.telemetry import init_telemetry
     init_telemetry()
 
+    from app.core.config_watcher import start_config_watcher
+    start_config_watcher()
+
     from app.services.recovery import recover_abandoned_runs
     recover_abandoned_runs()
 

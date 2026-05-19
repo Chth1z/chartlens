@@ -19,6 +19,7 @@ from app.api.contracts import (
     SystemSettingsResponse,
 )
 from app.core.config_loader import (
+    invalidate_config_cache,
     list_document_profile_ids,
     list_ocr_profiles,
     load_document_profile,
@@ -195,3 +196,10 @@ def clear_all_cases(db: Annotated[Session, Depends(get_db)]) -> dict:
     if uploads.exists():
         shutil.rmtree(uploads, ignore_errors=True)
     return {"ok": True, "affected_count": count, "message": "全部病例已清空。"}
+
+
+@router.post("/system/reload-config", response_model=MaintenanceResponse)
+def reload_config() -> dict:
+    """Invalidate all config caches so next access reads fresh YAML."""
+    count = invalidate_config_cache()
+    return {"ok": True, "affected_count": count, "message": f"Cleared {count} config caches"}
