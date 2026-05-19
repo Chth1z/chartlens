@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     allowed_upload_suffixes: str = ".pdf,.png,.jpg,.jpeg,.txt,.md"
     max_pending_cases: int = 16
     allow_plaintext_provider_keys: bool = False
+    otel_enabled: bool = False
+    otel_endpoint: str = ""
+    otel_service_name: str = "eyex-backend"
 
     model_config = SettingsConfigDict(
         env_file=".env",

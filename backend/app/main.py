@@ -79,6 +79,10 @@ def _host_is_loopback(host: str | None) -> bool:
 
 def create_app() -> FastAPI:
     init_db()
+
+    from app.core.telemetry import init_telemetry
+    init_telemetry()
+
     app = FastAPI(title=settings.app_name)
 
     @app.middleware("http")
