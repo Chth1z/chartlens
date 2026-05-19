@@ -13,7 +13,7 @@ from app.domain.models import (
     FieldGroup, RemoteExposurePolicy
 )
 from app.services.document_context import document_context_payload
-from app.services.evidence import build_evidence_packs
+from app.services.evidence import EvidenceIndex, build_evidence_packs
 from app.services.domain_profile import extraction_rules, extraction_system_prompt
 from app.services.model_selection import get_active_model_profile
 from .parsing import _response_schema, _evidence_candidate_response_schema
@@ -313,6 +313,7 @@ def _llm_user_payload(
     group: FieldGroup,
     fields: list[FieldDefinition],
     blocks: list[DocumentIRBlock],
+    index: EvidenceIndex | None = None,
 ) -> dict[str, Any]:
     document_profile = _document_profile_for_ir(document_ir)
     return {
@@ -322,7 +323,7 @@ def _llm_user_payload(
         "rules": ["Return one valid JSON object only, with a top-level results array.", *extraction_rules(document_profile)],
         "output_schema": _response_schema(),
         "fields": [_field_prompt_spec(field) for field in fields],
-        "evidence_packs": _field_evidence_pack_payload(fields, blocks),
+        "evidence_packs": _field_evidence_pack_payload(fields, blocks, index=index),
     }
 
 
@@ -358,7 +359,12 @@ def _field_prompt_spec(field: FieldDefinition) -> dict[str, Any]:
     }
 
 
-def _field_evidence_pack_payload(fields: list[FieldDefinition], blocks: list[DocumentIRBlock]) -> dict[str, list[dict[str, Any]]]:
+def _field_evidence_pack_payload(
+    fields: list[FieldDefinition],
+    blocks: list[DocumentIRBlock],
+    *,
+    index: EvidenceIndex | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     payload: dict[str, list[dict[str, Any]]] = {}
     for field in fields:
         payload[field.key] = [
@@ -381,7 +387,13 @@ def _field_evidence_pack_payload(fields: list[FieldDefinition], blocks: list[Doc
                 "token_estimate": item.token_estimate,
                 "neighbor_block_ids": item.neighbor_block_ids,
             }
-            for item in build_evidence_packs(None, field, blocks=blocks, group_budget=DEFAULT_PROVIDER_GROUP_BUDGET)
+            for item in build_evidence_packs(
+                None,
+                field,
+                blocks=blocks,
+                group_budget=DEFAULT_PROVIDER_GROUP_BUDGET,
+                index=index,
+            )
         ]
     return payload
 

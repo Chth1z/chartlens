@@ -6,7 +6,12 @@ import time
 from app.domain.models import DocumentIR, ExtractionCandidate, ValidatedFieldResult
 from app.services.document_context import build_document_context
 from app.services.evidence_first import decisions_to_extraction_candidates
-from app.services.evidence import blocks_for_group, build_evidence_packs, evidence_for_field
+from app.services.evidence import (
+    blocks_for_group,
+    build_evidence_index,
+    build_evidence_packs,
+    evidence_for_field,
+)
 from app.services.llm_provider.fallback import ConservativeLocalProvider
 from app.services.llm_provider.types import SemanticExtractionProvider
 from app.services.observability import ProcessingTrace
@@ -155,37 +160,46 @@ def _extract_document_evidence_first(
     # LLM result if one ever leaks in (e.g., from a misbehaving fake).
     candidates_by_key.update(rule_shortcut_candidates)
     all_blocks = document_ir.blocks
-    for field in phase_one_fields:
-        group = schema.group_by_key(field.field_group_key)
-        candidate = candidates_by_key.get(field.key) or _missing_provider_result(field)
-        candidate = candidate.model_copy(
-            update={
-                "evidence_candidates": candidate.evidence_candidates or evidence_for_field(document_ir, field, blocks=all_blocks),
-                "evidence_packs": build_evidence_packs(document_ir, field, blocks=all_blocks),
-                "model_profile_id": getattr(getattr(evidence_provider, "profile", None), "profile_id", None),
-                "ocr_engine": document_ir.metadata.get("ocr_engine"),
-                "provenance": {
-                    **candidate.provenance,
-                    "provider": evidence_provider.name,
-                    "route": candidate.provenance.get("route", evidence_provider.route),
-                    "group": group.key,
-                    "extraction_strategy": "evidence_first_multimodal",
-                    "document_context_version": context.metadata.get("context_version"),
-                    "llm_cache_status": _provider_usage_value(evidence_provider, candidate, "llm_cache_status"),
-                    "llm_cache_key": _provider_usage_value(evidence_provider, candidate, "llm_cache_key"),
-                    "ocr_page_quality": _page_quality_for_result(document_ir, candidate),
-                },
-            }
-        )
-        validated = validate_candidate(candidate, field, document_ir)
-        # Validation may overwrite the acceptance_reason to
-        # "high_confidence_evidence_validated" when auto-acceptance fires.
-        # For rule-pre-accepted fields we want the more specific reason to
-        # survive so diagnostics surface that the LLM was skipped. The
-        # auto_accepted flag remains as validate_candidate decided.
-        if field.key in rule_shortcut_candidates:
-            validated = validated.model_copy(update={"acceptance_reason": "rule_pre_accepted"})
-        results_by_key[field.key] = validated
+    # M1-002: build the FTS5 evidence-search index once per case and reuse
+    # it across every `build_evidence_packs` / `evidence_for_field` call
+    # below. Without the index each call rebuilds the in-memory FTS table
+    # (~22 fields per case for mock_general). Behavior is byte-identical;
+    # only the per-call sqlite3 connection cost is amortized.
+    case_index = build_evidence_index(all_blocks)
+    try:
+        for field in phase_one_fields:
+            group = schema.group_by_key(field.field_group_key)
+            candidate = candidates_by_key.get(field.key) or _missing_provider_result(field)
+            candidate = candidate.model_copy(
+                update={
+                    "evidence_candidates": candidate.evidence_candidates or evidence_for_field(document_ir, field, blocks=all_blocks, index=case_index),
+                    "evidence_packs": build_evidence_packs(document_ir, field, blocks=all_blocks, index=case_index),
+                    "model_profile_id": getattr(getattr(evidence_provider, "profile", None), "profile_id", None),
+                    "ocr_engine": document_ir.metadata.get("ocr_engine"),
+                    "provenance": {
+                        **candidate.provenance,
+                        "provider": evidence_provider.name,
+                        "route": candidate.provenance.get("route", evidence_provider.route),
+                        "group": group.key,
+                        "extraction_strategy": "evidence_first_multimodal",
+                        "document_context_version": context.metadata.get("context_version"),
+                        "llm_cache_status": _provider_usage_value(evidence_provider, candidate, "llm_cache_status"),
+                        "llm_cache_key": _provider_usage_value(evidence_provider, candidate, "llm_cache_key"),
+                        "ocr_page_quality": _page_quality_for_result(document_ir, candidate),
+                    },
+                }
+            )
+            validated = validate_candidate(candidate, field, document_ir)
+            # Validation may overwrite the acceptance_reason to
+            # "high_confidence_evidence_validated" when auto-acceptance fires.
+            # For rule-pre-accepted fields we want the more specific reason to
+            # survive so diagnostics surface that the LLM was skipped. The
+            # auto_accepted flag remains as validate_candidate decided.
+            if field.key in rule_shortcut_candidates:
+                validated = validated.model_copy(update={"acceptance_reason": "rule_pre_accepted"})
+            results_by_key[field.key] = validated
+    finally:
+        case_index.close()
     return [results_by_key[field.key] for field in schema.fields if field.key in results_by_key]
 
 

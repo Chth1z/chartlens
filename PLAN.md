@@ -25,6 +25,11 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
+### todo M1-002 Async LLM provider HTTP I/O (deferred)
+
+- Deferred reason: Pure adapter async-only migration without pipeline restructure adds maintenance cost (sync wrappers + async cores) without observable runtime benefit. Current evidence-first mode does one LLM call per case for all fields together. Async wins materialize once we restructure the case worker pool to use asyncio (concurrent case processing) OR overlap OCR sidecar + LLM stages within a case. Both are larger changes that need a concrete throughput target.
+- Trigger: when E2-003 throughput baseline shows that LLM-call wait time dominates and case_workers tuning hits diminishing returns.
+
 ### todo Add database migration baseline before schema expansion
 
 - Goal: Replace the manual `Base.metadata.create_all(...)` plus ad hoc `_ensure_sqlite_columns` `ALTER TABLE` path with an Alembic migration baseline. Startup runs `alembic upgrade head`. Fresh DB and existing DB go through the same path.
@@ -91,6 +96,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done M1-002 In-process FTS index reuse per case (2026-05-19)
+
+- Goal: Build the SQLite FTS5 evidence-search index once per case and reuse it across every `build_evidence_packs` / `evidence_for_field` call in that case. Replace the per-field `sqlite3.connect(":memory:")` + `CREATE VIRTUAL TABLE` + bulk insert cycle (mock_general baseline = 22 fields × 19 cases = 418 builds per run) with one build per case.
+- Outcome: Pure perf refactor, behavior byte-equivalent. New `EvidenceIndex` dataclass plus `build_evidence_index()` constructor and `evidence_index()` context manager in `backend/app/services/evidence.py` (file 280 → 445 lines, still under the 500-line soft trigger). Threaded an optional `index: EvidenceIndex | None = None` parameter through `evidence_for_field`, `build_evidence_packs`, `_field_evidence_pack_payload`, `_llm_user_payload`. `_fts_scores` was split into `_fts_scores_with_index(index, terms)` (uses the existing connection) and a thin `_fts_scores(blocks, terms)` wrapper that builds a temporary index for ad-hoc callers (`compact_group_context`, tests). Both `pipeline_evidence_first._extract_document_evidence_first` and `pipeline.extract_document` (legacy `group_evidence_pack` path) now call `build_evidence_index(document_ir.blocks)` once per case and pass `index=case_index` to every downstream call, wrapped in `try/finally` so the in-memory sqlite connection is always closed. New contract test file `backend/tests/test_evidence_index.py` (4 tests, 0.38s): indexed packs identical to legacy packs across 6 schema fields (gender, age, hypertension_history, diabetes_history, smoking_history, drinking_history) — comparing pack_hash, score, match_terms, score_reason, neighbor_block_ids, negated/uncertain/family_context flags; `close()` is idempotent (double-close is a no-op); `block_ids_signature` differs when block order differs (so a future stale-index check has a cheap comparator); the context manager closes on exit. Verification: 359 backend tests pass (was 355 + 4 new); rule baseline `mock_general.json` byte-equivalent (`git diff` empty after regeneration); 9 frontend tests + build clean; governance scan clean. Perf measurement: end-to-end eval test wall clock dropped 5% (7.30s → ~6.91s mean of 3 runs); a focused `build_evidence_packs` micro-benchmark (19 cases × 23 fields × 60 blocks) shows 2.24× speedup (0.516s → 0.231s, 55% reduction) — the targeted improvement is fully realized in the FTS code path; the eval test is dominated by OCR/dedup/SQLAlchemy round-trips. Residual: `compact_group_context()` (no production caller) and the LLM `_llm_cache_key` path still build their own FTS index per call; both are negligible and out of scope for this task.
+- Anchor: `docs/MODERNIZATION_PLAN.md` M1-005 (re-numbered as M1-002 in the rolling plan).
+
 ### done M1-001 Provider-capability-aware structured output routing (2026-05-19)
 
 - Goal: Add `structured_output_mode` to `ModelProfile` (values: `json_schema` strict / `json_object` / `tools` / `text`). The OpenAI-compatible adapter picks the strongest mode the active profile declares, falls back on a 400-class capability error to the next mode, and records the downgrade in `last_usage.structured_output_mode` and `last_usage.structured_output_downgrade`. Default values per profile: `openai_structured` → `json_schema`, `deepseek_v4_flash` / `deepseek_v4_pro` → `json_schema` (DeepSeek V3.2+ supports strict `response_format={"type":"json_schema",...}`), `openrouter_auto` / `ollama_local` / `openai_compatible_custom` → `json_object`, `local_disabled` → `text`. The existing v3.x prompt rules (contiguous-substring, placeholder-not-value) stay in place; this task added the schema-enforcement layer underneath them, not replacing them.
@@ -115,14 +126,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no behavior change. Lifted every state hook, ref, derived `useMemo`, every `useEffect` (bootstrap, route sync, diagnostics-on-case-switch, selectedField rebinding, reviewCode rebinding) and every async handler (`refreshAuthStatus`, `bootstrap`, `loadRuntimeSettings`, `loadProjectConfig`, `loadFieldDictionary`, `refresh`, `loadDiagnostics`, `onUpload`, `submitReprocess`, `approveVisionFallback`, `submitExport`, `submitReview`, `removeCase`, `clearLocalCases`) into a single custom hook `frontend/src/features/app/useChartLensState.ts` (486 lines). The hook returns one flat object so `ChartLensApp.tsx` (336 lines) destructures it and stays render-only; `ChartLensState` is exposed as `ReturnType<typeof useChartLensState>` so the JSX consumer keeps full type safety without a hand-maintained interface mirror. Moved the two small fallback components (`SettingsPanelFallback`, `CaseDetailLoading`) to `frontend/src/features/app/components.tsx` (20 lines). Moved `mergeCaseRecord` next to its existing peers in `frontend/src/features/app/caseSwitching.ts` (25 lines, was 18) since it composes with the same `CaseRecord` shape; the existing `caseSwitching.test.ts` keeps passing because no exported symbol is removed. The `useCasePolling({ refresh, loadDiagnostics })` wiring stays unchanged so the hook's polling behavior, the `diagnosticsRequestSeq` race guard, the `Suspense` boundary around the lazy `SettingsPanel`, and the empty-state JSX paths are byte-equivalent. Frontend tests (9) pass; `npm run build` succeeds with the same bundle layout (`SettingsPanel-*.js` chunk preserved); governance scan passes with no large-file warnings on any of the four files (336 / 486 / 25 / 20).
 - Anchor: AGENTS.md 500-line soft trigger rule.
 
-### done PLAN-split-ocr (2026-05-19)
-
-- Goal: Reduce the 532-line `backend/app/services/ocr.py` (above the AGENTS.md 500-line soft trigger) to a focused subpackage where each module ≤ 300 lines.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-06-03: PLAN-split-ocr (2026-05-19).
 - 2026-06-02: PLAN-split-evidence-first (2026-05-19).
 - 2026-06-01: PLAN-split-diagnostics (2026-05-19).
 - 2026-05-31: PLAN-split-layout-normalizer (2026-05-19).

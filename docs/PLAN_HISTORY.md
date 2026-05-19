@@ -162,3 +162,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Reduced 571-line `backend/app/services/evidence_first.py` to a subpackage where each module ≤ 400 lines: `__init__.py` (10), `spans.py` (62), `candidates.py` (94), `rules.py` (214), `collection.py` (33), `adjudication.py` (210). All 344 backend tests pass; rule baseline 0.9623 (153/159) reproduces byte-identically; frontend tests (9) and build pass; governance scan clean.
 - Anchor: AGENTS.md 500-line soft trigger rule.
+
+### done PLAN-split-ocr (2026-05-19)
+
+- Reduced 532-line `backend/app/services/ocr.py` to a subpackage where each module ≤ 300 lines: `__init__.py` (13), `blocks.py` (93), `cache.py` (117), `quality.py` (142), `builder.py` (223). Test monkey-patches keep working through deferred name resolution against `app.services.ocr`. All 344 backend tests pass; rule baseline 0.9623 (153/159) reproduces byte-identically; frontend tests (9) and build pass; governance scan clean.
+- Anchor: AGENTS.md 500-line soft trigger rule.

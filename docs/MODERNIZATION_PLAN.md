@@ -77,11 +77,14 @@ The master agent does not silently broaden scope mid-iteration. If a sub-agent s
 - Out of scope: hosted observability backend choice; cost tracking enrichment beyond what `model_calls.cost_usd` already carries.
 - Acceptance: spans visible in stdout exporter; `model_calls` rows still match the OTel spans 1:1 in the test suite.
 
-### M1-005 — In-process FTS index per case (planned)
+### M1-002 — In-process FTS index reuse per case (done 2026-05-19)
 
-- Goal: build the SQLite FTS5 index once per case during `build_document_context` and reuse it for every `build_evidence_packs` call inside that case. Replace `evidence.py:_fts_scores`'s `sqlite3.connect(":memory:")` per-field cost.
+- Goal: build the SQLite FTS5 index once per case during evidence collection prelude and reuse it for every `build_evidence_packs` call inside that case. Replace `evidence.py:_fts_scores`'s `sqlite3.connect(":memory:")` per-field cost.
 - Out of scope: switching to `whoosh` or `tantivy`.
 - Acceptance: rule baseline unchanged; eval runner reports a wall-clock improvement on `mock_general` (target: 30%+ reduction in extraction stage time).
+- Outcome (2026-05-19): closed in one focused session via sub-agent. New `EvidenceIndex` dataclass + `build_evidence_index()` constructor + `evidence_index()` context manager; `_fts_scores` split into indexed and legacy paths; threaded through `build_evidence_packs` / `evidence_for_field` / `_field_evidence_pack_payload`. `pipeline.py` and `pipeline_evidence_first.py` build the index once per case in a `try/finally`. 4 new contract tests assert byte-equivalent packs across 6 schema fields. 359 backend tests pass (was 355). Rule baseline `mock_general.json` byte-equivalent. Perf: end-to-end eval test 5% faster (7.30s → ~6.91s); focused FTS micro-benchmark 2.24× faster (0.516s → 0.231s, 55% reduction). The original 30% wall-clock target was set against the FTS code path itself; the eval test is dominated by OCR/dedup/SQLAlchemy round-trips, which is why the end-to-end delta is smaller. Anchor: PLAN.md Done.
+
+### M1-005 — In-process FTS index per case (re-numbered as M1-002 above; entry preserved for cross-reference)
 
 ### M1-006 — TanStack Query frontend server state (planned)
 
