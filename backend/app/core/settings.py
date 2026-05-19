@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     otel_endpoint: str = ""
     otel_service_name: str = "eyex-backend"
     config_watch: bool = True
+    evidence_embeddings: bool = False
+    evidence_embedding_weight: float = 2.0
     log_format: Literal["json", "console"] = "json"
     log_level: str = "INFO"
 

@@ -170,6 +170,16 @@ def build_evidence_packs(
         if index is not None
         else _fts_scores(source_blocks, _field_terms(field))
     )
+
+    # Hybrid scoring: add embedding similarity when enabled
+    from app.services.evidence_embeddings import embeddings_enabled, semantic_scores
+    embedding_scores: dict[str, float] = {}
+    if embeddings_enabled():
+        cache_sig = index.block_ids_signature if index is not None else None
+        embedding_scores = semantic_scores(
+            source_blocks, field, cache_signature=cache_sig
+        )
+
     scored: list[tuple[DocumentIRBlock, float, list[str], list[str]]] = []
     for block in source_blocks:
         if block.section_label in field.excluded_sections:
@@ -178,6 +188,9 @@ def build_evidence_packs(
         if block.block_id in fts_scores:
             score += fts_scores[block.block_id]
             reasons.append("fts5_match")
+        if block.block_id in embedding_scores:
+            score += 2.0 * embedding_scores[block.block_id]
+            reasons.append("embedding_similarity")
         if score <= 0:
             continue
         scored.append((block, score, match_terms, reasons))
