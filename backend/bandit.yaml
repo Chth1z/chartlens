@@ -1,0 +1,13 @@
+skips:
+  - B101  # assert used in tests (we don't run bandit on tests/)
+  - B105  # false positive: dict keys named *password*/*token* with placeholder values
+  - B110  # try/except/pass for defensive parsing (non-security context)
+  - B112  # try/except/continue for defensive parsing (non-security context)
+  - B311  # random used for non-security purposes (case IDs)
+  - B324  # SHA1 used for content-addressable block IDs, not cryptographic security
+  - B404  # subprocess import — commands are hardcoded, not user-controlled
+  - B603  # subprocess call — arguments are hardcoded literals
+  - B607  # partial path in subprocess — powershell is a system binary
+exclude_dirs:
+  - backend/tests
+  - backend/ocr_sidecar

@@ -27,9 +27,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ### todo M1-002 Async LLM provider HTTP I/O (deferred)
 
-- Deferred reason: Pure adapter async-only migration without pipeline restructure adds maintenance cost (sync wrappers + async cores) without observable runtime benefit. Current evidence-first mode does one LLM call per case for all fields together. Async wins materialize once we restructure the case worker pool to use asyncio (concurrent case processing) OR overlap OCR sidecar + LLM stages within a case. Both are larger changes that need a concrete throughput target.
-- Trigger: when E2-003 throughput baseline shows that LLM-call wait time dominates and case_workers tuning hits diminishing returns.
-
 ### todo Add database migration baseline before schema expansion
 
 - Goal: Replace the manual `Base.metadata.create_all(...)` plus ad hoc `_ensure_sqlite_columns` `ALTER TABLE` path with an Alembic migration baseline. Startup runs `alembic upgrade head`. Fresh DB and existing DB go through the same path.
@@ -96,6 +93,12 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
 
+### done M1-003 Dependency lockfile + supply-chain audit (2026-05-19)
+
+- Goal: Add supply-chain security scanning to CI: `pip-audit` (vulnerability scan), `bandit` (SAST), `npm audit` (frontend advisories). Upgrade vulnerable deps (`python-multipart` 0.0.20 → 0.0.29, `pypdf` 6.4.1 → 6.11.0) to pass the audit clean.
+- Outcome: New CI job `security` (ubuntu-latest, parallel with backend/frontend) runs pip-audit against `requirements.txt`, bandit against `backend/app/` with a config file, and `npm audit --audit-level=high` against frontend. Created `backend/requirements-audit.txt` (CI-only audit deps: pip-audit 2.9.0, bandit 1.9.4) and `backend/bandit.yaml` (false-positive skips for B101/B105/B110/B112/B311/B324/B404/B603/B607). Upgraded `python-multipart` (3 CVEs fixed) and `pypdf` (18 CVEs fixed) in `requirements.txt`. All 359 backend tests pass with upgraded deps; pip-audit exits 0; bandit exits 0; npm audit exits 0; 9 frontend tests pass; governance scan clean.
+- Anchor: `docs/MODERNIZATION_PLAN.md` M1-003.
+
 ### done M1-002 In-process FTS index reuse per case (2026-05-19)
 
 - Goal: Build the SQLite FTS5 evidence-search index once per case and reuse it across every `build_evidence_packs` / `evidence_for_field` call in that case. Replace the per-field `sqlite3.connect(":memory:")` + `CREATE VIRTUAL TABLE` + bulk insert cycle (mock_general baseline = 22 fields × 19 cases = 418 builds per run) with one build per case.
@@ -120,16 +123,11 @@ The five most recent done entries stay here in detail. Older done entries live i
 - Outcome: Pure structural refactor, no behavior change. Moved every pure helper out of `ProviderSettingsPanel.tsx` (614 → 482 lines) into a new sibling `frontend/src/features/settings/providerHelpers.tsx` (156 lines): `providerIcon`, `modelSettingsPayload`, `providerApiOptions`, `providerOptionSchema`, `modelOptionsHelp`, `reasoningEffortLabel`, `formatProviderTime`, `providerHasCredential`, `providerHasBaseUrl`, `providerIsRunnable`, `providerBlockingText`, `credentialStatusText`, `providerStatusText`, `providerTone`, `connectionStatusText`, `modelCountText`, `apiTypeLabel`, `modelSource`, `groupModelsBySource`, `modelSourceLabel`, `modelSourceHelp`, `modelSourceBadge`, `modelForUpdate`, plus the local `DraftState`, `ModelSource`, `ProviderOptionSchema` type aliases, the `MODEL_SOURCE_ORDER` array, and the `OPENAI_CHAT_OPTION_SCHEMA` constant. The helpers file uses the `.tsx` extension because `providerIcon` returns JSX (`<Bot/>`/`<Zap/>`/`<Cloud/>`/`<Server/>`/`<KeyRound/>` from `lucide-react`); a `.ts` file cannot host the JSX literals. The component now imports those helpers as named values plus `import type { DraftState }` (preserving `import type` discipline) and trims its `lucide-react` import set to only the icons it still renders directly (`AlertTriangle`, `CheckCircle2`, `Plus`, `RefreshCw`, `Search`); icon imports used only by the moved `providerIcon` helper (`Bot`, `Cloud`, `KeyRound`, `Server`, `Zap`) live in `providerHelpers.tsx`. The `ModelProvider` type import was dropped from the panel since the component no longer references it directly. Both `useMemo` callsites (`groupModelsBySource(models)` and the `models` filter) keep working because the helpers are pure imports. Frontend tests (9) pass; `npm run build` succeeds with the same `SettingsPanel-*.js` chunk layout; governance scan passes with no large-file warnings on either file (482 / 156). Component still named-exports `ProviderSettingsPanel` exactly as before.
 - Anchor: AGENTS.md 500-line soft trigger rule.
 
-### done PLAN-split-chartlens-app (2026-05-19)
-
-- Goal: Reduce the 703-line `frontend/src/features/app/ChartLensApp.tsx` (above the AGENTS.md 500-line soft trigger) to a focused module set where each file ≤ 500 lines, with no visual or functional change.
-- Outcome: Pure structural refactor, no behavior change. Lifted every state hook, ref, derived `useMemo`, every `useEffect` (bootstrap, route sync, diagnostics-on-case-switch, selectedField rebinding, reviewCode rebinding) and every async handler (`refreshAuthStatus`, `bootstrap`, `loadRuntimeSettings`, `loadProjectConfig`, `loadFieldDictionary`, `refresh`, `loadDiagnostics`, `onUpload`, `submitReprocess`, `approveVisionFallback`, `submitExport`, `submitReview`, `removeCase`, `clearLocalCases`) into a single custom hook `frontend/src/features/app/useChartLensState.ts` (486 lines). The hook returns one flat object so `ChartLensApp.tsx` (336 lines) destructures it and stays render-only; `ChartLensState` is exposed as `ReturnType<typeof useChartLensState>` so the JSX consumer keeps full type safety without a hand-maintained interface mirror. Moved the two small fallback components (`SettingsPanelFallback`, `CaseDetailLoading`) to `frontend/src/features/app/components.tsx` (20 lines). Moved `mergeCaseRecord` next to its existing peers in `frontend/src/features/app/caseSwitching.ts` (25 lines, was 18) since it composes with the same `CaseRecord` shape; the existing `caseSwitching.test.ts` keeps passing because no exported symbol is removed. The `useCasePolling({ refresh, loadDiagnostics })` wiring stays unchanged so the hook's polling behavior, the `diagnosticsRequestSeq` race guard, the `Suspense` boundary around the lazy `SettingsPanel`, and the empty-state JSX paths are byte-equivalent. Frontend tests (9) pass; `npm run build` succeeds with the same bundle layout (`SettingsPanel-*.js` chunk preserved); governance scan passes with no large-file warnings on any of the four files (336 / 486 / 25 / 20).
-- Anchor: AGENTS.md 500-line soft trigger rule.
-
 ## Older Done Entries
 
 Rotated to `docs/PLAN_HISTORY.md` per AGENTS.md "Documentation Maintenance":
 
+- 2026-06-04: PLAN-split-chartlens-app (2026-05-19).
 - 2026-06-03: PLAN-split-ocr (2026-05-19).
 - 2026-06-02: PLAN-split-evidence-first (2026-05-19).
 - 2026-06-01: PLAN-split-diagnostics (2026-05-19).

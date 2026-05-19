@@ -50,3 +50,39 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  security:
+    name: Security & Supply Chain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install audit tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements-audit.txt
+
+      - name: pip-audit (vulnerability scan)
+        run: python -m pip_audit -r backend/requirements.txt
+
+      - name: bandit (SAST)
+        run: bandit -r backend/app/ -c backend/bandit.yaml -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: npm audit (advisory check)
+        working-directory: frontend
+        run: npm audit --audit-level=high

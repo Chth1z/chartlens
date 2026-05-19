@@ -167,3 +167,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Reduced 532-line `backend/app/services/ocr.py` to a subpackage where each module ≤ 300 lines: `__init__.py` (13), `blocks.py` (93), `cache.py` (117), `quality.py` (142), `builder.py` (223). Test monkey-patches keep working through deferred name resolution against `app.services.ocr`. All 344 backend tests pass; rule baseline 0.9623 (153/159) reproduces byte-identically; frontend tests (9) and build pass; governance scan clean.
 - Anchor: AGENTS.md 500-line soft trigger rule.
+
+### done PLAN-split-chartlens-app (2026-05-19)
+
+- Reduced 703-line `frontend/src/features/app/ChartLensApp.tsx` to a focused module set: `ChartLensApp.tsx` (336), `useChartLensState.ts` (486), `components.tsx` (20), `caseSwitching.ts` (25). Frontend tests (9) pass; build clean; governance clean.
+- Anchor: AGENTS.md 500-line soft trigger rule.
