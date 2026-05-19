@@ -26,6 +26,7 @@ from app.services.evidence import (
 from app.services.layout_normalizer import normalize_document_layout
 from app.services.ocr import build_document_ir, file_sha256
 from app.services.observability import ProcessingTrace
+from app.services.progress import ProgressEvent, progress_bus
 from app.services.llm_provider.fallback import ConservativeLocalProvider, build_semantic_provider
 from app.services.llm_provider.types import SemanticExtractionProvider
 from app.services.pipeline_errors import _public_error_message, _protect_document_ir
@@ -123,6 +124,14 @@ def process_case(
         case.status = "ocr"
         touch_case(case)
         db.commit()
+        progress_bus.publish(case.case_id, ProgressEvent(
+            case_id=case.case_id,
+            stage="ocr",
+            step="ocr_document_ir",
+            progress=0.1,
+            started_at=trace.run.started_at.isoformat() if trace.run.started_at else "",
+            message="OCR processing...",
+        ))
 
         with trace.step(
             "load_upload",
@@ -149,6 +158,14 @@ def process_case(
         case.status = "extracting"
         touch_case(case)
         db.commit()
+        progress_bus.publish(case.case_id, ProgressEvent(
+            case_id=case.case_id,
+            stage="extracting",
+            step="extract_document",
+            progress=0.5,
+            started_at=trace.run.started_at.isoformat() if trace.run.started_at else "",
+            message="Extracting fields...",
+        ))
 
         provider = semantic_provider or build_semantic_provider()
         with trace.step("extract_document", {"provider": provider.name, "route": provider.route}):
@@ -173,6 +190,12 @@ def process_case(
             touch_case(case)
             db.commit()
         trace.finish_completed(results=results, document_ir=document_ir, diagnostics=diagnostics)
+        progress_bus.publish(case.case_id, ProgressEvent(
+            case_id=case.case_id,
+            stage="completed",
+            progress=1.0,
+            message="Processing complete.",
+        ))
         db.refresh(case)
         return results
     except Exception as exc:
@@ -185,6 +208,12 @@ def process_case(
         touch_case(case)
         db.commit()
         trace.finish_failed(diagnostics=diagnostics)
+        progress_bus.publish(case.case_id, ProgressEvent(
+            case_id=case.case_id,
+            stage="failed",
+            progress=1.0,
+            message="Processing failed.",
+        ))
         raise
 
 

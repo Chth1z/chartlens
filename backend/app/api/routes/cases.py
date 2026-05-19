@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -30,6 +31,7 @@ from app.core.settings import settings
 from app.domain.models import CaseSummary, ReviewDecision, ValidatedFieldResult
 from app.services.export import build_export_workbook
 from app.services.pipeline import enqueue_case, process_case
+from app.services.progress import progress_bus
 from app.services.review import apply_review
 from app.services.source_ocr import build_source_ocr_payload
 from app.services.source_pages import SourcePageError, resolve_case_source_page
@@ -81,6 +83,55 @@ def list_cases(db: Annotated[Session, Depends(get_db)]) -> list[CaseSummary]:
 def get_case(case_id: str, db: Annotated[Session, Depends(get_db)]) -> CaseSummary:
     case = _require_case(db, case_id)
     return _case_summary(case)
+
+
+@router.get("/cases/{case_id}/progress")
+async def case_progress_stream(case_id: str, db: Annotated[Session, Depends(get_db)]) -> StreamingResponse:
+    """Stream SSE events for case processing progress.
+
+    Emits `event: progress` at each stage transition and `event: complete`
+    when the case reaches a terminal state (completed/failed). Sends a
+    heartbeat comment every 15 seconds to keep the connection alive.
+    """
+    _require_case(db, case_id)
+
+    async def event_generator():
+        queue = await progress_bus.subscribe(case_id)
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    # Heartbeat to keep connection alive
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if event is None:
+                    # Stream closed by publisher
+                    break
+
+                if event.stage in ("completed", "failed"):
+                    data = json.dumps(
+                        {"case_id": event.case_id, "stage": event.stage, "progress": event.progress},
+                        ensure_ascii=False,
+                    )
+                    yield f"event: complete\ndata: {data}\n\n"
+                    break
+                else:
+                    data = json.dumps(event.to_dict(), ensure_ascii=False)
+                    yield f"event: progress\ndata: {data}\n\n"
+        finally:
+            progress_bus.unsubscribe(case_id, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/cases/{case_id}/reprocess", response_model=CaseSummary)
