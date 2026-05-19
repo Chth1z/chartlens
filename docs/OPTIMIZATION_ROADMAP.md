@@ -18,10 +18,10 @@ This document tracks the comprehensive modernization effort to bring EYEX to sta
 |--------|-------|-----------------|--------|
 | S1 | Foundation & Tooling | Vitest migration, SSE progress, Docker | done |
 | S2 | Async Architecture | Async LLM adapters, async pipeline | done |
-| S3 | Intelligent Retrieval | Embedding-based hybrid evidence scoring | done |
+| S3 | Intelligent Retrieval | Embedding hybrid scoring, cross-encoder reranking | done |
 | S4 | VLM-First OCR | Multimodal evidence with page images | done |
-| S5 | Observability & Analytics | Cost analytics API, Langfuse (planned) | in-progress |
-| S6 | Security & Privacy | Config hot-reload, Presidio NER (planned) | in-progress |
+| S5 | Observability & Analytics | Cost analytics API | done |
+| S6 | Security & Privacy | Config hot-reload, Presidio NER de-id | done |
 
 ---
 
