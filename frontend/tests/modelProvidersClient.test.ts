@@ -1,39 +1,11 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   ApiError,
   activateProviderModel,
   fetchProviderModels,
   getModelProviders,
   updateModelProvider
-} from "../src/shared/api/client.js";
-
-function assertEqual<T>(actual: T, expected: T, message: string) {
-  if (actual !== expected) {
-    throw new Error(`${message}: expected ${expected}, received ${actual}`);
-  }
-}
-
-function assert(condition: unknown, message: string) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-async function assertRejectsApiError(action: () => Promise<unknown>, expectedStatus: number, expectedMessage: string) {
-  try {
-    await action();
-  } catch (error) {
-    if (!(error instanceof ApiError)) {
-      throw new Error("request failures should throw ApiError");
-    }
-    assertEqual(error.status, expectedStatus, "ApiError should expose response status");
-    assert(
-      error.message.includes(expectedMessage),
-      `ApiError should include "${expectedMessage}", received "${error.message}"`
-    );
-    return;
-  }
-  throw new Error("expected request to reject");
-}
+} from "../src/shared/api/client";
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -130,97 +102,145 @@ const openAiModelProfile = {
 
 const originalFetch = globalThis.fetch;
 
-globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = String(input);
-  const method = init?.method ?? "GET";
+beforeAll(() => {
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
 
-  if (url.endsWith("/api/model-providers") && method === "GET") {
-    return jsonResponse({
-      active: {
-        provider_id: "openai",
-        model_ref: "openai/gpt-5.4",
-        model: "gpt-5.4"
-      },
-      providers: [openAiProvider]
-    });
-  }
+    if (url.endsWith("/api/model-providers") && method === "GET") {
+      return jsonResponse({
+        active: {
+          provider_id: "openai",
+          model_ref: "openai/gpt-5.4",
+          model: "gpt-5.4"
+        },
+        providers: [openAiProvider]
+      });
+    }
 
-  if (url.endsWith("/api/model-providers/openai") && method === "PATCH") {
-    return jsonResponse({
-      ok: true,
-      provider: openAiProvider
-    });
-  }
+    if (url.endsWith("/api/model-providers/openai") && method === "PATCH") {
+      return jsonResponse({
+        ok: true,
+        provider: openAiProvider
+      });
+    }
 
-  if (url.endsWith("/api/model-providers/openai/models/fetch") && method === "POST") {
-    return jsonResponse({
-      ok: true,
-      ...openAiProvider
-    });
-  }
+    if (url.endsWith("/api/model-providers/openai/models/fetch") && method === "POST") {
+      return jsonResponse({
+        ok: true,
+        ...openAiProvider
+      });
+    }
 
-  if (url.endsWith("/api/model-providers/active") && method === "PATCH") {
-    return jsonResponse({
-      ok: true,
-      active: {
-        provider_id: "openai",
-        model_ref: "openai/gpt-5.4",
-        model: "gpt-5.4"
-      },
-      providers: [openAiProvider],
-      active_model: openAiModelProfile
-    });
-  }
+    if (url.endsWith("/api/model-providers/active") && method === "PATCH") {
+      return jsonResponse({
+        ok: true,
+        active: {
+          provider_id: "openai",
+          model_ref: "openai/gpt-5.4",
+          model: "gpt-5.4"
+        },
+        providers: [openAiProvider],
+        active_model: openAiModelProfile
+      });
+    }
 
-  if (url.endsWith("/api/model-providers/broken") && method === "PATCH") {
-    return jsonResponse({
-      ok: true,
-      provider: {
-        provider_id: "broken",
-        label: "Broken Provider",
-        description: "Broken provider payload",
-        api: "openai-completions",
-        auth_env_vars: ["EYEX_COMPATIBLE_API_KEY"],
-        auth_optional: false,
-        base_url_editable: true,
-        enabled: true,
-        models: "oops",
-        api_key_configured: false
-      }
-    });
-  }
+    if (url.endsWith("/api/model-providers/broken") && method === "PATCH") {
+      return jsonResponse({
+        ok: true,
+        provider: {
+          provider_id: "broken",
+          label: "Broken Provider",
+          description: "Broken provider payload",
+          api: "openai-completions",
+          auth_env_vars: ["EYEX_COMPATIBLE_API_KEY"],
+          auth_optional: false,
+          base_url_editable: true,
+          enabled: true,
+          models: "oops",
+          api_key_configured: false
+        }
+      });
+    }
 
-  throw new Error(`unexpected fetch: ${url}`);
-}) as typeof fetch;
+    throw new Error(`unexpected fetch: ${url}`);
+  }) as typeof fetch;
+});
 
-try {
-  const providers = await getModelProviders();
-  assertEqual(providers.active.provider_id, "openai", "getModelProviders should preserve active provider");
-  assertEqual(providers.providers[0].models[0].id, "gpt-5.4", "getModelProviders should validate provider models");
-  assertEqual(providers.providers[0].recommended_models?.[0].source, "preset", "recommended models should be parsed");
-
-  const updated = await updateModelProvider("openai", {
-    enabled: true,
-    selected_model: "gpt-5.4"
-  });
-  assertEqual(updated.provider.api_key_configured, true, "updateModelProvider should parse provider details");
-  assertEqual(updated.provider.connected_at, "2026-05-05T00:00:00Z", "updateModelProvider should preserve metadata");
-
-  const fetched = await fetchProviderModels("openai");
-  assertEqual(fetched.ok, true, "fetchProviderModels should surface ok flag");
-  assertEqual(fetched.provider_id, "openai", "fetchProviderModels should return provider detail");
-  assertEqual(fetched.models[0].source, "fetched", "fetchProviderModels should validate nested models");
-
-  const activated = await activateProviderModel("openai", "gpt-5.4");
-  assertEqual(activated.ok, true, "activateProviderModel should surface ok flag");
-  assertEqual(activated.active_model.profile_id, "provider_openai_gpt_5_4", "activateProviderModel should parse active model");
-  assertEqual(activated.providers[0].provider_id, "openai", "activateProviderModel should preserve provider list");
-
-  await assertRejectsApiError(
-    () => updateModelProvider("broken", { enabled: false }),
-    502,
-    "ModelProviderUpdateResponse.provider.models must be an array"
-  );
-} finally {
+afterAll(() => {
   globalThis.fetch = originalFetch;
-}
+});
+
+describe("modelProvidersClient", () => {
+  it("getModelProviders should preserve active provider", async () => {
+    const providers = await getModelProviders();
+    expect(providers.active.provider_id).toBe("openai");
+  });
+
+  it("getModelProviders should validate provider models", async () => {
+    const providers = await getModelProviders();
+    expect(providers.providers[0].models[0].id).toBe("gpt-5.4");
+  });
+
+  it("recommended models should be parsed", async () => {
+    const providers = await getModelProviders();
+    expect(providers.providers[0].recommended_models?.[0].source).toBe("preset");
+  });
+
+  it("updateModelProvider should parse provider details", async () => {
+    const updated = await updateModelProvider("openai", {
+      enabled: true,
+      selected_model: "gpt-5.4"
+    });
+    expect(updated.provider.api_key_configured).toBe(true);
+  });
+
+  it("updateModelProvider should preserve metadata", async () => {
+    const updated = await updateModelProvider("openai", {
+      enabled: true,
+      selected_model: "gpt-5.4"
+    });
+    expect(updated.provider.connected_at).toBe("2026-05-05T00:00:00Z");
+  });
+
+  it("fetchProviderModels should surface ok flag", async () => {
+    const fetched = await fetchProviderModels("openai");
+    expect(fetched.ok).toBe(true);
+  });
+
+  it("fetchProviderModels should return provider detail", async () => {
+    const fetched = await fetchProviderModels("openai");
+    expect(fetched.provider_id).toBe("openai");
+  });
+
+  it("fetchProviderModels should validate nested models", async () => {
+    const fetched = await fetchProviderModels("openai");
+    expect(fetched.models[0].source).toBe("fetched");
+  });
+
+  it("activateProviderModel should surface ok flag", async () => {
+    const activated = await activateProviderModel("openai", "gpt-5.4");
+    expect(activated.ok).toBe(true);
+  });
+
+  it("activateProviderModel should parse active model", async () => {
+    const activated = await activateProviderModel("openai", "gpt-5.4");
+    expect(activated.active_model.profile_id).toBe("provider_openai_gpt_5_4");
+  });
+
+  it("activateProviderModel should preserve provider list", async () => {
+    const activated = await activateProviderModel("openai", "gpt-5.4");
+    expect(activated.providers[0].provider_id).toBe("openai");
+  });
+
+  it("updateModelProvider should reject with validation error for broken payloads", async () => {
+    await expect(updateModelProvider("broken", { enabled: false })).rejects.toThrow(ApiError);
+    try {
+      await updateModelProvider("broken", { enabled: false });
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(502);
+      expect((error as ApiError).message).toContain("ModelProviderUpdateResponse.provider.models must be an array");
+    }
+  });
+});

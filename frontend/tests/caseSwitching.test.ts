@@ -1,11 +1,6 @@
-import { caseHasDetailPayload, caseNeedsDetailHydration, diagnosticsForCase } from "../src/features/app/caseSwitching.js";
+import { describe, it, expect } from "vitest";
+import { caseHasDetailPayload, caseNeedsDetailHydration, diagnosticsForCase } from "../src/features/app/caseSwitching";
 import type { CaseDiagnostics, CaseRecord } from "../src/shared/types/api";
-
-function assertEqual<T>(actual: T, expected: T, message: string) {
-  if (actual !== expected) {
-    throw new Error(`${message}: expected ${expected}, received ${actual}`);
-  }
-}
 
 function caseRecord(overrides: Partial<CaseRecord>): CaseRecord {
   return {
@@ -65,44 +60,32 @@ function diagnostics(caseId: string): CaseDiagnostics {
   };
 }
 
-assertEqual(
-  caseHasDetailPayload(caseRecord({ results: [], ocr_blocks: [], result_count: 20 })),
-  false,
-  "completed case summaries without hydrated results or OCR blocks should not drive review panels"
-);
+describe("caseSwitching", () => {
+  it("completed case summaries without hydrated results or OCR blocks should not drive review panels", () => {
+    expect(caseHasDetailPayload(caseRecord({ results: [], ocr_blocks: [], result_count: 20 }))).toBe(false);
+  });
 
-assertEqual(
-  caseNeedsDetailHydration(caseRecord({ results: [], ocr_blocks: [], result_count: 20 })),
-  true,
-  "case summaries with result counts should show a stable detail loading state while hydrating"
-);
+  it("case summaries with result counts should show a stable detail loading state while hydrating", () => {
+    expect(caseNeedsDetailHydration(caseRecord({ results: [], ocr_blocks: [], result_count: 20 }))).toBe(true);
+  });
 
-assertEqual(
-  caseNeedsDetailHydration(caseRecord({ results: [], ocr_blocks: [], result_count: 0, review_required_count: 0 })),
-  false,
-  "empty completed cases should not be trapped behind a permanent detail loading overlay"
-);
+  it("empty completed cases should not be trapped behind a permanent detail loading overlay", () => {
+    expect(caseNeedsDetailHydration(caseRecord({ results: [], ocr_blocks: [], result_count: 0, review_required_count: 0 }))).toBe(false);
+  });
 
-assertEqual(
-  caseHasDetailPayload(caseRecord({ results: [{ field_key: "gender" } as any] })),
-  true,
-  "cases with hydrated results should drive review panels"
-);
+  it("cases with hydrated results should drive review panels", () => {
+    expect(caseHasDetailPayload(caseRecord({ results: [{ field_key: "gender" } as any] }))).toBe(true);
+  });
 
-assertEqual(
-  caseHasDetailPayload(caseRecord({ ocr_blocks: [{ page: 1, text: "证据", bbox: [], confidence: 0.9 }] as any })),
-  true,
-  "cases with hydrated OCR blocks should drive review panels"
-);
+  it("cases with hydrated OCR blocks should drive review panels", () => {
+    expect(caseHasDetailPayload(caseRecord({ ocr_blocks: [{ page: 1, text: "证据", bbox: [], confidence: 0.9 }] as any }))).toBe(true);
+  });
 
-assertEqual(
-  diagnosticsForCase(diagnostics("CASE-A"), "CASE-B"),
-  null,
-  "diagnostics from the previous case must not be reused after switching cases"
-);
+  it("diagnostics from the previous case must not be reused after switching cases", () => {
+    expect(diagnosticsForCase(diagnostics("CASE-A"), "CASE-B")).toBeNull();
+  });
 
-assertEqual(
-  diagnosticsForCase(diagnostics("CASE-A"), "CASE-A")?.case_id,
-  "CASE-A",
-  "diagnostics matching the selected case should be used"
-);
+  it("diagnostics matching the selected case should be used", () => {
+    expect(diagnosticsForCase(diagnostics("CASE-A"), "CASE-A")?.case_id).toBe("CASE-A");
+  });
+});
