@@ -157,3 +157,8 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Split `backend/app/services/diagnostics.py` (633 lines) into `backend/app/services/diagnostics/`: `__init__.py` (13) re-exports the public API (`build_case_diagnostics`, `quality_summary`, `frontend_evidence_config`, `processing_run`); `case_summary.py` (166) owns `build_case_diagnostics`, `_snapshot_model_calls`, `quality_summary`, `frontend_evidence_config`; `ocr_debug.py` (182) owns `_ocr_debug_summary` plus fragmentation/duplicate/tile/table/low-quality check helpers and their geometry/text utilities; `processing_run.py` (258) owns `processing_run`, `_run_record_payload`, `_step_timings`, the `_trace_*` family, and the `_model_call_payload` / `_event_payload` / `_vision_request_payload` builders that `case_summary` reuses; `ocr_availability.py` (56) owns the five `_extract_*` / `_default_ocr_unavailable_reason` helpers. `processing_run()` uses a function-local lazy import of `quality_summary` to keep module-level dependencies acyclic. Pure refactor: 344 backend tests pass; rule baseline 0.9623 (153/159) byte-identical; frontend tests (9) and build pass; governance scan cleared.
 - Anchor: AGENTS.md 500-line soft trigger rule.
+
+### done PLAN-split-evidence-first (2026-05-19)
+
+- Reduced 571-line `backend/app/services/evidence_first.py` to a subpackage where each module ≤ 400 lines: `__init__.py` (10), `spans.py` (62), `candidates.py` (94), `rules.py` (214), `collection.py` (33), `adjudication.py` (210). All 344 backend tests pass; rule baseline 0.9623 (153/159) reproduces byte-identically; frontend tests (9) and build pass; governance scan clean.
+- Anchor: AGENTS.md 500-line soft trigger rule.

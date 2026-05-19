@@ -57,6 +57,7 @@ def _llm_cache_key(
         "model_profile_id": getattr(profile, "profile_id", None),
         "model": getattr(profile, "model", None),
         "provider": getattr(profile, "provider", None),
+        "structured_output_mode": getattr(profile, "structured_output_mode", None),
         "group_key": group.key,
         "field_keys": [field.key for field in fields],
         "evidence_pack_hashes": {
@@ -98,6 +99,7 @@ def _evidence_first_cache_key(
         "model_profile_id": getattr(profile, "profile_id", None),
         "model": getattr(profile, "model", None),
         "provider": getattr(profile, "provider", None),
+        "structured_output_mode": getattr(profile, "structured_output_mode", None),
         "field_keys": [field.key for field in fields],
         "field_policies": {field.key: field.evidence_policy.model_dump() for field in fields},
     }

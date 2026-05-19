@@ -6,6 +6,7 @@ model_ref: local/conservative-local
 api: disabled
 model: conservative-local
 response_format: json_object
+structured_output_mode: text
 reasoning_effort: low
 prompt_cache_key: eyex-clinical-extraction-v1
 max_output_tokens: 1024
