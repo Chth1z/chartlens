@@ -86,6 +86,7 @@ Listed in reverse chronological order. Click through to the dated heading for th
 
 ### Promotion records (informational)
 
+- 2026-05-20 — Fifteenth batched dev to main promotion (M1-006, E0-002, E0-003)
 - 2026-05-19 — Fourteenth batched dev to main promotion (M1-001 through M1-004 modernization)
 - 2026-05-19 — Thirteenth batched dev to main promotion
 - 2026-05-19 — Twelfth batched dev to main promotion
