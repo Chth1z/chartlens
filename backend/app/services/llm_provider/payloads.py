@@ -13,12 +13,61 @@ from app.domain.models import (
     FieldGroup, RemoteExposurePolicy
 )
 from app.services.document_context import document_context_payload
-from app.services.evidence import build_evidence_packs
+from app.services.evidence import EvidenceIndex, build_evidence_packs
 from app.services.domain_profile import extraction_rules, extraction_system_prompt
 from app.services.model_selection import get_active_model_profile
 from .parsing import _response_schema, _evidence_candidate_response_schema
 
 DEFAULT_PROVIDER_GROUP_BUDGET = 3200
+
+# Order from strongest to weakest. Used by both the payload builders
+# (to pick the strongest mode the active profile declares) and by the
+# OpenAI-compatible adapter (to walk down the ladder when the upstream
+# returns a 400-class capability error).
+STRUCTURED_OUTPUT_MODE_ORDER: tuple[str, ...] = (
+    "json_schema",
+    "json_object",
+    "tools",
+    "text",
+)
+
+
+def _chat_response_format_for_mode(
+    mode: str,
+    *,
+    schema: dict[str, Any],
+    schema_name: str,
+) -> dict[str, Any]:
+    """Build the `response_format` field for an OpenAI-compatible
+    `/chat/completions` request based on the active profile's
+    `structured_output_mode`.
+
+    - `json_schema` emits a strict-mode JSON schema descriptor that
+      DeepSeek V3.2+ and OpenAI-compatible chat endpoints accept.
+      Reference: api-docs.deepseek.com 2025 structured-output guide.
+    - `json_object` keeps the legacy contract: the schema descriptor
+      lives in the system prompt and the API just guarantees a valid
+      JSON object.
+    - `tools` and `text` are not used by the chat-completions evidence
+      path; the caller must build a different payload shape. We refuse
+      here so a misconfigured profile fails loud at request build time
+      rather than silently sending the wrong shape upstream.
+    """
+    if mode == "json_schema":
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": schema_name,
+                "strict": True,
+                "schema": schema,
+            },
+        }
+    if mode == "json_object":
+        return {"type": "json_object"}
+    raise ValueError(
+        f"structured_output_mode {mode!r} is not supported by the "
+        "OpenAI-compatible chat path; use json_schema or json_object."
+    )
 
 def _responses_payload(
     *,
@@ -67,19 +116,35 @@ def _chat_completions_payload(
     blocks: list[DocumentIRBlock],
     model: str,
     profile,
+    structured_output_mode: str | None = None,
 ) -> dict[str, Any]:
     document_profile = _document_profile_for_ir(document_ir)
     user_payload = _llm_user_payload(document_ir=document_ir, group=group, fields=fields, blocks=blocks)
+    mode = structured_output_mode or getattr(profile, "structured_output_mode", "json_object")
+    response_format = _chat_response_format_for_mode(
+        mode,
+        schema=_response_schema(),
+        schema_name="eyex_group_extraction",
+    )
+    base_system = extraction_system_prompt(document_profile)
+    if mode == "json_schema":
+        # Strict json_schema enforces the shape at the API layer, so the
+        # system prompt only carries the business-rule prose. The "JSON
+        # only" instruction stays as a redundant safety net but the
+        # schema descriptor is dropped (it now lives in response_format).
+        system_content = f"{base_system} You must output JSON only."
+    else:
+        system_content = f"{base_system} You must output JSON only."
     return {
         "model": model,
         "messages": [
             {
                 "role": "system",
-                "content": f"{extraction_system_prompt(document_profile)} You must output JSON only.",
+                "content": system_content,
             },
             {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
         ],
-        "response_format": {"type": "json_object"},
+        "response_format": response_format,
         "temperature": profile.temperature,
         "max_tokens": profile.max_output_tokens,
     }
@@ -248,6 +313,7 @@ def _llm_user_payload(
     group: FieldGroup,
     fields: list[FieldDefinition],
     blocks: list[DocumentIRBlock],
+    index: EvidenceIndex | None = None,
 ) -> dict[str, Any]:
     document_profile = _document_profile_for_ir(document_ir)
     return {
@@ -257,7 +323,7 @@ def _llm_user_payload(
         "rules": ["Return one valid JSON object only, with a top-level results array.", *extraction_rules(document_profile)],
         "output_schema": _response_schema(),
         "fields": [_field_prompt_spec(field) for field in fields],
-        "evidence_packs": _field_evidence_pack_payload(fields, blocks),
+        "evidence_packs": _field_evidence_pack_payload(fields, blocks, index=index),
     }
 
 
@@ -293,7 +359,12 @@ def _field_prompt_spec(field: FieldDefinition) -> dict[str, Any]:
     }
 
 
-def _field_evidence_pack_payload(fields: list[FieldDefinition], blocks: list[DocumentIRBlock]) -> dict[str, list[dict[str, Any]]]:
+def _field_evidence_pack_payload(
+    fields: list[FieldDefinition],
+    blocks: list[DocumentIRBlock],
+    *,
+    index: EvidenceIndex | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     payload: dict[str, list[dict[str, Any]]] = {}
     for field in fields:
         payload[field.key] = [
@@ -316,7 +387,13 @@ def _field_evidence_pack_payload(fields: list[FieldDefinition], blocks: list[Doc
                 "token_estimate": item.token_estimate,
                 "neighbor_block_ids": item.neighbor_block_ids,
             }
-            for item in build_evidence_packs(None, field, blocks=blocks, group_budget=DEFAULT_PROVIDER_GROUP_BUDGET)
+            for item in build_evidence_packs(
+                None,
+                field,
+                blocks=blocks,
+                group_budget=DEFAULT_PROVIDER_GROUP_BUDGET,
+                index=index,
+            )
         ]
     return payload
 

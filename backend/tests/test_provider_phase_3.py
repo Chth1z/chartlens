@@ -218,7 +218,14 @@ def test_openai_compatible_collect_evidence_is_real_implementation():
     has not regressed back to a local shim."""
     source = inspect.getsource(OpenAICompatibleChatProvider.collect_evidence)
     assert "_chat_completions_evidence_first_payload" in source
-    assert "client.chat.completions.create" in source
+    # The collect_evidence body delegates the actual upstream invocation
+    # to `_run_chat_request` (introduced by M1-001 to share the
+    # api_key + base_url retry matrix between extract_group and
+    # collect_evidence). The upstream call lives there; assert the
+    # helper itself still calls the OpenAI client.
+    assert "_run_chat_request" in source
+    helper_source = inspect.getsource(OpenAICompatibleChatProvider._run_chat_request)
+    assert "client.chat.completions.create" in helper_source
 
 
 # ---------------------------------------------------------------------------

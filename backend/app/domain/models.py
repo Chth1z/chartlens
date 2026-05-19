@@ -373,6 +373,7 @@ class ModelProfile(BaseModel):
     auth_env_vars: list[str] = Field(default_factory=list)
     auth_optional: bool = False
     response_format: Literal["json_schema", "json_object"] = "json_schema"
+    structured_output_mode: Literal["json_schema", "json_object", "tools", "text"] = "json_object"
     reasoning_effort: str = "low"
     prompt_cache_key: str = "eyex-clinical-extraction-v1"
     max_output_tokens: int = 4096

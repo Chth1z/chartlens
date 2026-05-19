@@ -9,6 +9,7 @@ auth_env_vars:
   - EYEX_OPENAI_API_KEY
   - OPENAI_API_KEY
 response_format: json_schema
+structured_output_mode: json_schema
 reasoning_effort: low
 prompt_cache_key: eyex-clinical-extraction-v1
 max_output_tokens: 4096

@@ -10,6 +10,7 @@ from app.services.domain_profile import extraction_rules, extraction_system_prom
 from app.services.model_selection import get_active_model_profile
 from .parsing import _evidence_candidate_response_schema
 from .payloads import (
+    _chat_response_format_for_mode,
     _document_profile_for_context,
     _field_prompt_spec,
     _remote_context_mode,
@@ -70,6 +71,7 @@ def _chat_completions_evidence_first_payload(
     fields: list[FieldDefinition],
     model: str,
     profile=None,
+    structured_output_mode: str | None = None,
 ) -> dict[str, Any]:
     """Build a /chat/completions payload that mirrors the Responses-API
     evidence-first contract. Used by `OpenAICompatibleChatProvider` so
@@ -86,6 +88,20 @@ def _chat_completions_evidence_first_payload(
        user message AFTER the cacheable prefix. The schema lives in the
        system message via a stringified description so it never changes
        between cases and never breaks the cache.
+
+    Structured-output mode (M1-001):
+
+    - When the active profile declares `structured_output_mode=json_schema`
+      (DeepSeek V3.2+, OpenAI-compatible chat with strict JSON schema
+      support), the schema is enforced via `response_format` at the API
+      layer and the schema descriptor is dropped from the system prompt
+      (it lives in the API field, no need to also carry it in the prompt).
+      This shrinks the cacheable prefix slightly without breaking it
+      because the prefix shape stays byte-stable across cases.
+    - When the profile declares `structured_output_mode=json_object`
+      (legacy contract), the schema descriptor stays in the system prompt
+      and `response_format={"type":"json_object"}` is the only API-level
+      hint.
     """
     model_profile = profile or get_active_model_profile()
     remote_policy = _remote_exposure_policy()
@@ -95,27 +111,39 @@ def _chat_completions_evidence_first_payload(
         remote_policy=remote_policy,
     )
     base_system = _evidence_first_system_prompt(document_context)
-    schema_descriptor = json.dumps(
-        _evidence_candidate_response_schema(), ensure_ascii=False, sort_keys=True
+    schema = _evidence_candidate_response_schema()
+    schema_descriptor = json.dumps(schema, ensure_ascii=False, sort_keys=True)
+    mode = structured_output_mode or getattr(model_profile, "structured_output_mode", "json_object")
+    response_format = _chat_response_format_for_mode(
+        mode,
+        schema=schema,
+        schema_name="eyex_evidence_collection",
     )
-    # The word "json" must appear in the system prompt for DeepSeek json_object
-    # mode (per api-docs.deepseek.com/guides/json_mode). The descriptor below
-    # also gives the model the exact target shape, which is the most reliable
-    # way to get a usable response on chat-completions endpoints that do not
-    # support strict json_schema mode.
-    full_system = (
-        base_system
-        + "\n\n"
-        + "Output one JSON object that strictly matches this schema:\n"
-        + schema_descriptor
-    )
+    if mode == "json_schema":
+        # The schema is enforced at the API layer; do not duplicate it
+        # in the system prompt. Keep a lightweight "JSON only" hint so
+        # endpoints that still parse the system text (some compatibility
+        # relays) get a redundant cue.
+        full_system = base_system + "\n\nOutput one JSON object only."
+    else:
+        # The word "json" must appear in the system prompt for DeepSeek json_object
+        # mode (per api-docs.deepseek.com/guides/json_mode). The descriptor below
+        # also gives the model the exact target shape, which is the most reliable
+        # way to get a usable response on chat-completions endpoints that do not
+        # support strict json_schema mode.
+        full_system = (
+            base_system
+            + "\n\n"
+            + "Output one JSON object that strictly matches this schema:\n"
+            + schema_descriptor
+        )
     return {
         "model": model,
         "messages": [
             {"role": "system", "content": full_system},
             {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
         ],
-        "response_format": {"type": "json_object"},
+        "response_format": response_format,
         "temperature": model_profile.temperature,
         "max_tokens": model_profile.max_output_tokens,
     }

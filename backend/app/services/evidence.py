@@ -4,6 +4,9 @@ import hashlib
 import math
 import re
 import sqlite3
+from contextlib import contextmanager
+from dataclasses import dataclass, field as dataclass_field
+from typing import Iterator
 
 from app.domain.models import DocumentIR, DocumentIRBlock, EvidenceCandidate, EvidencePack, FieldDefinition, FieldGroup
 
@@ -12,6 +15,95 @@ NEGATION_MARKERS = ("否认", "无", "未见", "未发现", "不伴", "未诉", 
 UNCERTAIN_MARKERS = ("？", "?", "疑似", "待排", "可能", "考虑", "倾向")
 FAMILY_MARKERS = ("家族史", "父", "母", "兄", "姐", "弟", "妹", "子", "女")
 DEFAULT_GROUP_EVIDENCE_BUDGET = 3200
+
+
+@dataclass
+class EvidenceIndex:
+    """Reusable FTS5 + block-by-id map over a stable list of blocks.
+
+    Built once per case (or per group, if the caller scopes blocks).
+    `_fts_scores_with_index` and `build_evidence_packs` accept an
+    optional ``EvidenceIndex``; when provided, the FTS table is reused
+    instead of rebuilt per field.
+
+    Cache key invariant: an ``EvidenceIndex`` is only valid for the
+    exact ``blocks`` list it was constructed from. If a caller passes a
+    different ``blocks`` argument to ``build_evidence_packs`` while
+    reusing the index, behavior is undefined; the caller is responsible
+    for keeping the block set in sync.
+    """
+
+    blocks: tuple[DocumentIRBlock, ...]
+    block_by_id: dict[str, DocumentIRBlock]
+    connection: sqlite3.Connection | None
+    block_ids_signature: str
+    _closed: bool = dataclass_field(default=False, repr=False)
+
+    def close(self) -> None:
+        """Release the in-memory FTS connection. Idempotent."""
+        if self._closed:
+            return
+        self._closed = True
+        if self.connection is not None:
+            try:
+                self.connection.close()
+            except Exception:
+                pass
+            self.connection = None
+
+
+def build_evidence_index(blocks: list[DocumentIRBlock]) -> EvidenceIndex:
+    """Construct an ``EvidenceIndex`` once for the given blocks.
+
+    Creates an in-memory SQLite FTS5 connection, populates the
+    ``block_fts`` virtual table with one row per block, and returns the
+    index. Callers must call ``close()`` when done (or use the
+    :func:`evidence_index` context manager).
+
+    If FTS5 is unavailable (very old SQLite builds), the connection
+    field is set to ``None``; the indexed code path then degrades to
+    "no FTS scores" without raising. This mirrors the legacy
+    ``_fts_scores`` ``except Exception`` fallback.
+    """
+
+    block_tuple = tuple(blocks)
+    block_by_id = {block.block_id: block for block in block_tuple}
+    signature = hashlib.sha1(
+        "|".join(block.block_id for block in block_tuple).encode("utf-8")
+    ).hexdigest()
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = sqlite3.connect(":memory:")
+        connection.execute(
+            "CREATE VIRTUAL TABLE block_fts USING fts5(block_id UNINDEXED, text)"
+        )
+        connection.executemany(
+            "INSERT INTO block_fts(block_id, text) VALUES (?, ?)",
+            [(block.block_id, block.text) for block in block_tuple],
+        )
+    except Exception:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
+        connection = None
+    return EvidenceIndex(
+        blocks=block_tuple,
+        block_by_id=block_by_id,
+        connection=connection,
+        block_ids_signature=signature,
+    )
+
+
+@contextmanager
+def evidence_index(blocks: list[DocumentIRBlock]) -> Iterator[EvidenceIndex]:
+    """Yield an ``EvidenceIndex`` and close it on exit."""
+    index = build_evidence_index(blocks)
+    try:
+        yield index
+    finally:
+        index.close()
 
 
 def blocks_for_group(document_ir: DocumentIR, group: FieldGroup) -> list[DocumentIRBlock]:
@@ -26,6 +118,7 @@ def evidence_for_field(
     field: FieldDefinition,
     *,
     blocks: list[DocumentIRBlock] | None = None,
+    index: EvidenceIndex | None = None,
 ) -> list[EvidenceCandidate]:
     return [
         EvidenceCandidate(
@@ -47,7 +140,7 @@ def evidence_for_field(
             family_context=pack.family_context,
             rank=pack.rank,
         )
-        for pack in build_evidence_packs(document_ir, field, blocks=blocks)
+        for pack in build_evidence_packs(document_ir, field, blocks=blocks, index=index)
     ]
 
 
@@ -57,13 +150,26 @@ def build_evidence_packs(
     *,
     blocks: list[DocumentIRBlock] | None = None,
     group_budget: int | None = None,
+    index: EvidenceIndex | None = None,
 ) -> list[EvidencePack]:
-    source_blocks = blocks if blocks is not None else document_ir.blocks if document_ir is not None else []
+    if index is not None:
+        source_blocks = list(index.blocks) if blocks is None else blocks
+        block_by_id = (
+            index.block_by_id
+            if blocks is None
+            else {block.block_id: block for block in source_blocks}
+        )
+    else:
+        source_blocks = blocks if blocks is not None else document_ir.blocks if document_ir is not None else []
+        block_by_id = {block.block_id: block for block in source_blocks}
     if not source_blocks:
         return []
 
-    block_by_id = {block.block_id: block for block in source_blocks}
-    fts_scores = _fts_scores(source_blocks, _field_terms(field))
+    fts_scores = (
+        _fts_scores_with_index(index, _field_terms(field))
+        if index is not None
+        else _fts_scores(source_blocks, _field_terms(field))
+    )
     scored: list[tuple[DocumentIRBlock, float, list[str], list[str]]] = []
     for block in source_blocks:
         if block.section_label in field.excluded_sections:
@@ -198,24 +304,44 @@ def _field_terms(field: FieldDefinition) -> list[str]:
 
 
 def _fts_scores(blocks: list[DocumentIRBlock], terms: list[str]) -> dict[str, float]:
+    """Build-on-demand FTS5 scoring path for callers without an index.
+
+    Construct a temporary in-memory index, run the query, and close the
+    connection. Used by call sites that cannot reuse a per-case index
+    (legacy ``compact_group_context`` and ad-hoc test helpers).
+    """
     query_terms = [term for term in terms if _fts_queryable(term)]
     if not query_terms:
         return {}
-    connection = None
+    index = build_evidence_index(blocks)
     try:
-        connection = sqlite3.connect(":memory:")
-        connection.execute("CREATE VIRTUAL TABLE block_fts USING fts5(block_id UNINDEXED, text)")
-        connection.executemany(
-            "INSERT INTO block_fts(block_id, text) VALUES (?, ?)",
-            [(block.block_id, block.text) for block in blocks],
-        )
-        query = " OR ".join(f'"{term}"' for term in query_terms[:12])
-        rows = connection.execute("SELECT block_id, rank FROM block_fts WHERE block_fts MATCH ?", (query,)).fetchall()
+        return _fts_scores_with_index(index, terms)
+    finally:
+        index.close()
+
+
+def _fts_scores_with_index(index: EvidenceIndex, terms: list[str]) -> dict[str, float]:
+    """Run FTS5 scoring against the connection owned by ``index``.
+
+    The ``index`` is built once per case; this function is invoked once
+    per field with the field's term set. When the index could not
+    create an FTS5 connection (very old SQLite builds), returns an
+    empty dict so the caller falls back to non-FTS scoring exactly the
+    way ``_fts_scores`` did.
+    """
+    if index.connection is None:
+        return {}
+    query_terms = [term for term in terms if _fts_queryable(term)]
+    if not query_terms:
+        return {}
+    query = " OR ".join(f'"{term}"' for term in query_terms[:12])
+    try:
+        rows = index.connection.execute(
+            "SELECT block_id, rank FROM block_fts WHERE block_fts MATCH ?",
+            (query,),
+        ).fetchall()
     except Exception:
         return {}
-    finally:
-        if connection is not None:
-            connection.close()
     scores: dict[str, float] = {}
     for block_id, rank in rows:
         scores[str(block_id)] = max(scores.get(str(block_id), 0.0), 1.0 + abs(float(rank or 0.0)))

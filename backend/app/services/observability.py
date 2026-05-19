@@ -8,10 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from opentelemetry import trace
+from opentelemetry.trace import StatusCode
 from sqlalchemy.orm import Session
 
 from app.core.database import CaseRecord, ModelCallRecord, ProcessingEventRecord, ProcessingRunRecord, json_dumps
 from app.core.settings import settings
+from app.core.telemetry import get_tracer
 from app.domain.models import DocumentIR, FieldDefinition, ValidatedFieldResult
 from app.services.model_selection import model_profiles_payload
 from app.services.safe_errors import safe_error_message
@@ -22,6 +25,9 @@ class ProcessingTrace:
         self.db = db
         self.run = run
         self._started_perf = time.perf_counter()
+        self._tracer = get_tracer("eyex.pipeline")
+        self._root_span: trace.Span | None = None
+        self._root_context: Any = None
 
     @classmethod
     def start(cls, db: Session, case: CaseRecord) -> "ProcessingTrace":
@@ -34,7 +40,16 @@ class ProcessingTrace:
         db.add(run)
         db.commit()
         db.refresh(run)
-        return cls(db, run)
+        instance = cls(db, run)
+        try:
+            instance._root_span = instance._tracer.start_span(
+                f"process_case:{case.case_id}",
+                attributes={"case_id": case.case_id, "run_id": run.run_id},
+            )
+            instance._root_context = trace.set_span_in_context(instance._root_span)
+        except Exception:
+            pass  # OTel is best-effort; never break the pipeline
+        return instance
 
     @contextmanager
     def step(self, name: str, payload: dict[str, Any] | None = None) -> Iterator[ProcessingEventRecord]:
@@ -48,17 +63,37 @@ class ProcessingTrace:
         )
         self.db.add(event)
         self.db.commit()
+        span: trace.Span | None = None
+        try:
+            span = self._tracer.start_span(
+                f"step:{name}",
+                context=self._root_context,
+                attributes={"step_name": name, "case_id": self.run.case_id},
+            )
+        except Exception:
+            pass  # OTel is best-effort
         try:
             yield event
         except Exception as exc:
             _complete_event(event, started_perf, status="failed", error_code=type(exc).__name__, error_message=_safe_exception_summary(exc))
             self.db.add(event)
             self.db.commit()
+            try:
+                if span:
+                    span.set_status(StatusCode.ERROR, str(exc)[:200])
+                    span.end()
+            except Exception:
+                pass
             raise
         else:
             _complete_event(event, started_perf, status="completed")
             self.db.add(event)
             self.db.commit()
+            try:
+                if span:
+                    span.end()
+            except Exception:
+                pass
 
     def record_model_call(
         self,
@@ -102,6 +137,25 @@ class ProcessingTrace:
         )
         self.db.add(record)
         self.db.commit()
+        try:
+            span = self._tracer.start_span(
+                f"model_call:{stage}",
+                context=self._root_context,
+                attributes={
+                    "stage": stage,
+                    "provider": provider_name,
+                    "model": str(model or "unknown"),
+                    "input_tokens": _int_value(usage.get("input_tokens")),
+                    "output_tokens": _int_value(usage.get("output_tokens")),
+                    "cache_status": _optional_str(usage.get("llm_cache_status")) or "",
+                    "status": status,
+                },
+            )
+            if error_code:
+                span.set_status(StatusCode.ERROR, error_message or error_code)
+            span.end()
+        except Exception:
+            pass  # OTel is best-effort
 
     def finish_completed(
         self,
@@ -123,6 +177,12 @@ class ProcessingTrace:
         self.run.duration_ms = _elapsed_ms(self._started_perf)
         self.db.add(self.run)
         self.db.commit()
+        try:
+            if self._root_span:
+                self._root_span.set_attribute("status", "completed")
+                self._root_span.end()
+        except Exception:
+            pass  # OTel is best-effort
 
     def finish_failed(self, *, diagnostics: dict) -> None:
         self.run.status = "failed"
@@ -132,6 +192,13 @@ class ProcessingTrace:
         self.run.duration_ms = _elapsed_ms(self._started_perf)
         self.db.add(self.run)
         self.db.commit()
+        try:
+            if self._root_span:
+                self._root_span.set_attribute("status", "failed")
+                self._root_span.set_status(StatusCode.ERROR, self.run.error_message or "failed")
+                self._root_span.end()
+        except Exception:
+            pass  # OTel is best-effort
 
 
 def _complete_event(
