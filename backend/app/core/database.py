@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine, select
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine, inspect, select, text as sa_text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from app.core.settings import settings
@@ -203,17 +203,47 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 def init_db() -> None:
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(engine)
-    _ensure_sqlite_columns()
+    if sqlite_path is not None:
+        # File-based SQLite: use Alembic migrations
+        _run_alembic_upgrade()
+    else:
+        # In-memory or non-SQLite: use create_all (tests, CI)
+        Base.metadata.create_all(engine)
 
 
-def _ensure_sqlite_columns() -> None:
-    if sqlite_path is None:
-        return
-    with engine.begin() as connection:
-        columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(cases)").fetchall()}
-        if "raw_document_ir_json" not in columns:
-            connection.exec_driver_sql("ALTER TABLE cases ADD COLUMN raw_document_ir_json TEXT")
+def _run_alembic_upgrade() -> None:
+    """Run alembic upgrade head programmatically.
+
+    Handles the transition from pre-Alembic databases: if tables exist but
+    alembic_version does not, stamps the DB at head instead of re-running
+    the baseline migration (which would fail on existing tables).
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
+
+    # Detect pre-Alembic databases (created by create_all before this migration)
+    with engine.connect() as conn:
+        insp = inspect(conn)
+        table_names = insp.get_table_names()
+        has_tables = "cases" in table_names
+        has_alembic = "alembic_version" in table_names
+        if has_alembic:
+            # Check if alembic_version actually has a revision recorded
+            row = conn.execute(
+                sa_text("SELECT version_num FROM alembic_version LIMIT 1")
+            ).fetchone()
+            has_alembic = row is not None
+
+    if has_tables and not has_alembic:
+        # Existing DB created by create_all: stamp at head
+        command.stamp(alembic_cfg, "head")
+    else:
+        # Fresh DB or already-managed DB: run migrations
+        command.upgrade(alembic_cfg, "head")
 
 
 def get_db() -> Generator[Session, None, None]:
