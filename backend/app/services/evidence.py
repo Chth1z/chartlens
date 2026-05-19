@@ -201,6 +201,12 @@ def build_evidence_packs(
         )
 
     scored.sort(key=lambda item: (item[1], item[0].confidence, -item[0].reading_order), reverse=True)
+
+    # Cross-encoder reranking: rescore top-K candidates for precision
+    from app.services.evidence_reranker import reranking_enabled, rerank_candidates
+    if reranking_enabled() and len(scored) > 1:
+        scored = rerank_candidates(field, scored)
+
     budget = max(1, min(field.llm.evidence_budget, group_budget or field.llm.evidence_budget))
     max_items = max(1, field.llm.max_evidence_items)
     packs: list[EvidencePack] = []

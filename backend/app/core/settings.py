@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     config_watch: bool = True
     evidence_embeddings: bool = False
     evidence_embedding_weight: float = 2.0
+    evidence_reranking: bool = False
+    evidence_reranking_top_k: int = 8
     multimodal_evidence: bool = False
     multimodal_max_pages: int = 4
     presidio_enabled: bool = False
