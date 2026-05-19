@@ -2,9 +2,14 @@
 @import './styles/layout.css';
 @import './styles/cases.css';
 @import './styles/evidence.css';
-@import './styles/document.css';
+@import './styles/document-viewer.css';
+@import './styles/document-image.css';
+@import './styles/document-transcript.css';
+@import './styles/document-evidence.css';
 @import './styles/review.css';
-@import './styles/settings.css';
+@import './styles/settings-layout.css';
+@import './styles/settings-providers.css';
+@import './styles/settings-runtime.css';
 @import './styles/providers.css';
 @import './styles/diagnostics.css';
 @import './styles/components.css';

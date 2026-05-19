@@ -180,7 +180,7 @@ describe("ocrSourceDebug", () => {
   });
 
   it("OCR source overlay boxes must be outline-only by default", () => {
-    const styles = readFileSync("src/styles/document.css", "utf-8");
+    const styles = readFileSync("src/styles/document-image.css", "utf-8");
     const ocrImageBoxRule = styles.match(/\.ocr-image-box\s*\{(?<body>[\s\S]*?)\n\}/)?.groups?.body ?? "";
     expect(ocrImageBoxRule).toContain("background: transparent");
   });
@@ -206,7 +206,7 @@ describe("ocrSourceDebug", () => {
   });
 
   it("selected OCR source boxes must render their text inside the box", () => {
-    const styles = readFileSync("src/styles/document.css", "utf-8");
+    const styles = readFileSync("src/styles/document-image.css", "utf-8");
     const activeCopyTextRule =
       styles.match(/\.ocr-image-box\.active\s+\.ocr-copy-text,\s*\n\.ocr-image-box\[aria-current="true"\]\s+\.ocr-copy-text\s*\{(?<body>[\s\S]*?)\n\}/)?.groups
         ?.body ?? "";

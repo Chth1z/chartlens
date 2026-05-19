@@ -1,0 +1,124 @@
+.evidence-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: var(--space-2);
+  align-items: start;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.evidence-line:hover {
+  border-color: color-mix(in srgb, var(--section-color, #90a29b) 34%, var(--border));
+  background: #fbfdfb;
+}
+
+.evidence-line.section-basic,
+.ocr-box.section-basic {
+  --section-color: #529e93;
+}
+
+.evidence-line.section-present,
+.ocr-box.section-present {
+  --section-color: #8b9558;
+}
+
+.evidence-line.section-history,
+.ocr-box.section-history {
+  --section-color: #b4862d;
+}
+
+.evidence-line.section-diagnosis,
+.ocr-box.section-diagnosis {
+  --section-color: #7d8cb0;
+}
+
+.evidence-line.section-exam,
+.ocr-box.section-exam {
+  --section-color: #9b7faf;
+}
+
+.evidence-line.section-default,
+.ocr-box.section-default {
+  --section-color: #90a29b;
+}
+
+.evidence-line.active,
+.evidence-line[aria-current="true"] {
+  border-color: #d29a3c;
+  background: #fff8e8;
+}
+
+.evidence-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.evidence-meta em {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.evidence-line p {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.78;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.evidence-line em {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+  text-align: right;
+}
+
+.section-chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--section-color);
+  background: color-mix(in srgb, var(--section-color) 13%, #fffefa);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.section-chip.section-present {
+  background: #f4f6e9;
+}
+
+.section-chip.section-history {
+  background: #fbefd8;
+}
+
+.section-chip.section-diagnosis {
+  background: #eef1f8;
+}
+
+.section-chip.section-exam {
+  background: #f3edf7;
+}
+
+.section-chip.section-default {
+  background: #edf2f0;
+}
+
+.evidence-hit {
+  padding: 1px 3px;
+  border: 1px solid rgba(184, 121, 18, 0.46);
+  border-radius: 4px;
+  background: #ffe9b6;
+  color: var(--text-strong);
+}

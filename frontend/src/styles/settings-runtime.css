@@ -1,0 +1,129 @@
+.settings-dl {
+  display: grid;
+  grid-template-columns: 98px minmax(0, 1fr);
+  gap: 9px var(--space-3);
+  margin: 0;
+  font-size: 13px;
+}
+
+.settings-dl dt {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.settings-dl dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.48;
+  overflow-wrap: anywhere;
+}
+
+.settings-dl code {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--text);
+  white-space: normal;
+}
+
+.settings-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-4);
+}
+
+.settings-tags span {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-errors {
+  display: grid;
+  gap: 6px;
+  margin: var(--space-3) 0 0;
+  padding-left: 18px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.runtime-check-list {
+  display: grid;
+  gap: 7px;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.runtime-check-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.runtime-check-list small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.settings-command-list {
+  display: grid;
+  gap: 7px;
+  margin-top: var(--space-4);
+}
+
+.settings-command-list div {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-size: 12px;
+}
+
+.settings-command-list span {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.settings-command-list code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.settings-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 11px var(--space-3);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.settings-message.ok {
+  border: 1px solid #b1d8c2;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.settings-message.error {
+  border: 1px solid #e2aea7;
+  background: var(--danger-soft);
+  color: var(--danger);
+}

@@ -1,0 +1,172 @@
+.document-sheet {
+  display: grid;
+  gap: 12px;
+  min-height: 100%;
+  padding: 0;
+  background: transparent;
+}
+
+.ocr-page {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ocr-page-marker {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0 2px 2px;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ocr-page-marker small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ocr-page-canvas {
+  position: relative;
+  width: 794px;
+  aspect-ratio: 210 / 297;
+  max-width: none;
+  min-width: 0;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #d8e0dc;
+  border-radius: 2px;
+  background: #fffdfa;
+  box-shadow: 0 1px 2px rgba(20, 33, 30, 0.05), 0 8px 18px rgba(20, 33, 30, 0.045);
+}
+
+.ocr-page-canvas::before {
+  position: absolute;
+  inset: 0;
+  border: 4px solid color-mix(in srgb, var(--canvas-subtle) 12%, transparent);
+  pointer-events: none;
+  content: "";
+}
+
+.ocr-flow {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ocr-box {
+  --section-color: #90a29b;
+  position: absolute;
+  z-index: 1;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 8px;
+  min-height: 18px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #111a17;
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  font-size: 15px;
+  font-weight: 400;
+  font-synthesis: none;
+  font-kerning: normal;
+  line-height: 1.42;
+  text-align: left;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  cursor: text;
+  overflow: visible;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ocr-box:hover,
+.ocr-box:focus-visible {
+  z-index: 4;
+  border-color: color-mix(in srgb, var(--section-color) 72%, var(--surface));
+  background: color-mix(in srgb, var(--section-color) 6%, transparent);
+}
+
+.ocr-box.active,
+.ocr-box[aria-current="true"] {
+  z-index: 6;
+  border-color: var(--section-color);
+  background: color-mix(in srgb, var(--section-color) 9%, #fffdfa);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--section-color) 22%, transparent);
+}
+
+.ocr-box.field-linked {
+  --section-color: #d29a3c;
+}
+
+.ocr-box.paragraph {
+  display: block;
+  padding: 4px 6px 5px;
+  color: #19231f;
+  font-size: 16px;
+  line-height: 1.68;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ocr-box.paragraph .ocr-box-text {
+  display: block;
+  width: 100%;
+}
+
+.ocr-box.form_field {
+  align-items: center;
+  padding: 0 3px;
+  font-size: 15px;
+  line-height: 1.34;
+  white-space: nowrap;
+}
+
+.ocr-box.title {
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ocr-box-text {
+  min-width: 0;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ocr-box-detail {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 8;
+  min-width: max-content;
+  max-width: 260px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--section-color) 44%, var(--border));
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-strong);
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}

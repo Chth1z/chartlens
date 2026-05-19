@@ -1,0 +1,267 @@
+.ocr-image-page-wrap {
+  padding: 14px;
+  background:
+    linear-gradient(90deg, rgba(18, 83, 76, 0.04) 0, rgba(18, 83, 76, 0.04) 1px, transparent 1px),
+    var(--surface-inset);
+}
+
+.ocr-image-sheet {
+  gap: 18px;
+  min-width: 842px;
+}
+
+.ocr-image-page {
+  gap: 8px;
+  content-visibility: auto;
+  contain-intrinsic-size: 1180px;
+}
+
+.ocr-image-page .ocr-page-marker,
+.ocr-image-stage,
+.ocr-source-debug-strip,
+.ocr-source-text-panel {
+  width: min(100%, 936px);
+  margin: 0 auto;
+}
+
+.ocr-image-stage {
+  position: relative;
+  min-height: 520px;
+  border: 1px solid #d9e1dd;
+  border-radius: 2px;
+  overflow: hidden;
+  background: #f9fbf8;
+  box-shadow: 0 12px 26px rgba(38, 59, 52, 0.08);
+}
+
+.ocr-source-debug-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #d9e1dd;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #fff8e7;
+  color: #6c4a15;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ocr-source-debug-strip span,
+.ocr-source-debug-strip strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid rgba(180, 119, 30, 0.24);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.ocr-source-debug-strip strong {
+  font-weight: 800;
+}
+
+.ocr-source-image {
+  display: block;
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fffefa;
+  user-select: none;
+}
+
+.ocr-image-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: text;
+}
+
+.ocr-image-box {
+  --section-color: #90a29b;
+  position: absolute;
+  z-index: 1;
+  min-width: 5px;
+  min-height: 5px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--section-color) 64%, transparent);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-strong);
+  cursor: text;
+  display: inline-flex;
+  align-items: center;
+  overflow: visible;
+  pointer-events: auto;
+  user-select: text;
+}
+
+.ocr-image-box:hover,
+.ocr-image-box:focus-visible {
+  z-index: 3;
+  border-color: var(--section-color);
+  background: color-mix(in srgb, var(--section-color) 7%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--section-color) 20%, transparent);
+  outline-offset: 1px;
+}
+
+.ocr-image-box.active,
+.ocr-image-box[aria-current="true"] {
+  z-index: 4;
+  border-color: #c98b24;
+  background: rgba(255, 204, 95, 0.14);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.84),
+    0 0 0 4px rgba(201, 139, 36, 0.38);
+}
+
+.ocr-image-box.field-linked {
+  --section-color: #c98b24;
+}
+
+.ocr-copy-text {
+  display: inline-block;
+  min-width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  color: transparent;
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  line-height: 1;
+  pointer-events: none;
+  user-select: text;
+  white-space: pre;
+  -webkit-text-fill-color: transparent;
+}
+
+.ocr-image-box.active .ocr-copy-text,
+.ocr-image-box[aria-current="true"] .ocr-copy-text {
+  color: var(--text-strong);
+  -webkit-text-fill-color: currentColor;
+  line-height: 1.12;
+  overflow: visible;
+  padding: 1px 2px;
+  pointer-events: auto;
+  white-space: pre-wrap;
+}
+
+.ocr-copy-text::selection {
+  color: transparent;
+  background: rgba(255, 204, 95, 0.42);
+  -webkit-text-fill-color: transparent;
+}
+
+.ocr-image-box.active .ocr-copy-text::selection,
+.ocr-image-box[aria-current="true"] .ocr-copy-text::selection {
+  color: var(--text-strong);
+  background: rgba(255, 204, 95, 0.48);
+  -webkit-text-fill-color: currentColor;
+}
+
+.ocr-image-box-label {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  max-width: 280px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--section-color) 38%, var(--border));
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 254, 250, 0.96);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ocr-image-box:hover .ocr-image-box-label,
+.ocr-image-box:focus-visible .ocr-image-box-label,
+.ocr-image-box.active .ocr-image-box-label,
+.ocr-image-box[aria-current="true"] .ocr-image-box-label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ocr-image-empty {
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  min-height: 520px;
+  padding: var(--space-5);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.ocr-image-empty strong {
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.ocr-image-empty span {
+  max-width: 360px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ocr-image-empty.floating {
+  position: absolute;
+  inset: auto 18px 18px 18px;
+  min-height: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 254, 250, 0.94);
+  box-shadow: 0 10px 22px rgba(38, 59, 52, 0.08);
+}
+
+.ocr-image-empty.compact {
+  left: auto;
+  max-width: 330px;
+  text-align: left;
+}
+
+.ocr-source-text-panel {
+  border: 1px solid #d9e1dd;
+  border-radius: 4px;
+  background: #fffefa;
+  box-shadow: 0 1px 3px rgba(20, 33, 30, 0.04);
+  color: #111a17;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ocr-source-text-title {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e3e9e5;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.ocr-source-text-body {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px 16px 14px;
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  font-size: 16px;
+  line-height: 1.72;
+}
+
+.ocr-source-text-body p {
+  margin: 0;
+}
