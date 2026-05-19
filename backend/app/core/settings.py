@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     evidence_embedding_weight: float = 2.0
     multimodal_evidence: bool = False
     multimodal_max_pages: int = 4
+    presidio_enabled: bool = False
     log_format: Literal["json", "console"] = "json"
     log_level: str = "INFO"
 

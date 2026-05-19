@@ -38,6 +38,23 @@ def deidentify_document_ir(document_ir: DocumentIR, profile: DocumentProfile) ->
             update["value_text"] = _redacted_value_text(block.key_label, block.value_text, profile)
         blocks.append(block.model_copy(update=update))
     blocks.extend(_pre_redaction_safe_blocks(document_ir))
+
+    # Second-pass: Presidio NER-based detection (optional)
+    from app.services.presidio_deidentify import presidio_enabled, redact_with_presidio, presidio_risk_findings
+    if presidio_enabled():
+        presidio_entity_types: list[str] = []
+        enhanced_blocks: list[DocumentIRBlock] = []
+        for block in blocks:
+            redacted_text = redact_with_presidio(block.text)
+            if redacted_text != block.text:
+                enhanced_blocks.append(block.model_copy(update={"text": redacted_text}))
+                presidio_entity_types.extend(presidio_risk_findings(block.text))
+            else:
+                enhanced_blocks.append(block)
+        blocks = enhanced_blocks
+        if presidio_entity_types:
+            risk_findings.extend(f"presidio:{f}" for f in dict.fromkeys(presidio_entity_types) if f"presidio:{f}" not in risk_findings)
+
     unique_findings = list(dict.fromkeys(risk_findings))
     metadata = {
         **_deidentify_metadata(document_ir.metadata, profile),
