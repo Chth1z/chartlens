@@ -83,6 +83,9 @@ def create_app() -> FastAPI:
     from app.core.telemetry import init_telemetry
     init_telemetry()
 
+    from app.services.recovery import recover_abandoned_runs
+    recover_abandoned_runs()
+
     app = FastAPI(title=settings.app_name)
 
     @app.middleware("http")
