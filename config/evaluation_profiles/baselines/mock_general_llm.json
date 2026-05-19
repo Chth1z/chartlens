@@ -18,25 +18,25 @@
   },
   "summary": {
     "total_fields": 159,
-    "correct": 158,
-    "auto_accept_count": 146,
-    "auto_accept_correct": 146,
+    "correct": 156,
+    "auto_accept_count": 144,
+    "auto_accept_correct": 144,
     "unknown_misfills": 0,
     "expected_unknown": 7,
-    "predicted_non_unknown": 151,
-    "evidence_covered": 151,
-    "input_tokens": 249967,
-    "output_tokens": 25832,
+    "predicted_non_unknown": 149,
+    "evidence_covered": 149,
+    "input_tokens": 36481,
+    "output_tokens": 3691,
     "cost_usd": 0.0,
     "case_count": 19,
     "evaluated_case_count": 19,
     "blocked_case_count": 0,
-    "accuracy": 0.9937106918238994,
+    "accuracy": 0.9811320754716981,
     "auto_accept_precision": 1.0,
     "unknown_misfill_rate": 0.0,
     "evidence_coverage": 1.0,
-    "tokens_per_case": 13156.157894736842,
-    "tokens_per_accepted_field": 1712.1027397260275,
+    "tokens_per_case": 1920.0526315789473,
+    "tokens_per_accepted_field": 253.34027777777777,
     "field_tags": {
       "demographics": {
         "total": 44,
@@ -48,18 +48,18 @@
       },
       "history": {
         "total": 46,
-        "correct": 46,
-        "auto_accept_count": 46,
-        "auto_accept_correct": 46,
-        "accuracy": 1.0,
+        "correct": 45,
+        "auto_accept_count": 45,
+        "auto_accept_correct": 45,
+        "accuracy": 0.9782608695652174,
         "auto_accept_precision": 1.0
       },
       "chronic_disease": {
         "total": 46,
-        "correct": 46,
-        "auto_accept_count": 46,
-        "auto_accept_correct": 46,
-        "accuracy": 1.0,
+        "correct": 45,
+        "auto_accept_count": 45,
+        "auto_accept_correct": 45,
+        "accuracy": 0.9782608695652174,
         "auto_accept_precision": 1.0
       },
       "lifestyle": {
@@ -104,10 +104,10 @@
       },
       "discharge": {
         "total": 6,
-        "correct": 5,
-        "auto_accept_count": 5,
-        "auto_accept_correct": 5,
-        "accuracy": 0.8333333333333334,
+        "correct": 4,
+        "auto_accept_count": 4,
+        "auto_accept_correct": 4,
+        "accuracy": 0.6666666666666666,
         "auto_accept_precision": 1.0
       }
     },
@@ -134,9 +134,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13338,
-        "output_tokens": 1555,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -241,8 +241,8 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13682,
-        "output_tokens": 1867,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
@@ -358,9 +358,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13340,
-        "output_tokens": 1427,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -465,9 +465,9 @@
       "evidence_covered": 7,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13354,
-        "output_tokens": 1657,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -582,9 +582,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13355,
-        "output_tokens": 946,
-        "cached_input_tokens": 0,
+        "input_tokens": 13344,
+        "output_tokens": 928,
+        "cached_input_tokens": 13056,
         "cost_usd": 0.0
       },
       "tags": [
@@ -711,8 +711,8 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13222,
-        "output_tokens": 1317,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
@@ -840,9 +840,9 @@
       "evidence_covered": 9,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13493,
-        "output_tokens": 1588,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -978,9 +978,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13342,
-        "output_tokens": 797,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1085,8 +1085,8 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12810,
-        "output_tokens": 1071,
+        "input_tokens": 0,
+        "output_tokens": 0,
         "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
@@ -1214,9 +1214,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12787,
-        "output_tokens": 1590,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1329,23 +1329,23 @@
       "case_id": "eval-mock-011",
       "status": "evaluated",
       "total_fields": 7,
-      "correct": 7,
-      "accuracy": 1.0,
+      "correct": 6,
+      "accuracy": 0.8571428571428571,
       "precision": 1.0,
-      "recall": 1.0,
-      "auto_accept_count": 7,
-      "auto_accept_correct": 7,
+      "recall": 0.8571428571428571,
+      "auto_accept_count": 6,
+      "auto_accept_correct": 6,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 7,
-      "evidence_covered": 7,
+      "predicted_non_unknown": 6,
+      "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13360,
-        "output_tokens": 1302,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1394,12 +1394,12 @@
         {
           "field_key": "tumor_history",
           "expected": "1",
-          "actual": "1",
-          "correct": true,
-          "auto_accepted": true,
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
           "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "review_required": true,
+          "error_code": "INVALID_CODE"
         },
         {
           "field_key": "hypertension_history",
@@ -1461,9 +1461,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13371,
-        "output_tokens": 1339,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1590,9 +1590,9 @@
       "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13366,
-        "output_tokens": 1682,
-        "cached_input_tokens": 13056,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1719,9 +1719,9 @@
       "evidence_covered": 10,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13837,
-        "output_tokens": 1317,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -1867,9 +1867,9 @@
       "evidence_covered": 10,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13830,
-        "output_tokens": 1345,
-        "cached_input_tokens": 13568,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2015,9 +2015,9 @@
       "evidence_covered": 6,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 13695,
-        "output_tokens": 1239,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2164,8 +2164,8 @@
       "evidence_coverage": 1.0,
       "usage": {
         "input_tokens": 11574,
-        "output_tokens": 1379,
-        "cached_input_tokens": 2304,
+        "output_tokens": 1531,
+        "cached_input_tokens": 11008,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2309,23 +2309,23 @@
       "case_id": "eval-mock-018",
       "status": "evaluated",
       "total_fields": 11,
-      "correct": 10,
-      "accuracy": 0.9090909090909091,
+      "correct": 11,
+      "accuracy": 1.0,
       "precision": 1.0,
-      "recall": 0.9090909090909091,
-      "auto_accept_count": 9,
-      "auto_accept_correct": 9,
+      "recall": 1.0,
+      "auto_accept_count": 10,
+      "auto_accept_correct": 10,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 0,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 10,
-      "evidence_covered": 10,
+      "predicted_non_unknown": 11,
+      "evidence_covered": 11,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 11556,
-        "output_tokens": 1088,
-        "cached_input_tokens": 2304,
+        "input_tokens": 11563,
+        "output_tokens": 1232,
+        "cached_input_tokens": 11008,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2342,7 +2342,7 @@
           {
             "page": 1,
             "kind": "plain_text",
-            "char_count": 126,
+            "char_count": 130,
             "avg_confidence": 0.98,
             "quality_band": "good",
             "cache_status": "not_applicable",
@@ -2456,12 +2456,12 @@
         {
           "field_key": "transfer",
           "expected": "0",
-          "actual": "unknown",
-          "correct": false,
-          "auto_accepted": false,
-          "has_evidence": false,
-          "review_required": true,
-          "error_code": "NOT_MENTIONED"
+          "actual": "0",
+          "correct": true,
+          "auto_accepted": true,
+          "has_evidence": true,
+          "review_required": false,
+          "error_code": null
         }
       ]
     },
@@ -2469,23 +2469,23 @@
       "case_id": "eval-mock-019",
       "status": "evaluated",
       "total_fields": 11,
-      "correct": 11,
-      "accuracy": 1.0,
+      "correct": 9,
+      "accuracy": 0.8181818181818182,
       "precision": 1.0,
-      "recall": 1.0,
-      "auto_accept_count": 9,
-      "auto_accept_correct": 9,
+      "recall": 0.8,
+      "auto_accept_count": 7,
+      "auto_accept_correct": 7,
       "auto_accept_precision": 1.0,
       "unknown_misfills": 0,
       "expected_unknown": 1,
       "unknown_misfill_rate": 0.0,
-      "predicted_non_unknown": 10,
-      "evidence_covered": 10,
+      "predicted_non_unknown": 8,
+      "evidence_covered": 8,
       "evidence_coverage": 1.0,
       "usage": {
-        "input_tokens": 12655,
-        "output_tokens": 1326,
-        "cached_input_tokens": 2304,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
         "cost_usd": 0.0
       },
       "tags": [
@@ -2606,22 +2606,22 @@
         {
           "field_key": "in_hospital_death",
           "expected": "0",
-          "actual": "0",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         },
         {
           "field_key": "transfer",
           "expected": "1",
-          "actual": "1",
-          "correct": true,
-          "auto_accepted": true,
-          "has_evidence": true,
-          "review_required": false,
-          "error_code": null
+          "actual": "unknown",
+          "correct": false,
+          "auto_accepted": false,
+          "has_evidence": false,
+          "review_required": true,
+          "error_code": "NOT_MENTIONED"
         }
       ]
     }
