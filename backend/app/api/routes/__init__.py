@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from .analytics import router as analytics_router
 from .cases import router as cases_router
 from .diagnostics import router as diagnostics_router
 from .evaluations import router as evaluations_router
@@ -29,6 +28,5 @@ router.include_router(cases_router)
 router.include_router(diagnostics_router)
 router.include_router(system_router)
 router.include_router(evaluations_router)
-router.include_router(analytics_router)
 
 __all__ = ["router"]

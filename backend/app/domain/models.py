@@ -252,11 +252,8 @@ class ExtractionSchema(BaseModel):
     version: str
     label: str
     extraction_strategy: Literal[
-        "group_evidence_pack",
-        "full_text_llm",
-        "multimodal_llm",
         "evidence_first_multimodal",
-    ] = "group_evidence_pack"
+    ] = "evidence_first_multimodal"
     remote_exposure_policy: RemoteExposurePolicy = Field(default_factory=RemoteExposurePolicy)
     field_groups: list[FieldGroup]
     fields: list[FieldDefinition]

@@ -127,17 +127,13 @@ export function ChartLensApp() {
       ? "设置"
       : activeView === "diagnostics"
         ? "处理日志"
-        : activeView === "evals"
-          ? "质量回归"
-          : selectedCase?.case_id ?? "未选择病例";
+        : selectedCase?.case_id ?? "未选择病例";
   const pageSubtitle =
     activeView === "settings"
       ? "模型供应商、当前抽取链路、字段字典与本地维护。"
       : activeView === "diagnostics"
         ? "用于排查 OCR、缓存、模型调用和视觉兜底的处理记录。"
-        : activeView === "evals"
-          ? "基于金标准病例集的字段准确率回归，当前尚未开放入口。"
-          : "脱敏 OCR 证据用于字段复核，原始文件保留在本机。";
+        : "脱敏 OCR 证据用于字段复核，原始文件保留在本机。";
 
   return (
     <main className="app-shell">
@@ -279,12 +275,6 @@ export function ChartLensApp() {
             latestModelLabel={latestModelLabel}
             documentTerm={documentTerm}
           />
-        ) : activeView === "evals" ? (
-          <section className="empty-workspace">
-            <RefreshCw size={26} />
-            <h3>质量回归暂未开放</h3>
-            <p>该页面用于后续金标准病例集的准确率回归。未接入样本集前不作为日常工作入口。</p>
-          </section>
         ) : selectedCase ? (
           <>
             <DiagnosticsStrip

@@ -8,7 +8,7 @@ import { ocrRuntimeTone } from "../diagnostics/ocrReadiness";
 import { caseNeedsDetailHydration, diagnosticsForCase } from "./caseSwitching.js";
 import { useChartLensActions } from "./useChartLensActions";
 
-export type ActiveView = "review" | "diagnostics" | "settings" | "evals";
+export type ActiveView = "review" | "diagnostics" | "settings";
 
 export type ChartLensState = ReturnType<typeof useChartLensState>;
 
@@ -25,9 +25,7 @@ export function useChartLensState() {
     ? "settings"
     : location.pathname.startsWith("/diagnostics")
       ? "diagnostics"
-      : location.pathname.startsWith("/evals")
-        ? "evals"
-        : "review";
+      : "review";
 
   // --- Server state via TanStack Query ---
   const authQuery = useAuthQuery();

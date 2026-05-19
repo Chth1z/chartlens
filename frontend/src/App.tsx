@@ -10,7 +10,6 @@ export function App() {
       <Route path="/cases/:caseId/review" element={<ChartLensApp />} />
       <Route path="/settings" element={<ChartLensApp />} />
       <Route path="/diagnostics" element={<ChartLensApp />} />
-      <Route path="/evals" element={<ChartLensApp />} />
       <Route path="/auth/complete" element={<ChartLensApp />} />
       <Route path="*" element={<Navigate to="/cases" replace />} />
     </Routes>
