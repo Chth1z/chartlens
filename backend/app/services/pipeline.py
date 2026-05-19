@@ -31,6 +31,7 @@ from app.services.llm_provider.fallback import ConservativeLocalProvider, build_
 from app.services.llm_provider.types import SemanticExtractionProvider
 from app.services.pipeline_errors import _public_error_message, _protect_document_ir
 from app.services.pipeline_evidence_first import (
+    _async_extract_document_evidence_first,
     _extract_document_evidence_first,
     _missing_provider_result,
     _skipped_no_evidence,
@@ -341,3 +342,118 @@ def extract_document(
     finally:
         case_index.close()
     return [results_by_key[field.key] for field in schema.fields if field.key in results_by_key]
+
+
+# ---------------------------------------------------------------------------
+# Async pipeline path (S2-002)
+# ---------------------------------------------------------------------------
+
+
+async def async_extract_document(
+    document_ir: DocumentIR,
+    *,
+    provider: SemanticExtractionProvider,
+    trace: ProcessingTrace | None = None,
+) -> list[ValidatedFieldResult]:
+    """Async version of extract_document. Uses async LLM calls.
+
+    For the evidence_first_multimodal strategy, delegates to the async
+    evidence-first pipeline which uses provider.async_collect_evidence()
+    for non-blocking LLM I/O. For other strategies, falls back to the
+    sync extract_document wrapped in asyncio.to_thread.
+    """
+    import asyncio
+
+    schema = load_extraction_schema()
+    if schema.extraction_strategy == "evidence_first_multimodal":
+        return await _async_extract_document_evidence_first(
+            document_ir, provider=provider, schema=schema, trace=trace
+        )
+    # For non-evidence-first strategies, fall back to sync in thread
+    return await asyncio.to_thread(
+        extract_document, document_ir, provider=provider, trace=trace
+    )
+
+
+async def enqueue_case_async(case_id: str) -> bool:
+    """Async version of enqueue_case.
+
+    Uses asyncio.to_thread for DB operations (SQLAlchemy is sync) and
+    the async pipeline path for LLM calls. This allows multiple cases
+    to have their LLM calls in-flight concurrently without blocking
+    the event loop.
+    """
+    import asyncio
+    from app.core.database import SessionLocal, get_case_or_none
+
+    db = await asyncio.to_thread(SessionLocal)
+    try:
+        case = await asyncio.to_thread(get_case_or_none, db, case_id)
+        if case is None:
+            return False
+        await _async_process_case(db, case)
+        return True
+    finally:
+        await asyncio.to_thread(db.close)
+
+
+async def _async_process_case(db, case: CaseRecord) -> list[ValidatedFieldResult]:
+    """Async case processing: DB ops in to_thread, LLM calls async.
+
+    This is a simplified async path that handles the extraction phase
+    asynchronously. OCR and DB persistence remain synchronous (wrapped
+    in to_thread) since they are CPU-bound or require sync SQLAlchemy.
+    """
+    import asyncio
+
+    # OCR phase (CPU-bound, stays sync)
+    case.status = "ocr"
+    touch_case(case)
+    await asyncio.to_thread(db.commit)
+
+    payload = await asyncio.to_thread(Path(case.file_path).read_bytes)
+    raw_document_ir = await asyncio.to_thread(
+        build_document_ir, Path(case.file_path), payload, case.case_id
+    )
+    case.raw_document_ir_json = _protect_document_ir(raw_document_ir)
+
+    profile = load_document_profile(raw_document_ir.profile_id)
+    normalized_document_ir = await asyncio.to_thread(
+        normalize_document_layout, raw_document_ir, profile
+    )
+    document_ir = await asyncio.to_thread(
+        deidentify_document_ir, normalized_document_ir, profile
+    )
+
+    case.document_ir_json = document_ir.model_dump_json()
+    case.status = "extracting"
+    touch_case(case)
+    await asyncio.to_thread(db.commit)
+
+    # Extraction phase (async LLM calls)
+    provider = build_semantic_provider()
+    results = await async_extract_document(document_ir, provider=provider)
+
+    # Persist results (sync DB)
+    await asyncio.to_thread(_persist_results_sync, db, case, results, document_ir)
+    return results
+
+
+def _persist_results_sync(
+    db, case: CaseRecord, results: list[ValidatedFieldResult], document_ir: DocumentIR
+) -> None:
+    """Sync helper for persisting extraction results to DB."""
+    db.execute(delete(FieldResultRecord).where(FieldResultRecord.case_id == case.case_id))
+    for result in results:
+        db.add(
+            FieldResultRecord(
+                case_id=case.case_id,
+                field_key=result.field_key,
+                payload_json=result.model_dump_json(),
+                reviewed=0,
+            )
+        )
+    case.status = "completed"
+    case.diagnostics_json = json_dumps({"steps": [], "quality": _quality_summary(results, document_ir)})
+    touch_case(case)
+    db.commit()

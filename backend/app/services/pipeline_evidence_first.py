@@ -247,3 +247,123 @@ def _skipped_no_evidence(field) -> ExtractionCandidate:
         risk_level="medium",
         validation_state="needs_review",
     )
+
+
+# ---------------------------------------------------------------------------
+# Async pipeline path (S2-002)
+# ---------------------------------------------------------------------------
+
+
+async def _async_extract_document_evidence_first(
+    document_ir: DocumentIR,
+    *,
+    provider: SemanticExtractionProvider,
+    schema,
+    trace: ProcessingTrace | None = None,
+) -> list[ValidatedFieldResult]:
+    """Async version of _extract_document_evidence_first.
+
+    Uses provider.async_collect_evidence() for non-blocking LLM calls.
+    All other steps remain synchronous (they are local/fast operations).
+    Tracing is skipped in the async path to avoid DB commits in async context.
+    """
+    phase_one_fields = [field for field in schema.fields if field.phase == 1]
+
+    # Rule shortcut (sync, fast) - same logic as sync version
+    rule_shortcut_candidates: dict[str, ExtractionCandidate] = {}
+    llm_fields: list = []
+    for field in phase_one_fields:
+        group = schema.group_by_key(field.field_group_key)
+        if group.semantic_strategy != "rule_shortcut":
+            llm_fields.append(field)
+            continue
+        rule_candidate = rule_shortcut_extract(field, document_ir.blocks)
+        if rule_candidate is None or rule_candidate.confidence < 0.95:
+            llm_fields.append(field)
+            continue
+        rule_shortcut_candidates[field.key] = rule_candidate.model_copy(
+            update={
+                "acceptance_reason": "rule_pre_accepted",
+                "provenance": {
+                    **rule_candidate.provenance,
+                    "source": "rule_shortcut",
+                    "skipped_llm": True,
+                    "decision_status": "PASS",
+                },
+            }
+        )
+
+    context = build_document_context(document_ir)
+    online_allowed = document_ir.metadata.get("deidentification", {}).get("online_llm_allowed", True)
+    evidence_provider = provider if online_allowed else ConservativeLocalProvider()
+    results_by_key: dict[str, ValidatedFieldResult] = {}
+
+    try:
+        # KEY ASYNC CALL: use async_collect_evidence for non-blocking LLM
+        evidence_by_field = await evidence_provider.async_collect_evidence(
+            document_context=context, fields=llm_fields
+        )
+        # Adjudication and verification are local/fast - run sync
+        decisions_by_field = evidence_provider.adjudicate_fields(
+            document_context=context,
+            fields=llm_fields,
+            evidence_by_field=evidence_by_field,
+        )
+        decisions_by_field = evidence_provider.verify_against_document(
+            document_context=context,
+            fields=llm_fields,
+            decisions_by_field=decisions_by_field,
+        )
+        candidates = decisions_to_extraction_candidates(llm_fields, decisions_by_field)
+    except Exception as exc:
+        logger.exception("Async evidence-first extraction failed for %s", document_ir.document_id)
+        candidates = [
+            ExtractionCandidate(
+                field_key=field.key,
+                field_group_key=field.field_group_key,
+                normalized_code="unknown",
+                status="error",
+                evidence_type="no_evidence",
+                reasoning_summary="异步证据优先抽取链路失败，字段降级进入人工复核。",
+                review_required=True,
+                error_code=f"ASYNC_EVIDENCE_FIRST_FAILED: {exc}",
+                risk_level="high",
+                provenance={"source": "evidence_first", "route": "async_failed"},
+            )
+            for field in llm_fields
+        ]
+
+    candidates_by_key = {candidate.field_key: candidate for candidate in candidates}
+    candidates_by_key.update(rule_shortcut_candidates)
+    all_blocks = document_ir.blocks
+    case_index = build_evidence_index(all_blocks)
+    try:
+        for field in phase_one_fields:
+            group = schema.group_by_key(field.field_group_key)
+            candidate = candidates_by_key.get(field.key) or _missing_provider_result(field)
+            candidate = candidate.model_copy(
+                update={
+                    "evidence_candidates": candidate.evidence_candidates or evidence_for_field(document_ir, field, blocks=all_blocks, index=case_index),
+                    "evidence_packs": build_evidence_packs(document_ir, field, blocks=all_blocks, index=case_index),
+                    "model_profile_id": getattr(getattr(evidence_provider, "profile", None), "profile_id", None),
+                    "ocr_engine": document_ir.metadata.get("ocr_engine"),
+                    "provenance": {
+                        **candidate.provenance,
+                        "provider": evidence_provider.name,
+                        "route": candidate.provenance.get("route", evidence_provider.route),
+                        "group": group.key,
+                        "extraction_strategy": "evidence_first_multimodal_async",
+                        "document_context_version": context.metadata.get("context_version"),
+                        "llm_cache_status": _provider_usage_value(evidence_provider, candidate, "llm_cache_status"),
+                        "llm_cache_key": _provider_usage_value(evidence_provider, candidate, "llm_cache_key"),
+                        "ocr_page_quality": _page_quality_for_result(document_ir, candidate),
+                    },
+                }
+            )
+            validated = validate_candidate(candidate, field, document_ir)
+            if field.key in rule_shortcut_candidates:
+                validated = validated.model_copy(update={"acceptance_reason": "rule_pre_accepted"})
+            results_by_key[field.key] = validated
+    finally:
+        case_index.close()
+    return [results_by_key[field.key] for field in schema.fields if field.key in results_by_key]
