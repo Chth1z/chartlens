@@ -25,44 +25,6 @@ This file is the lightweight project board for personal Codex-assisted developme
 
 ## Active / Next
 
-### todo M1-002 Async LLM provider HTTP I/O (deferred)
-
-### todo Add database migration baseline before schema expansion
-
-- Goal: Replace the manual `Base.metadata.create_all(...)` plus ad hoc `_ensure_sqlite_columns` `ALTER TABLE` path with an Alembic migration baseline. Startup runs `alembic upgrade head`. Fresh DB and existing DB go through the same path.
-- Out of scope: No move to Postgres. No schema additions in this task.
-- Acceptance commands: `python -m pytest backend\tests`; manually verify a fresh `var/storage/eyex.sqlite3` is created on first run and an existing one upgrades without manual SQL.
-- Risk: Manual `create_all` and ad hoc `ALTER` will become unsafe as review, eval, and job history grow.
-- Trigger: Before adding the next persistent table or non-null column.
-- Done condition: `alembic` is in `requirements.txt`, baseline migration captures all 7 current tables, startup runs migrations, and the manual `_ensure_sqlite_columns` shim is deleted.
-
-### todo Move persistent processing jobs out of process memory
-
-- Goal: Replace the `ThreadPoolExecutor + BoundedSemaphore` in-memory queue assumption. On startup, scan `processing_runs` for `started/running` rows, mark them `failed` with reason `process_restart_aborted`, and rebound their cases from `extracting/ocr` back to `queued` so `enqueue_case` can pick them up. Failed runs are never silently retried; the operator sees a diagnostic reason.
-- Out of scope: No external queue (Redis, RQ, Celery) for v1. No retry policy beyond explicit re-enqueue.
-- Acceptance commands: `python -m pytest backend\tests`; manual: kill the backend mid-processing, restart, verify the case appears as `failed: process_restart_aborted` and reprocess works.
-- Risk: Uploads in flight at restart silently disappear from the queue and stay stuck in `extracting/ocr` forever.
-- Trigger: After Alembic migration baseline lands (depends on durable schema changes).
-- Done condition: A startup recovery routine exists, has unit tests, and is documented in `docs/DECISIONS.md` if the recovery contract changes.
-
-### todo Replace hand-written API validators with zod or valibot
-
-- Goal: Cut `frontend/src/shared/api/client.ts` (531 lines) plus the matching contract validators in `shared/types/api.ts` from ~1162 lines combined to ~600 lines by introducing a single runtime schema definition. `client.ts` only assembles fetch and translates errors; types come from `z.infer` (or valibot equivalent).
-- Out of scope: No new endpoint. No backend contract change. The current `ApiError(502)` invariant on malformed 2xx responses must be preserved.
-- Acceptance commands: `cd frontend; npm test; npm run build`.
-- Risk: Wrong schema migration silently widens accepted shapes. Bundle size may grow if zod is chosen over valibot.
-- Trigger: Before the next backend contract change that adds or removes endpoint fields.
-- Done condition: One canonical `frontend/src/shared/api/schemas.ts` covers all endpoints; existing validator helpers are removed; existing 9 tests pass.
-
-### todo Clarify ocr_engine vs layout_normalizer boundary
-
-- Goal: Move all profile-driven same-line merging, paragraph reflow, screen-chrome removal, patient-header detection, and key-value derivation out of `ocr_engine/canonicalize.py` and into `services/layout_normalizer.py`. `ocr_engine/` only produces raw blocks plus single-engine canonical merging.
-- Out of scope: No change to the `ocr-canonical-layout-v3` merge policy version contract. No new OCR engine.
-- Acceptance commands: `python -m pytest backend\tests\test_layout_normalization.py backend\tests\test_ocr_engine_modules.py backend\tests\test_ocr_regression.py`; full `python -m pytest backend\tests` before merge; one OCR eval profile run.
-- Risk: Two layers currently both write to `metadata.layout_normalization` / `canonical_blocks_version`; moving rules between them can produce visible OCR text drift if not eval-checked.
-- Trigger: After application/services layout decision.
-- Done condition: `canonicalize.py` no longer references screen-chrome patterns or key-value labels; `layout_normalizer.py` owns those rules; an OCR eval run shows no regression on the existing fixture set.
-
 ### todo Prune dead schema fields in domain/models.py
 
 - Goal: Identify and remove fields on `ExtractionCandidate`, `EvidencePack`, `EvidenceCandidate`, and `DocumentIRBlock` that have no read site in `services/` or `frontend/`. Initial suspects: duplicate `evidence_packs` vs `evidence_candidates`, `candidate_id`, `candidate_group_id`, `canonical_source_ids`, `layout_region_id`, `line_group_id` when no consumer references them.
@@ -89,6 +51,11 @@ This file is the lightweight project board for personal Codex-assisted developme
 - Risk: The current tiny runner is intentionally minimal; switching too early adds toolchain weight without benefit.
 - Trigger: Next frontend test that needs `vi.useFakeTimers`, DOM queries, async test lifecycle, or module mocking.
 - Done condition: `npm test` runs Vitest, all existing tests pass, and the previous runner files are removed.
+
+### todo M1-002 Async LLM provider HTTP I/O (deferred)
+
+- Deferred reason: Pure adapter async-only migration without pipeline restructure adds maintenance cost without observable runtime benefit. Current evidence-first mode does one LLM call per case for all fields together.
+- Trigger: when E2-003 throughput baseline shows LLM-call wait time dominates.
 ## Done
 
 The five most recent done entries stay here in detail. Older done entries live in `docs/PLAN_HISTORY.md` (rotation rule: AGENTS.md "Documentation Maintenance"). When a new done entry lands, the oldest entry in this section moves to `docs/PLAN_HISTORY.md` as a one-paragraph summary plus a link to its DECISIONS anchor when one exists.
