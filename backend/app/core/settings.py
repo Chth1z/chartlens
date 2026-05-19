@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     config_watch: bool = True
     evidence_embeddings: bool = False
     evidence_embedding_weight: float = 2.0
+    multimodal_evidence: bool = False
+    multimodal_max_pages: int = 4
     log_format: Literal["json", "console"] = "json"
     log_level: str = "INFO"
 

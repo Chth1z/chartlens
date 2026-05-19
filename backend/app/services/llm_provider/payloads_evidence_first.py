@@ -137,12 +137,26 @@ def _chat_completions_evidence_first_payload(
             + "Output one JSON object that strictly matches this schema:\n"
             + schema_descriptor
         )
+    messages = [
+        {"role": "system", "content": full_system},
+        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+    ]
+
+    # Add page images for vision-capable models
+    model_inputs = model_profile.input or []
+    if remote_policy.allow_page_images and ("image" in model_inputs or "vision" in model_inputs):
+        image_parts = _chat_image_content_parts(document_context)
+        if image_parts:
+            # Convert user message to multipart content
+            user_text = messages[-1]["content"]
+            messages[-1]["content"] = [
+                {"type": "text", "text": user_text},
+                *image_parts,
+            ]
+
     return {
         "model": model,
-        "messages": [
-            {"role": "system", "content": full_system},
-            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
-        ],
+        "messages": messages,
         "response_format": response_format,
         "temperature": model_profile.temperature,
         "max_tokens": model_profile.max_output_tokens,
@@ -414,3 +428,22 @@ def _evidence_first_user_payload(
         "fields": [_field_prompt_spec(field) for field in fields],
         "output_schema": _evidence_candidate_response_schema(),
     }
+
+
+def _chat_image_content_parts(document_context: DocumentContext) -> list[dict[str, Any]]:
+    """Build image_url content parts for chat completions API."""
+    from app.services.multimodal_context import page_image_to_base64_url
+
+    parts: list[dict[str, Any]] = []
+    for page in document_context.pages:
+        if page.image is None or not page.image.path:
+            continue
+        if not page.image.online_allowed:
+            continue
+        data_url = page_image_to_base64_url(page.image.path)
+        if data_url:
+            parts.append({
+                "type": "image_url",
+                "image_url": {"url": data_url, "detail": "low"},
+            })
+    return parts
