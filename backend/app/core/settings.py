@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     otel_enabled: bool = False
     otel_endpoint: str = ""
     otel_service_name: str = "eyex-backend"
+    log_format: Literal["json", "console"] = "json"
+    log_level: str = "INFO"
 
     model_config = SettingsConfigDict(
         env_file=".env",

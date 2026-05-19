@@ -80,6 +80,9 @@ def _host_is_loopback(host: str | None) -> bool:
 def create_app() -> FastAPI:
     init_db()
 
+    from app.core.logging import init_logging
+    init_logging()
+
     from app.core.telemetry import init_telemetry
     init_telemetry()
 
