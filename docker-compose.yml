@@ -1,0 +1,17 @@
+services:
+  eyex:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/app/config:ro
+      - ./var:/app/var
+    env_file:
+      - .env
+    environment:
+      - EYEX_CONFIG_DIR=/app/config
+      - EYEX_STORAGE_DIR=/app/var/storage
+      - EYEX_DATABASE_URL=sqlite:////app/var/storage/eyex.sqlite3
+      - EYEX_LLM_MODE=${EYEX_LLM_MODE:-disabled}
+      - EYEX_ALLOW_REMOTE_ACCESS=true
+    restart: unless-stopped

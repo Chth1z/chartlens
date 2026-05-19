@@ -109,6 +109,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router, prefix="/api")
+
+    # Serve frontend static files in production (Docker)
+    from pathlib import Path
+    frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if frontend_dist.is_dir():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+
     return app
 
 

@@ -1,0 +1,40 @@
+# Version control
+.git
+.github
+
+# Python virtual environments and caches
+.venv-ocr
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.pytest-tmp
+
+# Node modules (rebuilt in Docker)
+frontend/node_modules
+frontend/dist
+frontend/tmp
+
+# Runtime state (mounted as volume)
+var/
+storage/
+logs/
+output/
+tmp/
+
+# IDE and editor
+.vscode
+.idea
+.kiro
+
+# Local research clones
+references/
+
+# Environment files (passed via env_file or docker-compose)
+.env
+.env.*
+!.env.example
+
+# OS files
+Thumbs.db
+.DS_Store
