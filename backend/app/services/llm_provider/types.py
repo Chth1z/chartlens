@@ -88,6 +88,38 @@ class SemanticExtractionProvider(ABC):
 
         return adjudicate_field_decisions(fields, evidence_by_field)
 
+    # --- Async adapter methods (optional, non-abstract) ----------------------
+    # Default implementations wrap the sync method in asyncio.to_thread so
+    # that subclasses without a native async path still work when called from
+    # an async context. Providers with a true async SDK (e.g. AsyncOpenAI)
+    # override these for genuine non-blocking I/O.
+
+    async def async_extract_group(
+        self,
+        *,
+        document_ir: DocumentIR,
+        group: FieldGroup,
+        fields: list[FieldDefinition],
+        blocks: list[DocumentIRBlock],
+    ) -> list[ExtractionCandidate]:
+        """Async version of extract_group. Default wraps sync in to_thread."""
+        import asyncio
+        return await asyncio.to_thread(
+            self.extract_group, document_ir=document_ir, group=group, fields=fields, blocks=blocks
+        )
+
+    async def async_collect_evidence(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+    ) -> dict[str, list[EvidenceCandidate]]:
+        """Async version of collect_evidence. Default wraps sync in to_thread."""
+        import asyncio
+        return await asyncio.to_thread(
+            self.collect_evidence, document_context=document_context, fields=fields
+        )
+
     def verify_against_document(
         self,
         *,
@@ -115,3 +147,39 @@ def _unknown_model_unavailable(field: FieldDefinition, error_code: str, summary:
         risk_level="high",
         validation_state="needs_review",
     )
+
+
+async def run_provider_async(
+    provider: SemanticExtractionProvider,
+    method: str,
+    **kwargs: Any,
+) -> Any:
+    """Call the async version of a provider method when available, falling
+    back to the sync method wrapped in asyncio.to_thread.
+
+    This utility allows the pipeline to call async methods when available
+    without requiring all callers to know whether a provider has a native
+    async implementation.
+
+    Parameters
+    ----------
+    provider : SemanticExtractionProvider
+        The provider instance to call.
+    method : str
+        The method name, e.g. "collect_evidence" or "extract_group".
+    **kwargs
+        Keyword arguments forwarded to the method.
+
+    Returns
+    -------
+    The result of the provider method call.
+    """
+    import asyncio
+
+    async_method_name = f"async_{method}"
+    async_method = getattr(provider, async_method_name, None)
+    if async_method is not None and callable(async_method):
+        return await async_method(**kwargs)
+    # Fallback: wrap the sync method in to_thread
+    sync_method = getattr(provider, method)
+    return await asyncio.to_thread(sync_method, **kwargs)

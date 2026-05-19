@@ -118,6 +118,88 @@ class ModelFallbackProvider(SemanticExtractionProvider):
         }
         return result
 
+    async def async_collect_evidence(
+        self,
+        *,
+        document_context: DocumentContext,
+        fields: list[FieldDefinition],
+    ) -> dict[str, list[EvidenceCandidate]]:
+        failures: list[str] = []
+        for profile in self.profiles:
+            try:
+                provider = _provider_for_profile(profile)
+                result = await provider.async_collect_evidence(document_context=document_context, fields=fields)
+                self.name = provider.name
+                self.route = provider.route
+                self.last_usage = {**provider.last_usage, "fallback_attempts": len(failures)}
+                if failures:
+                    self.last_usage["fallback_errors"] = failures
+                return result
+            except Exception as exc:
+                failures.append(_format_provider_failure(profile, exc))
+                if not _is_failover_worthy(exc):
+                    break
+        fallback = ConservativeLocalProvider()
+        result = await fallback.async_collect_evidence(document_context=document_context, fields=fields)
+        self.name = fallback.name
+        self.route = fallback.route
+        self.last_usage = {
+            **fallback.last_usage,
+            "fallback_attempts": len(failures),
+            "fallback_failures": len(failures),
+            "fallback_errors": failures,
+        }
+        return result
+
+    async def async_extract_group(
+        self,
+        *,
+        document_ir: DocumentIR,
+        group: FieldGroup,
+        fields: list[FieldDefinition],
+        blocks: list[DocumentIRBlock],
+    ) -> list[ExtractionCandidate]:
+        failures: list[str] = []
+        for profile in self.profiles:
+            try:
+                provider = _provider_for_profile(profile)
+                result = await provider.async_extract_group(document_ir=document_ir, group=group, fields=fields, blocks=blocks)
+                self.name = provider.name
+                self.route = provider.route
+                self.last_usage = {
+                    **provider.last_usage,
+                    "fallback_attempts": len(failures),
+                }
+                if failures:
+                    self.last_usage["fallback_errors"] = failures
+                return result
+            except Exception as exc:
+                failures.append(_format_provider_failure(profile, exc))
+                if not _is_failover_worthy(exc):
+                    break
+        if fields:
+            result = [
+                _unknown_model_unavailable(field, "LLM_PROVIDER_FAILED", "语义模型链路不可用，复杂字段保持 unknown 并进入复核。")
+                for field in fields
+            ]
+            self.name = "unknown-after-model-fallback"
+            self.route = "unknown_after_model_fallback"
+        else:
+            fallback = ConservativeLocalProvider()
+            result = await fallback.async_extract_group(document_ir=document_ir, group=group, fields=fields, blocks=blocks)
+            self.name = fallback.name
+            self.route = "local_after_model_fallback"
+        self.last_usage = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cached_input_tokens": 0,
+            "cost_usd": 0.0,
+            "fallback_attempts": len(failures),
+            "fallback_failures": len(failures),
+            "fallback_errors": failures,
+        }
+        return result
+
 
 def build_semantic_provider() -> SemanticExtractionProvider:
     active = get_active_model_profile()
