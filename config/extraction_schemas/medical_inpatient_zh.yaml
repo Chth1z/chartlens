@@ -416,22 +416,22 @@ fields:
       - pattern: '((?:主因|因|以|患者因|患者主因)[^。；;\n]{0,40}?(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,50}?(?:入院|收入院|收住院|就诊|来院))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.93
+        confidence: 0.96
         summary: 主因到入院明确间隔命中
       - pattern: '((?:服药|服毒|误服|口服|服用)[^。；;\n]{0,30}?(?:后|约)?(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,50}?(?:入院|收入院|收住院|就诊|来院))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.93
+        confidence: 0.96
         summary: 服药或服毒到入院明确间隔命中
       - pattern: '((?:查体发现|发现|查出)[^。；;\n]{0,30}?(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))[^。；;\n]{0,50}?(?:入院|收入院|收住院|就诊|来院))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.91
+        confidence: 0.95
         summary: 查体发现到入院明确间隔命中
       - pattern: '((?:发病|起病|突发[^，,；;\s。]{0,12}|出现[^，,；;\s。]{0,12})(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))后(?:入院|就诊|来院))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.94
+        confidence: 0.97
         summary: 发病到入院明确间隔命中
       - pattern: '((?:入院|就诊|来院)前(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周|月))(?:发病|起病|突发|出现症状))'
         raw_group: 2
@@ -466,22 +466,22 @@ fields:
       - pattern: '((?:入院|住院)第\s*(\d+(?:\.\d+)?\s*(?:天|日|周))[^，,；;\s。]{0,24}(?:手术|行[^，,；;\s。]{0,8}术|拟行[^，,；;\s。]{0,8}术))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.92
+        confidence: 0.96
         summary: 入院第几天手术明确间隔命中
       - pattern: '((?:入院|住院)后(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周))[^，,；;\s。]{0,24}(?:夹闭术|栓塞术|手术|介入|栓塞|夹闭))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.94
+        confidence: 0.97
         summary: 入院到手术明确间隔命中
       - pattern: '((?:夹闭术|栓塞术|手术|介入|栓塞|夹闭)[^，,；;\s。]{0,12}(?:距|距离)入院(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周)))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.9
+        confidence: 0.95
         summary: 手术距离入院明确间隔命中
       - pattern: '((?:入院|住院)第\s*(\d+(?:\.\d+)?\s*(?:小时|h|H|天|日|d|D|周))[^，,；;\s。]{0,24}(?:夹闭术|栓塞术|手术|手术治疗|介入|栓塞|夹闭))'
         raw_group: 2
         evidence_group: 1
-        confidence: 0.9
+        confidence: 0.95
         summary: 入院第几天手术命中
     llm:
       enabled: false

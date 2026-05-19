@@ -28,7 +28,7 @@ from .payloads import _field_evidence_pack_payload, _evidence_first_system_promp
 from app.services.domain_profile import extraction_rules, extraction_system_prompt
 
 PROMPT_VERSION = "eyex-evidence-pack-v4"
-EVIDENCE_FIRST_PROMPT_VERSION = "eyex-evidence-first-v3"
+EVIDENCE_FIRST_PROMPT_VERSION = "eyex-evidence-first-v3.1"
 
 def _llm_cache_key(
     profile,

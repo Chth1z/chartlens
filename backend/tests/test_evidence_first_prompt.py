@@ -45,8 +45,10 @@ def test_prompt_version_bumped_for_e1_001_rewrite():
     automatically. Anyone changing the prompt text should also bump
     this version in cache.py; the LLM result cache uses this string in
     its hash material. v2 → v3 step lands with the substring +
-    placeholder rules below."""
-    assert EVIDENCE_FIRST_PROMPT_VERSION == "eyex-evidence-first-v3"
+    placeholder rules below. v3 → v3.1 strengthens the implicit-negative
+    rule to explicitly call out that family-history mentions do NOT block
+    the section-complete implicit-negative for the patient's own fields."""
+    assert EVIDENCE_FIRST_PROMPT_VERSION == "eyex-evidence-first-v3.1"
 
 
 def test_prompt_documents_section_complete_implicit_negative():
