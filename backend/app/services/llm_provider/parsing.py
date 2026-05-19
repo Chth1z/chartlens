@@ -221,6 +221,32 @@ def _evidence_candidates_from_text(text: str) -> dict[str, list[EvidenceCandidat
 
 
 def _parse_llm_json_object(text: str) -> dict[str, Any]:
+    """Parse a JSON object from LLM response text.
+
+    Uses json_repair (MIT) as the primary parser — it handles fenced
+    code blocks, trailing commas, single quotes, unquoted keys, and
+    other common LLM JSON quirks automatically. Falls back to manual
+    extraction only if json_repair fails entirely.
+    """
+    try:
+        from json_repair import repair_json
+
+        repaired = repair_json(text, return_objects=True)
+        if isinstance(repaired, dict):
+            return repaired
+        if isinstance(repaired, list):
+            return {"results": repaired}
+        if isinstance(repaired, str):
+            # repair_json returned a string — try parsing it
+            parsed = json.loads(repaired)
+            if isinstance(parsed, dict):
+                return parsed
+            if isinstance(parsed, list):
+                return {"results": parsed}
+    except Exception:
+        pass
+
+    # Legacy fallback: try manual extraction strategies
     candidates = [text.strip()]
     fenced = re.search(r"```(?:json)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
     if fenced:
