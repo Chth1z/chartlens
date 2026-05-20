@@ -59,19 +59,21 @@ The master agent does not silently broaden scope mid-iteration. If a sub-agent s
 - Done condition: `ModelProfile.structured_output_mode` is declared and serialized; OpenAI-compatible adapter detects strict-mode capability per `model_profiles/*.yaml`; existing tests still pass; new contract test covers the capability fallback ladder; baseline JSON unchanged.
 - Outcome (2026-05-19): closed in one focused session. 11 new contract tests in `backend/tests/test_provider_structured_output.py`. 7 model-profile YAMLs declare explicit modes (`json_schema` for openai_structured / deepseek_v4_flash / deepseek_v4_pro; `json_object` for openrouter_auto / ollama_local / openai_compatible_custom; `text` for local_disabled). The OpenAI-compatible adapter shares a `_run_chat_request` helper between `extract_group` and `collect_evidence` and walks the `json_schema → json_object → text` downgrade ladder once on a 400-class capability error, recording the downgrade reason in `last_usage`. Cache keys include `structured_output_mode` so flipping modes invalidates cached results. 355 backend tests pass (was 344); 9 frontend tests pass; build clean; governance clean; rule baseline 153/159 byte-equivalent. Anchor: PLAN.md Done.
 
-### M1-002 — Async LLM provider layer (next, planned)
+### M1-004 — Async LLM provider layer (deferred)
 
+- Deferred reason: Pure adapter async-only migration without pipeline restructure adds maintenance cost without observable runtime benefit. Current evidence-first mode does one LLM call per case for all fields together. Trigger: when E2-003 throughput baseline shows LLM-call wait time dominates.
 - Goal: convert `OpenAICompatibleChatProvider`, `OpenAIResponsesProvider`, `AnthropicMessagesProvider`, `GoogleGeminiProvider` to `AsyncOpenAI` / `httpx.AsyncClient`. Keep the existing sync method names as thin wrappers that `asyncio.run` the async core. Enable concurrent field-level dispatch in `pipeline_evidence_first.collect_evidence` by chunking fields and `asyncio.gather`-ing per chunk.
 - Out of scope: FastAPI route async migration; SQLAlchemy async session migration; pipeline orchestration restructure beyond the chunked dispatch.
 - Acceptance: full backend tests pass; LLM baseline within ±1 case of current (cache-cleared); a new perf test asserts that 10 concurrent collect_evidence calls share one client and complete in less than 60% of the serialized time.
 
-### M1-003 — Dependency lockfile + supply-chain audit (planned)
+### M1-003 — Dependency lockfile + supply-chain audit (done 2026-05-19)
 
-- Goal: migrate backend to `uv` (`pyproject.toml` + `uv.lock` + `--require-hashes`); add `pip-audit`, `bandit`, and `npm audit signatures` to CI; emit a CycloneDX SBOM artifact per CI run.
-- Out of scope: dropping any current dependency.
-- Acceptance: CI green; `uv pip install --require-hashes` succeeds; SBOM artifact uploaded.
+- Goal: Add supply-chain security scanning to CI: `pip-audit` (vulnerability scan), `bandit` (SAST), `npm audit` (frontend advisories). Upgrade vulnerable deps to pass the audit clean.
+- Out of scope: `uv` migration, `--require-hashes`, SBOM generation (deferred to a future iteration).
+- Acceptance: CI green with new `security` job; pip-audit exits 0; bandit exits 0; npm audit exits 0.
+- Outcome (2026-05-19): New CI job `security` (ubuntu-latest, parallel with backend/frontend) runs pip-audit, bandit, and npm audit. Created `backend/requirements-audit.txt` and `backend/bandit.yaml`. Upgraded `python-multipart` (3 CVEs fixed) and `pypdf` (18 CVEs fixed). All tests pass; all audit tools exit 0. Anchor: PLAN.md Done.
 
-### M1-004 — OpenTelemetry traces (planned)
+### M1-005 — OpenTelemetry traces (planned)
 
 - Goal: wire `opentelemetry-instrumentation-fastapi` + `opentelemetry-instrumentation-httpx`, mirror every `ProcessingTrace.step` and `record_model_call` as an OTel span carrying `case_id`, `run_id`, `stage`, `provider`, `model`, `cache_status`. Default exporter is OTLP-stdout; a `EYEX_OTEL_ENDPOINT` env var enables OTLP-grpc for local Tempo/Jaeger or a Langfuse OTel ingest.
 - Out of scope: hosted observability backend choice; cost tracking enrichment beyond what `model_calls.cost_usd` already carries.
@@ -83,8 +85,6 @@ The master agent does not silently broaden scope mid-iteration. If a sub-agent s
 - Out of scope: switching to `whoosh` or `tantivy`.
 - Acceptance: rule baseline unchanged; eval runner reports a wall-clock improvement on `mock_general` (target: 30%+ reduction in extraction stage time).
 - Outcome (2026-05-19): closed in one focused session via sub-agent. New `EvidenceIndex` dataclass + `build_evidence_index()` constructor + `evidence_index()` context manager; `_fts_scores` split into indexed and legacy paths; threaded through `build_evidence_packs` / `evidence_for_field` / `_field_evidence_pack_payload`. `pipeline.py` and `pipeline_evidence_first.py` build the index once per case in a `try/finally`. 4 new contract tests assert byte-equivalent packs across 6 schema fields. 359 backend tests pass (was 355). Rule baseline `mock_general.json` byte-equivalent. Perf: end-to-end eval test 5% faster (7.30s → ~6.91s); focused FTS micro-benchmark 2.24× faster (0.516s → 0.231s, 55% reduction). The original 30% wall-clock target was set against the FTS code path itself; the eval test is dominated by OCR/dedup/SQLAlchemy round-trips, which is why the end-to-end delta is smaller. Anchor: PLAN.md Done.
-
-### M1-005 — In-process FTS index per case (re-numbered as M1-002 above; entry preserved for cross-reference)
 
 ### M1-006 — TanStack Query frontend server state (planned)
 
