@@ -48,11 +48,7 @@ export function qualityText(band: string | undefined) {
   return "未知";
 }
 
-export function formatMs(value: number | undefined | null) {
-  if (value == null || value <= 0) return "未记录";
-  if (value < 1000) return `${value} ms`;
-  return `${(value / 1000).toFixed(1)} s`;
-}
+export { formatMs } from "../../shared/utils/formatters";
 
 export function modelAuthLabel(auth: AuthStatus | null, provider?: string) {
   const activeProvider = provider || auth?.model_auth.provider;

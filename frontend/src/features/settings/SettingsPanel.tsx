@@ -31,6 +31,7 @@ import type {
   SystemSettingsResponse
 } from "../../shared/types/api";
 import { ocrRuntimeSummary, ocrRuntimeTone } from "../diagnostics/ocrReadiness";
+import { formatTimestamp } from "../../shared/utils/formatters";
 import { ProviderSettingsPanel } from "./ProviderSettingsPanel";
 
 interface SettingsPanelProps {
@@ -442,13 +443,6 @@ export function SettingsPanel({ auth, onAuthRefresh, onCasesCleared }: SettingsP
       </div>
     </section>
   );
-}
-
-function formatTimestamp(value: number | string | null | undefined) {
-  if (!value) return "无";
-  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
 }
 
 function providerLabel(provider: string | null | undefined, providerId?: string | null) {

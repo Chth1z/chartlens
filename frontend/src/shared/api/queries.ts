@@ -2,14 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getAuthStatus,
   getCaseDiagnostics,
-  getCaseDocumentIr,
   getCaseResults,
   getCaseSourceOcr,
   getProjectConfig,
   getRuntimeSettings,
   listCases,
 } from "./client";
-import type { CaseRecord, FieldResult, OcrBlock } from "../types/api";
+import type { CaseRecord } from "../types/api";
 import { mergeCaseRecord } from "../../features/app/caseSwitching.js";
 
 export const queryKeys = {
@@ -62,20 +61,13 @@ export function useRuntimeQuery(enabled = true) {
   });
 }
 
-export interface CaseDiagnosticsData {
-  results: FieldResult[];
-  ocrBlocks: OcrBlock[];
-  payload: ReturnType<typeof getCaseDiagnostics> extends Promise<infer T> ? T : never;
-}
-
 export function useCaseDiagnosticsQuery(caseId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: queryKeys.caseDiagnostics(caseId ?? ""),
     queryFn: async () => {
       if (!caseId) throw new Error("no case");
-      const [results, _documentIr, sourceOcr, payload] = await Promise.all([
+      const [results, sourceOcr, payload] = await Promise.all([
         getCaseResults(caseId),
-        getCaseDocumentIr(caseId),
         getCaseSourceOcr(caseId),
         getCaseDiagnostics(caseId),
       ]);

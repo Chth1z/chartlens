@@ -1,6 +1,9 @@
 import type { ModelCallLog, ProcessingRun } from "../../shared/types/api";
+import { formatDuration, formatTimestamp } from "../../shared/utils/formatters";
 
-export type DiagnosticsTimelineRow = {
+export { formatDuration, formatTimestamp };
+
+type DiagnosticsTimelineRow = {
   runId: string;
   shortRunId: string;
   status: string;
@@ -16,7 +19,7 @@ export type DiagnosticsTimelineRow = {
   errorMessage: string | null;
 };
 
-export type ModelCallSummary = {
+type ModelCallSummary = {
   totalCalls: number;
   failedCalls: number;
   totalTokens: number;
@@ -49,12 +52,6 @@ export function buildDiagnosticsTimeline(runs: ProcessingRun[], latestRunId?: st
     }));
 }
 
-export function formatDuration(value: number | undefined | null) {
-  if (value == null || value <= 0) return "未记录";
-  if (value < 1000) return `${value} ms`;
-  return `${(value / 1000).toFixed(1)} s`;
-}
-
 export function summarizeModelCalls(calls: ModelCallLog[]): ModelCallSummary {
   const totalCost = calls.reduce((sum, call) => sum + call.cost_usd, 0);
   const totalTokens = calls.reduce((sum, call) => sum + call.input_tokens + call.cached_input_tokens + call.output_tokens, 0);
@@ -81,16 +78,9 @@ export function formatTokenSummary(inputTokens: number | undefined, cachedInputT
   return `${input}:${cached}:${output}`;
 }
 
-export function compactId(value: string) {
+function compactId(value: string) {
   if (value.length <= 12) return value;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
-
-export function formatTimestamp(value: string | number | null | undefined) {
-  if (!value) return "无";
-  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
 }
 
 function runTone(status: string, errorMessage: string | null): DiagnosticsTimelineRow["tone"] {
