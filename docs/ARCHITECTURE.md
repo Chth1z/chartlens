@@ -149,7 +149,7 @@ OCR routing is profile-driven, governed by `config/ocr_profiles/*.yaml`. There a
 Business pipelines never import a protocol adapter directly. They go through `services/llm_provider/`:
 
 - `types.py`: `SemanticExtractionProvider` interface — `extract_group`, `collect_evidence`, `adjudicate_fields`, `verify_against_document`.
-- `adapters.py`: protocol-specific implementations for OpenAI Responses, OpenAI-compatible chat (DeepSeek, OpenRouter, Moonshot, Qwen, Z.AI, Azure, custom).
+- `adapters/`: protocol-specific implementations. `openai_compatible.py` (OpenAI-compatible chat: DeepSeek, OpenRouter, Moonshot, Qwen, Z.AI, Azure, custom), `openai_responses.py` (OpenAI Responses), `anthropic.py`, `gemini.py`. Structured output capability detection and async mixin live in private modules (`_structured_output.py`, `_openai_compatible_async.py`).
 - `fallback.py`: the `ModelFallbackProvider` walks the active `ModelProfile.fallbacks` chain. Permanent errors are not retried. Rate limit and timeout trigger short cooldown on the API key (per `model_key_cooldown_seconds`).
 - `payloads.py`: builds the request payload for each protocol. Evidence-first system prompt is composed from `extraction_system_prompt(document_profile)` plus a fixed evidence-collection rules block. The Responses input is a JSON object with `task`, `remote_context_mode`, `remote_exposure_policy`, `rules`, `document_context`, `fields`, and `output_schema`.
 - `parsing.py`: response JSON schemas (`_response_schema`, `_evidence_candidate_response_schema`) and tolerant JSON object parsing with cache hooks.
@@ -195,15 +195,10 @@ The following targets come from `AGENTS.md`. They are evidence-driven, not asser
 
 These are real, currently in `PLAN.md` or `docs/DECISIONS.md`. Listed here so new sessions do not redesign them blind:
 
-- `application/` vs flat `services/` layout — open decision (`docs/DECISIONS.md` 2026-05-17 PENDING entry); `pipeline.py` mixes orchestration with quality summary and worker glue. Closing this is the prerequisite for the provider, pipeline, and OCR-boundary splits below.
-- `pipeline.py` crossed the 500-line ceiling on 2026-05-18 with E1-005 rule_pre_accepted. Split tracked as `PLAN-split-pipeline.py`; the next task touching `pipeline.py` must split it.
 - `ocr_engine/canonicalize.py` does some same-line merging that the target boundary places in `layout_normalizer.py`. Tracked as "Clarify ocr_engine vs layout_normalizer boundary" in `PLAN.md`.
 - No Alembic baseline yet; database evolves via `Base.metadata.create_all` plus an ad hoc `_ensure_sqlite_columns` shim. Tracked in `PLAN.md`.
 - In-memory thread-pool queue with no durable recovery on process restart; in-flight runs can stick in `extracting` / `ocr`. Tracked in `PLAN.md`.
-- `frontend/src/styles.css` is 3211 lines; split tracked as `PLAN-split-styles-css`.
-- `frontend/src/features/cases/EvidencePanel.tsx` is 2017 lines; split tracked in `PLAN.md`.
-- `model_providers.py` is 659 lines; split tracked in `PLAN.md` and is sequenced after the `llm_provider/` split below.
-- Further split of `services/llm_provider/` into `protocols/`, `router.py`, `credentials.py` is planned but not done; the registry layer in `services/llm_provider/registry.py` already covers provider dispatch (E1-011 Phase 3, 2026-05-18) but the protocol-vs-router-vs-credentials separation still lives inside `adapters.py` and `fallback.py`.
+- Further split of `services/llm_provider/` into `protocols/`, `router.py`, `credentials.py` is planned but not done; the registry layer in `services/llm_provider/registry.py` already covers provider dispatch (E1-011 Phase 3, 2026-05-18) but the protocol-vs-router-vs-credentials separation still lives inside `adapters/` and `fallback.py`.
 
 ## Decision Anchors
 
