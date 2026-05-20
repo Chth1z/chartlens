@@ -10,15 +10,11 @@ to avoid redundant API calls within a single case processing run.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import numpy as np
 
 from app.core.settings import settings
 from app.domain.models import DocumentIRBlock, FieldDefinition
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

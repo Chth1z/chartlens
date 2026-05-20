@@ -247,47 +247,6 @@ def build_evidence_packs(
     return packs
 
 
-def compact_group_context(
-    group: FieldGroup,
-    fields: list[FieldDefinition],
-    blocks: list[DocumentIRBlock],
-) -> list[dict]:
-    field_ranked = {field.key: build_evidence_packs(None, field, blocks=blocks) for field in fields}
-    candidate_block_ids = {pack.block_id for candidates in field_ranked.values() for pack in candidates}
-    ranked = sorted(
-        blocks,
-        key=lambda block: (
-            block.block_id in candidate_block_ids,
-            _group_block_score(block, fields),
-            block.confidence,
-        ),
-        reverse=True,
-    )
-    remaining = group.max_context_chars
-    compacted: list[dict] = []
-    for block in ranked:
-        if remaining <= 0:
-            break
-        text = block.text.strip()
-        if not text:
-            continue
-        if len(text) > remaining:
-            text = text[: max(0, remaining - 3)] + "..."
-        compacted.append(
-            {
-                "block_id": block.block_id,
-                "page": block.page,
-                "reading_order": block.reading_order,
-                "section_label": block.section_label,
-                "document_kind": block.document_kind,
-                "confidence": block.confidence,
-                "text": text,
-            }
-        )
-        remaining -= len(text)
-    return compacted
-
-
 def _score_block(block: DocumentIRBlock, field: FieldDefinition) -> tuple[float, list[str], list[str]]:
     score = 0.0
     match_terms: list[str] = []

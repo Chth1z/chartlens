@@ -162,37 +162,3 @@ def _paddle_probe() -> dict[str, Any]:
             "compiled_rocm": False,
             "error": str(exc),
         }
-
-
-def windows_gpu_summary() -> list[dict[str, Any]]:
-    if platform.system().lower() != "windows":
-        return []
-    try:
-        completed = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "Get-CimInstance Win32_VideoController | "
-                "Select-Object Name,AdapterCompatibility,DriverVersion | ConvertTo-Json -Depth 3",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except Exception:
-        return []
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return []
-    try:
-        import json
-
-        parsed = json.loads(completed.stdout)
-    except Exception:
-        return []
-    if isinstance(parsed, dict):
-        parsed = [parsed]
-    if not isinstance(parsed, list):
-        return []
-    return [item for item in parsed if isinstance(item, dict)]

@@ -56,14 +56,6 @@ def _match_group(match: re.Match, group: int | str) -> str | None:
     return str(value) if value is not None else None
 
 
-def code_from_map(field: FieldDefinition, text: str) -> str | None:
-    for code, terms in field.code_map.items():
-        for term in terms:
-            if term and term in text:
-                return code
-    return None
-
-
 def _extract_gender(field: FieldDefinition, blocks: list[DocumentIRBlock]) -> ExtractionCandidate | None:
     patterns = [
         re.compile(r"(?:性别\s*[:：]?\s*)?(男|女)(?=$|[，,；;\s])"),

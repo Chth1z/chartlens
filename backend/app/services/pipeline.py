@@ -33,12 +33,6 @@ queue_slots = BoundedSemaphore(max(1, settings.case_workers) + max(0, settings.m
 logger = logging.getLogger(__name__)
 
 
-def create_case_record(db: Session, filename: str, payload: bytes) -> CaseRecord:
-    case_id, safe_name, file_path = prepare_case_file(filename)
-    file_path.write_bytes(payload)
-    return create_case_record_from_saved_file(db, case_id, safe_name, file_path, file_sha256(payload))
-
-
 def prepare_case_file(filename: str) -> tuple[str, str, Path]:
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
     case_id = f"CASE-{uuid.uuid4().hex[:12].upper()}"
