@@ -43,7 +43,8 @@ function Get-SourceFiles([string[]]$Roots, [string[]]$Includes) {
 $apiRoot = Join-Path $RepoRoot "backend\app\api"
 $streamingRouteAllowlist = @(
     '"/cases/{case_id}/source-pages/{page}"',
-    '"/cases/{case_id}/export"'
+    '"/cases/{case_id}/export"',
+    '"/cases/{case_id}/progress"'
 )
 if (Test-Path -LiteralPath $apiRoot) {
     $apiPyFiles = Get-ChildItem -LiteralPath $apiRoot -Recurse -File -Filter "*.py" -ErrorAction SilentlyContinue |
