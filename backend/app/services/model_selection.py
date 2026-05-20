@@ -94,8 +94,7 @@ def model_profiles_payload() -> dict:
     active = get_active_model_profile()
     profiles: list[dict] = []
     loaded_profiles = [_effective_profile(profile) for profile in list_model_profiles()]
-    for profile in list_model_profiles():
-        effective = _effective_profile(profile)
+    for effective in loaded_profiles:
         payload = effective.model_dump()
         payload["model_ref"] = _model_ref(effective)
         payload["auth_configured"] = auth_configured_for_profile(effective)
