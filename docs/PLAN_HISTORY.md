@@ -172,3 +172,15 @@ When adding to this file, append at the bottom in dated, reverse-task-id order (
 
 - Reduced 703-line `frontend/src/features/app/ChartLensApp.tsx` to a focused module set: `ChartLensApp.tsx` (336), `useChartLensState.ts` (486), `components.tsx` (20), `caseSwitching.ts` (25). Frontend tests (9) pass; build clean; governance clean.
 - Anchor: AGENTS.md 500-line soft trigger rule.
+
+## 2026-05-20 — Governance rotation
+
+### done PLAN-split-frontend-types-api (2026-05-19)
+
+- Split 631-line `frontend/src/shared/types/api.ts` into 6 focused modules (50-271 lines each) grouped by API surface: `cases.ts`, `fields.ts`, `auth.ts`, `models.ts`, `system.ts`, plus a barrel re-exporter. Zero runtime impact; all 24 consumer sites unchanged.
+- Anchor: AGENTS.md 500-line soft trigger rule.
+
+### done PLAN-split-provider-settings-panel (2026-05-19)
+
+- Extracted 22 pure helper functions from `ProviderSettingsPanel.tsx` (614 → 482 lines) into `providerHelpers.tsx` (156 lines). Includes `providerIcon`, `modelSettingsPayload`, `providerApiOptions`, formatting utilities, and status text generators.
+- Anchor: AGENTS.md 500-line soft trigger rule.
